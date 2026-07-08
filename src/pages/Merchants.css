@@ -1,0 +1,182 @@
+.merchants-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  animation: slideUp 0.4s ease;
+}
+
+.merchants-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+}
+
+.ms-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 74px;
+}
+
+.merchant-shortcut {
+  border: 1px solid rgba(245,158,11,0.18);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: right;
+  width: 100%;
+}
+
+.ms-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.15rem;
+}
+
+.ms-value {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.merchants-management {
+  overflow: hidden;
+}
+
+.management-feedback {
+  margin: 0 0 0.8rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--radius-md);
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.22);
+  color: #BAE6FD;
+  font-size: 0.85rem;
+}
+
+.driver-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.inline-icon {
+  color: var(--text-muted);
+  vertical-align: middle;
+  margin-left: 0.25rem;
+}
+
+.merchant-debt {
+  color: #F87171;
+  font-weight: 800;
+}
+
+.merchant-contact-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(2, 6, 23, 0.58);
+  backdrop-filter: blur(10px);
+}
+
+.merchant-contact-dialog {
+  width: min(440px, 100%);
+  padding: 1rem;
+}
+
+.merchant-contact-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.merchant-contact-header h3 {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.merchant-contact-header p {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.7;
+  margin-top: 0.25rem;
+}
+
+.contact-phone-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.contact-phone-box span {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.contact-phone-box strong {
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.contact-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.merchant-form-grid {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.merchant-form-grid .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.merchant-form-grid .form-field span {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.merchant-shipment-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.merchant-shipment-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.05);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 1000px) {
+  .merchants-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .merchants-summary {
+    grid-template-columns: 1fr;
+  }
+}

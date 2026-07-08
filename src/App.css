@@ -1,0 +1,68 @@
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main-area {
+  flex: 1;
+  margin-right: 260px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  transition: margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-shell.sidebar-collapsed .main-area {
+  margin-right: 72px;
+}
+
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.floating-chat {
+  position: fixed;
+  left: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 250;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: 1px solid rgba(14, 165, 233, 0.4);
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 28px rgba(14, 165, 233, 0.3);
+  cursor: pointer;
+}
+
+.floating-chat-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 0.25rem;
+  border-radius: var(--radius-full);
+  background: var(--error);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@media (max-width: 760px) {
+  .main-area,
+  .app-shell.sidebar-collapsed .main-area {
+    margin-right: 0;
+  }
+}

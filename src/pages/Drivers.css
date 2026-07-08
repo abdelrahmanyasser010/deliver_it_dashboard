@@ -1,0 +1,254 @@
+.drivers-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  animation: slideUp 0.4s ease;
+}
+
+.drivers-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.driver-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 74px;
+}
+
+.compact-card {
+  padding: 0.9rem 1rem;
+}
+
+.ds-icon { flex-shrink: 0; }
+.ds-icon.blue { color: #3B82F6; }
+.ds-icon.amber { color: #F59E0B; }
+.ds-icon.purple { color: #8B5CF6; }
+
+.ds-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.15rem;
+}
+
+.ds-value {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.drivers-management {
+  overflow: hidden;
+}
+
+.management-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.management-toolbar h3 {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.management-toolbar p {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  margin-top: 0.15rem;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.management-search {
+  min-width: 280px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-md);
+  background: rgba(0,0,0,0.18);
+  padding: 0 0.75rem;
+}
+
+.management-search svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.management-search input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: 'Cairo', sans-serif;
+  min-width: 0;
+}
+
+.management-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.management-feedback {
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--radius-md);
+  color: #34D399;
+  background: rgba(16,185,129,0.1);
+  border: 1px solid rgba(16,185,129,0.18);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.compact-table td,
+.compact-table th {
+  padding-block: 0.65rem;
+}
+
+.driver-status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-full);
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.driver-status-pill.active {
+  color: #34D399;
+  background: rgba(16,185,129,0.14);
+}
+
+.driver-status-pill.off {
+  color: #94A3B8;
+  background: rgba(148,163,184,0.12);
+}
+
+.driver-row-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.btn-icon.danger:hover {
+  color: #F87171;
+  border-color: rgba(239,68,68,0.28);
+}
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0,0,0,0.58);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.driver-dialog {
+  width: min(560px, 100%);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  margin-bottom: 1rem;
+}
+
+.dialog-header h3 {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.driver-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dialog-field.full {
+  grid-column: 1 / -1;
+}
+
+.dialog-field span {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.dialog-field input {
+  height: 40px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-md);
+  background: rgba(0,0,0,0.22);
+  color: var(--text-primary);
+  padding: 0 0.8rem;
+  font-family: 'Cairo', sans-serif;
+}
+
+.dialog-field input:focus {
+  outline: none;
+  border-color: var(--secondary);
+}
+
+.confirm-description {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.8;
+  margin-bottom: 1rem;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.danger-action {
+  background: linear-gradient(135deg, #EF4444, #B91C1C) !important;
+  box-shadow: 0 4px 15px rgba(239,68,68,0.24) !important;
+}
+
+@media (max-width: 900px) {
+  .drivers-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .management-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .management-search {
+    min-width: 100%;
+  }
+
+  .driver-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
