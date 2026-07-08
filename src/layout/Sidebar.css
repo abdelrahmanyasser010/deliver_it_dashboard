@@ -205,16 +205,112 @@
   position: relative;
 }
 
-.notification-dot {
+.notification-wrap {
+  position: relative;
+}
+
+.notification-count {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 8px;
-  height: 8px;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 0.25rem;
+  border-radius: var(--radius-full);
   background: var(--error);
+  color: white;
+  border: 2px solid rgba(15, 23, 42, 0.95);
+  font-size: 0.65rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notifications-popover {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  left: 0;
+  width: min(360px, calc(100vw - 2rem));
+  padding: 0;
+  overflow: hidden;
+  z-index: 320;
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.35);
+}
+
+.notifications-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.notifications-head span {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.notifications-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.notification-item {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: 'Cairo', sans-serif;
+  text-align: right;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.notification-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.notification-mark {
+  width: 10px;
+  height: 10px;
+  margin-top: 0.38rem;
   border-radius: 50%;
-  border: 2px solid var(--surface);
-  animation: pulse 2s infinite;
+  background: var(--secondary);
+}
+
+.notification-mark.warning { background: #F59E0B; }
+.notification-mark.info { background: var(--secondary); }
+.notification-mark.success { background: #10B981; }
+
+.notification-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.notification-copy strong {
+  font-size: 0.86rem;
+}
+
+.notification-copy small {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.notification-copy em {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-style: normal;
 }
 
 .user-avatar {

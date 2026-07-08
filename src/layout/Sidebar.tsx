@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Bell,
   ChartNoAxesCombined,
@@ -28,6 +28,15 @@ interface NavSection {
   items: NavItem[];
 }
 
+interface NotificationItem {
+  id: string;
+  title: string;
+  detail: string;
+  page: string;
+  time: string;
+  tone: 'warning' | 'info' | 'success';
+}
+
 const navSections: NavSection[] = [
   {
     title: 'التشغيل',
@@ -45,8 +54,35 @@ const navSections: NavSection[] = [
     items: [
       { id: 'drivers', label: 'المناديب', icon: <Users size={20} /> },
       { id: 'merchants', label: 'التجار', icon: <Store size={20} /> },
-      { id: 'users', label: 'الصلاحيات', icon: <ShieldCheck size={20} /> },
+      { id: 'users', label: 'المستخدمون والصلاحيات', icon: <ShieldCheck size={20} /> },
     ],
+  },
+];
+
+const notifications: NotificationItem[] = [
+  {
+    id: 'note-1',
+    title: 'تحديث مندوب يحتاج اعتماد',
+    detail: '٣ شحنات غيّر حالتها محمد علي وتحتاج مراجعة.',
+    page: 'operations',
+    time: 'منذ ٨ دقائق',
+    tone: 'warning',
+  },
+  {
+    id: 'note-2',
+    title: 'تأخير في محافظة الجيزة',
+    detail: '٥ شحنات تعدّت وقت التسليم المتوقع.',
+    page: 'reports',
+    time: 'منذ ٢٢ دقيقة',
+    tone: 'info',
+  },
+  {
+    id: 'note-3',
+    title: 'تقفيلة نقدية جاهزة',
+    detail: 'تحصيلات اليوم جاهزة للمراجعة في المحاسبة.',
+    page: 'accounting',
+    time: 'اليوم',
+    tone: 'success',
   },
 ];
 
@@ -62,7 +98,7 @@ export function Sidebar({ activePage, collapsed, onNavigate, onToggleCollapsed }
     localStorage.clear();
     sessionStorage.clear();
     onNavigate('overview');
-    window.alert('تم تسجيل الخروج من جلسة لوحة التحكم.');
+    window.alert('تم تسجيل الخروج من لوحة التحكم.');
   };
 
   return (
@@ -77,7 +113,11 @@ export function Sidebar({ activePage, collapsed, onNavigate, onToggleCollapsed }
             <span className="logo-sub">لوحة التحكم</span>
           </div>
         )}
-        <button className="collapse-btn btn-icon" onClick={onToggleCollapsed} title={collapsed ? 'توسيع القائمة' : 'تصغير القائمة'}>
+        <button
+          className="collapse-btn btn-icon"
+          onClick={onToggleCollapsed}
+          title={collapsed ? 'توسيع القائمة' : 'تصغير القائمة'}
+        >
           {collapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
         </button>
       </div>
@@ -114,17 +154,57 @@ export function Sidebar({ activePage, collapsed, onNavigate, onToggleCollapsed }
 
 interface HeaderProps {
   title: string;
+  onNavigate?: (page: string) => void;
 }
 
-export function Header({ title }: HeaderProps) {
+export function Header({ title, onNavigate }: HeaderProps) {
+  const [open, setOpen] = useState(false);
+
+  const openNotification = (page: string) => {
+    setOpen(false);
+    onNavigate?.(page);
+  };
+
   return (
     <header className="topbar glass-panel">
       <h1 className="topbar-title">{title}</h1>
       <div className="topbar-actions">
-        <button className="btn-icon notification-btn" title="الإشعارات">
-          <Bell size={18} />
-          <span className="notification-dot" />
-        </button>
+        <div className="notification-wrap">
+          <button
+            className="btn-icon notification-btn"
+            title="الإشعارات"
+            onClick={() => setOpen((value) => !value)}
+            aria-expanded={open}
+          >
+            <Bell size={18} />
+            <span className="notification-count">{notifications.length}</span>
+          </button>
+
+          {open && (
+            <div className="notifications-popover glass-panel">
+              <div className="notifications-head">
+                <strong>الإشعارات</strong>
+                <span>{notifications.length} جديدة</span>
+              </div>
+              <div className="notifications-list">
+                {notifications.map((notification) => (
+                  <button
+                    key={notification.id}
+                    className="notification-item"
+                    onClick={() => openNotification(notification.page)}
+                  >
+                    <span className={`notification-mark ${notification.tone}`} />
+                    <span className="notification-copy">
+                      <strong>{notification.title}</strong>
+                      <small>{notification.detail}</small>
+                      <em>{notification.time}</em>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
         <div className="user-avatar">م</div>
       </div>
     </header>

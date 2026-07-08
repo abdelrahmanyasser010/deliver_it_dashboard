@@ -1,4 +1,4 @@
-.operations-center {
+﻿.operations-center {
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
@@ -103,6 +103,30 @@
   font-size: 0.8rem;
 }
 
+.ops-next-step {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 0.95rem;
+  border-color: rgba(14,165,233,0.16);
+}
+
+.ops-next-step > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.ops-next-step strong {
+  font-size: 0.92rem;
+}
+
+.ops-next-step span {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
 .ops-section {
   display: flex;
   flex-direction: column;
@@ -290,9 +314,10 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.72rem 0.85rem;
+  flex-wrap: wrap;
 }
 
-.ops-toolbar > div {
+.ops-toolbar > div:not(.capacity-control) {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
@@ -310,7 +335,11 @@
 .capacity-control {
   display: flex;
   align-items: center;
+  flex-direction: row;
   gap: 0.35rem;
+  margin-inline-start: auto;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .capacity-chip {
@@ -503,7 +532,8 @@
 
 @media (max-width: 760px) {
   .ops-command-bar,
-  .ops-toolbar {
+  .ops-toolbar,
+  .ops-next-step {
     align-items: stretch;
     flex-direction: column;
   }
@@ -511,6 +541,11 @@
   .ops-command-metrics,
   .ops-actions {
     justify-content: flex-start;
+  }
+
+  .capacity-control {
+    margin-inline-start: 0;
+    flex-wrap: wrap;
   }
 
   .ops-tabs,

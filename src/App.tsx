@@ -27,7 +27,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/chat': 'الشات',
   '/applications': 'طلبات التجار',
   '/settlements': 'التسويات والمحافظ',
-  '/users': 'المستخدمين والصلاحيات',
+  '/users': 'المستخدمون والصلاحيات',
   '/audit-log': 'سجل العمليات',
 };
 
@@ -55,7 +55,7 @@ function App() {
         onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
       />
       <div className="main-area">
-        <Header title={PAGE_TITLES[location.pathname] ?? 'لوحة التحكم'} />
+        <Header title={PAGE_TITLES[location.pathname] ?? 'لوحة التحكم'} onNavigate={handleNavigate} />
         <main className="page-content">
           <Routes>
             <Route path="/" element={<OverviewPage />} />
