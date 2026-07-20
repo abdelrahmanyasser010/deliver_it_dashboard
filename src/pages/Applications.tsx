@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { CheckCircle2, ClipboardCheck, Eye, XCircle } from 'lucide-react';
 import { useMerchantApplications } from '../application/admin/useAdminData';
 import type { MerchantApplication } from '../domain/admin/entities';
@@ -24,7 +24,7 @@ export function ApplicationsPage() {
         <div className="section-title-row">
           <div>
             <h3>طلبات التجار</h3>
-            <p className="section-subtitle">تغطية مسار Brand Owner application الموجود في التطبيق: مراجعة، قبول، رفض، ثم تفعيل الدخول.</p>
+            <p className="section-subtitle">مراجعة طلبات انضمام التجار: تحقق من البيانات، قبول أو رفض، ثم تفعيل حساب التاجر.</p>
           </div>
           <button className="outline-btn" onClick={() => setMessage('قواعد المراجعة: تحقق من النشاط، العنوان، رقم الهاتف، ومتوسط الطلبات قبل القبول.')}>
             <ClipboardCheck size={16} />
@@ -48,9 +48,9 @@ export function ApplicationsPage() {
             </div>
             <div className="toolbar-actions">
               <span className={`tone-badge ${statusTone[application.status]}`}>{applicationStatusLabels[application.status]}</span>
-              <button className="btn-icon sm" title="عرض الطلب" onClick={() => setSelectedApplication(application)}><Eye size={14} /></button>
-              <button className="btn-icon sm" title="قبول" onClick={() => decideApplication(application.id, 'approved')}><CheckCircle2 size={14} /></button>
-              <button className="btn-icon sm" title="رفض" onClick={() => decideApplication(application.id, 'rejected')}><XCircle size={14} /></button>
+              <button className="btn-icon sm" title="عرض الطلب" aria-label="عرض الطلب" onClick={() => setSelectedApplication(application)}><Eye size={14} /></button>
+              <button className="btn-icon sm" title="قبول" aria-label="قبول الطلب" onClick={() => decideApplication(application.id, 'approved')}><CheckCircle2 size={14} /></button>
+              <button className="btn-icon sm" title="رفض" aria-label="رفض الطلب" onClick={() => decideApplication(application.id, 'rejected')}><XCircle size={14} /></button>
             </div>
           </div>
         ))}
@@ -64,7 +64,7 @@ export function ApplicationsPage() {
                 <h3>{selectedApplication.brandName}</h3>
                 <p className="section-subtitle">{selectedApplication.id}</p>
               </div>
-              <button className="btn-icon sm" onClick={() => setSelectedApplication(null)} title="إغلاق"><XCircle size={14} /></button>
+              <button className="btn-icon sm" onClick={() => setSelectedApplication(null)} title="إغلاق" aria-label="إغلاق"><XCircle size={14} /></button>
             </div>
             <div className="admin-detail-list">
               <Detail label="النشاط" value={selectedApplication.activity} />
@@ -97,3 +97,4 @@ function Detail({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+

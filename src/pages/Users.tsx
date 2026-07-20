@@ -71,8 +71,8 @@ export function UsersPage() {
                     <td className="date">{user.lastSeenAt}</td>
                     <td>
                       <div className="row-actions">
-                        <button className="btn-icon sm" title="تعديل الصلاحيات" onClick={() => setDialogUser(user)}><Edit3 size={14} /></button>
-                        <button className="btn-icon sm" title="إدارة الحساب" onClick={() => setDialogUser(user)}><UserCog size={14} /></button>
+                        <button className="btn-icon sm" title="تعديل الصلاحيات" aria-label="تعديل الصلاحيات" onClick={() => setDialogUser(user)}><Edit3 size={14} /></button>
+                        <button className="btn-icon sm" title="إدارة الحساب" aria-label="إدارة الحساب" onClick={() => setDialogUser(user)}><UserCog size={14} /></button>
                       </div>
                     </td>
                   </tr>

@@ -1,28 +1,34 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Banknote,
+  CheckCircle2,
   CheckSquare,
-  Clock3,
-  Eye,
-  Printer,
-  RefreshCcw,
+  Columns3,
+  BookmarkPlus,
+  FileSpreadsheet,
+  FilterX,
   Search,
   Square,
-  Truck,
+  Upload,
   X,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+import { ALL_STATUS, type FilterStatus, useDrivers, useShipments } from '../application/logistics/useLogisticsData';
+import { EmptyState, ErrorState, PageSkeleton } from '../components/AsyncState';
+import { FilterChip as UiFilterChip, Modal } from '../components/ui/Ui';
+import { useDeliveryData } from '../context/DeliveryDataContext';
+import type {
+  Shipment,
+  ShipmentStatus,
+} from '../domain/logistics/entities';
+import { buildImportedShipment, parseCsv, validateImportRow, type CsvPreview } from '../features/shipments/csvImport';
+import { BulkActionDialog, CsvPreviewDialog, SelectionBar, ShipmentDrawer, ShipmentRow, type BulkAction, type ShipmentAction, type ShipmentColumn } from '../features/shipments/ShipmentPresentation';
+import { downloadCsv } from '../utils/exportCsv';
 import {
-  ALL_STATUS,
-  type FilterStatus,
-  useShipments,
-} from '../application/logistics/useLogisticsData';
-import type { Shipment, ShipmentStatus } from '../domain/logistics/entities';
-import {
-  calculateShipmentFinancials,
-  formatCurrency,
-  paymentTypeLabels,
+  financialStatusConfig,
+  formatDateTime,
+  priorityConfig,
   statusConfig,
+  taskStatusConfig,
 } from '../utils/helpers';
 import './Shipments.css';
 
@@ -38,612 +44,406 @@ const statusOptions: { value: FilterStatus; label: string }[] = [
   { value: 'returned', label: 'مرتجع' },
 ];
 
-const drivers = [
-  { id: 'DRV-001', name: 'محمد علي' },
-  { id: 'DRV-002', name: 'أحمد سامي' },
-  { id: 'DRV-004', name: 'خالد إبراهيم' },
-  { id: 'DRV-005', name: 'ياسر عمر' },
-];
+const formatNumber = (value: number) => value.toLocaleString('ar-EG');
 
-type ShipmentAction = 'assign' | 'status' | 'attempt' | 'settlement';
-type BulkAction = 'assign' | 'status' | 'print';
+type ViewFilter = 'all' | 'unassigned' | 'delayed' | 'financial-review';
+
+interface SavedShipmentView {
+  id: string;
+  name: string;
+  query: string;
+  statusFilter: FilterStatus;
+  viewFilter: ViewFilter;
+  governorateFilter: string;
+  driverFilter: string;
+  merchantFilter: string;
+  priorityFilter: string;
+  columns: ShipmentColumn[];
+}
+const shipmentColumns: Array<{ id: ShipmentColumn; label: string }> = [
+  { id: 'customer', label: 'العميل' }, { id: 'merchant', label: 'التاجر' }, { id: 'area', label: 'المنطقة' }, { id: 'driver', label: 'المندوب' },
+  { id: 'status', label: 'الحالة' }, { id: 'task', label: 'المطلوب' }, { id: 'collection', label: 'التحصيل' }, { id: 'updated', label: 'آخر تحديث' },
+];
+const defaultColumns = shipmentColumns.map((item) => item.id);
+function readSavedViews(): SavedShipmentView[] {
+  try { return JSON.parse(localStorage.getItem('deliver-it-shipment-views') ?? '[]') as SavedShipmentView[]; } catch { return []; }
+}
+function readVisibleColumns(): ShipmentColumn[] {
+  try { const stored = JSON.parse(localStorage.getItem('deliver-it-shipment-columns') ?? '[]') as ShipmentColumn[]; return stored.length ? stored : defaultColumns; } catch { return defaultColumns; }
+}
 
 export function ShipmentsPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialStatus = searchParams.get('status');
   const [query, setQuery] = useState(searchParams.get('merchant') ?? '');
-  const [statusFilter, setStatusFilter] = useState<FilterStatus>(ALL_STATUS);
-  const [governorateFilter, setGovernorateFilter] = useState('all');
-  const [driverFilter, setDriverFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>(isShipmentStatus(initialStatus) ? initialStatus : ALL_STATUS);
+  const [viewFilter, setViewFilter] = useState<ViewFilter>(isViewFilter(searchParams.get('view')) ? searchParams.get('view') as ViewFilter : 'all');
+  const [governorateFilter, setGovernorateFilter] = useState(searchParams.get('governorate') ?? 'all');
+  const [driverFilter, setDriverFilter] = useState(searchParams.get('driver') ?? 'all');
   const [merchantFilter, setMerchantFilter] = useState('all');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [priorityFilter, setPriorityFilter] = useState('all');
+  const fromDate = searchParams.get('from');
+  const toDate = searchParams.get('to');
+  const selectedId = searchParams.get('shipment');
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
   const [activeAction, setActiveAction] = useState<ShipmentAction | null>(null);
   const [bulkAction, setBulkAction] = useState<BulkAction | null>(null);
-  const [lastAction, setLastAction] = useState<string | null>(null);
-  const [shipmentOverrides, setShipmentOverrides] = useState<Record<string, Partial<Shipment>>>({});
-  const [attempts, setAttempts] = useState<Record<string, string[]>>({});
+  const [toast, setToast] = useState<string | null>(null);
+  const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
+  const [now] = useState(() => Date.now());
+  const [visibleColumns, setVisibleColumns] = useState<ShipmentColumn[]>(readVisibleColumns);
+  const [savedViews, setSavedViews] = useState<SavedShipmentView[]>(readSavedViews);
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [saveViewOpen, setSaveViewOpen] = useState(false);
+  const [viewName, setViewName] = useState('');
 
-  const sourceShipments = useShipments(query, statusFilter);
-  const shipments = sourceShipments.map((shipment) => ({
-    ...shipment,
-    ...shipmentOverrides[shipment.id],
-  }));
+  const shipmentQuery = useShipments(query, statusFilter);
+  const driversQuery = useDrivers();
+  const delivery = useDeliveryData();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const filterOptions = useMemo(() => {
-    const governorates = [...new Set(shipments.map((shipment) => shipment.governorate))];
-    const merchants = [...new Set(shipments.map((shipment) => shipment.merchantName))];
-    const shipmentDrivers = [...new Set(shipments.map((shipment) => shipment.driverName).filter(Boolean) as string[])];
+  const allShipments = shipmentQuery.shipments;
 
-    return { governorates, merchants, shipmentDrivers };
-  }, [shipments]);
+  const filterOptions = useMemo(() => ({
+    governorates: [...new Set(allShipments.map((shipment) => shipment.governorate))].sort((a, b) => a.localeCompare(b, 'ar')),
+    merchants: [...new Set(allShipments.map((shipment) => shipment.merchantName))].sort((a, b) => a.localeCompare(b, 'ar')),
+    shipmentDrivers: [...new Set(allShipments.map((shipment) => shipment.driverName).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, 'ar')),
+  }), [allShipments]);
 
-  const filtered = shipments.filter((shipment) => {
+  const filtered = useMemo(() => allShipments.filter((shipment) => {
     const matchesGovernorate = governorateFilter === 'all' || shipment.governorate === governorateFilter;
-    const matchesDriver =
-      driverFilter === 'all' ||
-      (driverFilter === 'unassigned' && !shipment.driverName) ||
-      shipment.driverName === driverFilter;
+    const matchesDriver = driverFilter === 'all' || (driverFilter === 'unassigned' && !shipment.driverName) || shipment.driverName === driverFilter;
     const matchesMerchant = merchantFilter === 'all' || shipment.merchantName === merchantFilter;
+    const matchesPriority = priorityFilter === 'all' || shipment.priority === priorityFilter;
+    const createdTime = new Date(shipment.createdAt).getTime();
+    const matchesDate = (!fromDate || createdTime >= new Date(`${fromDate}T00:00:00`).getTime()) && (!toDate || createdTime <= new Date(`${toDate}T23:59:59.999`).getTime());
+    const isDelayed = Boolean(shipment.expectedDeliveryAt) && new Date(shipment.expectedDeliveryAt as string).getTime() < now && !['delivered', 'returned'].includes(shipment.status);
+    const matchesView = viewFilter === 'all'
+      || (viewFilter === 'unassigned' && shipment.taskStatus === 'needsDriverAssignment')
+      || (viewFilter === 'delayed' && isDelayed)
+      || (viewFilter === 'financial-review' && shipment.taskStatus === 'needsFinancialReview');
+    return matchesGovernorate && matchesDriver && matchesMerchant && matchesPriority && matchesView && matchesDate;
+  }), [allShipments, governorateFilter, driverFilter, merchantFilter, priorityFilter, viewFilter, now, fromDate, toDate]);
 
-    return matchesGovernorate && matchesDriver && matchesMerchant;
-  });
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const statusParam = searchParams.get('status');
+      if (isShipmentStatus(statusParam) && statusParam !== statusFilter) setStatusFilter(statusParam);
+      const merchantParam = searchParams.get('merchant');
+      if (merchantParam !== null && merchantParam !== query) setQuery(merchantParam);
+      const driverParam = searchParams.get('driver');
+      if (driverParam && driverParam !== driverFilter) setDriverFilter(driverParam);
+      const governorateParam = searchParams.get('governorate');
+      if (governorateParam && governorateParam !== governorateFilter) setGovernorateFilter(governorateParam);
+    });
+    return () => { cancelled = true; };
+  }, [searchParams, statusFilter, query, driverFilter, governorateFilter]);
 
-  const selected = filtered.find((shipment) => shipment.id === selectedId) ?? null;
-  const selectedFinancials = selected ? calculateShipmentFinancials(selected) : null;
+  const selected = allShipments.find((shipment) => shipment.id === selectedId) ?? null;
   const checkedShipments = filtered.filter((shipment) => checkedIds.includes(shipment.id));
   const allVisibleSelected = filtered.length > 0 && filtered.every((shipment) => checkedIds.includes(shipment.id));
+  const activeFilterCount = [statusFilter !== ALL_STATUS, viewFilter !== 'all', governorateFilter !== 'all', driverFilter !== 'all', merchantFilter !== 'all', priorityFilter !== 'all', Boolean(query), Boolean(fromDate), Boolean(toDate)].filter(Boolean).length;
 
-  const updateShipment = (shipmentId: string, patch: Partial<Shipment>, message?: string) => {
-    setShipmentOverrides((current) => ({
-      ...current,
-      [shipmentId]: { ...current[shipmentId], ...patch },
-    }));
-    if (message) setLastAction(message);
+  const openDrawer = (shipmentId: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('shipment', shipmentId);
+    setSearchParams(next, { replace: true });
   };
 
+  const closeDrawer = () => {
+    setActiveAction(null);
+    const next = new URLSearchParams(searchParams);
+    next.delete('shipment');
+    setSearchParams(next, { replace: true });
+  };
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (csvPreview) setCsvPreview(null);
+      else if (bulkAction) setBulkAction(null);
+      else if (activeAction) setActiveAction(null);
+      else if (selectedId) {
+            const next = new URLSearchParams(searchParams);
+        next.delete('shipment');
+        setSearchParams(next, { replace: true });
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [activeAction, bulkAction, csvPreview, searchParams, selectedId, setSearchParams]);
+
+
   const handlePrint = (targets: Shipment[]) => {
-    const label = targets.length === 1 ? `بوليصة ${targets[0].id}` : `${targets.length} بوليصات`;
-    setLastAction(`تم تجهيز ${label} للطباعة عبر Enzo Printer أو طابعة المتصفح.`);
+    const label = targets.length === 1 ? `بوليصة ${targets[0].id}` : `${formatNumber(targets.length)} بوليصات`;
+    setToast(`تم تجهيز ${label} للطباعة عبر طابعة المتصفح.`);
     window.print();
   };
 
-  const toggleAllVisible = () => {
-    if (allVisibleSelected) {
-      setCheckedIds((current) => current.filter((id) => !filtered.some((shipment) => shipment.id === id)));
-      return;
-    }
-
-    setCheckedIds((current) => [...new Set([...current, ...filtered.map((shipment) => shipment.id)])]);
+  const exportFilteredShipments = () => {
+    downloadCsv('الشحنات-المعروضة.csv', filtered.map((shipment) => ({
+      البوليصة: shipment.id,
+      كود_التتبع: shipment.trackingNumber,
+      العميل: shipment.customerName,
+      الهاتف: shipment.customerPhone,
+      المحافظة: shipment.governorate,
+      المدينة: shipment.city,
+      العنوان: shipment.address,
+      التاجر: shipment.merchantName,
+      المندوب: shipment.driverName ?? 'غير معين',
+      الحالة_التشغيلية: statusConfig[shipment.status].label,
+      الإجراء_المطلوب: taskStatusConfig[shipment.taskStatus].label,
+      الحالة_المالية: financialStatusConfig[shipment.financialStatus].label,
+      المبلغ: shipment.total,
+      آخر_تحديث: formatDateTime(shipment.lastUpdatedAt),
+    })));
+    setToast(`تم تصدير ${formatNumber(filtered.length)} شحنة مطابقة للفلاتر الحالية.`);
   };
 
-  const toggleShipment = (shipmentId: string) => {
-    setCheckedIds((current) =>
-      current.includes(shipmentId)
-        ? current.filter((id) => id !== shipmentId)
-        : [...current, shipmentId],
-    );
+  const readShipmentSheet = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rows = parseCsv(String(reader.result ?? ''));
+      const existingCodes = new Set(allShipments.flatMap((shipment) => [shipment.id, shipment.trackingNumber]));
+      const previewRows = rows.map((data, index) => validateImportRow(data, index + 2, existingCodes));
+      setCsvPreview({ fileName: file.name, rows: previewRows });
+    };
+    reader.onerror = () => setToast('تعذر قراءة الملف. تأكد أنه CSV محفوظ بترميز UTF-8.');
+    reader.readAsText(file, 'utf-8');
+  };
+
+  const confirmImport = async () => {
+    if (!csvPreview) return;
+    const validRows = csvPreview.rows.filter((row) => row.errors.length === 0 && !row.duplicate);
+    const nextShipments = validRows.map((row, index) => buildImportedShipment(row.data, allShipments.length + index));
+    const commandResult = await delivery.execute({ type: 'shipment/import', shipments: nextShipments });
+    setCsvPreview(null);
+    setToast(commandResult.message);
+  };
+
+  const toggleAllVisible = () => {
+    if (allVisibleSelected) setCheckedIds((current) => current.filter((id) => !filtered.some((shipment) => shipment.id === id)));
+    else setCheckedIds((current) => [...new Set([...current, ...filtered.map((shipment) => shipment.id)])]);
   };
 
   const clearFilters = () => {
     setQuery('');
     setStatusFilter(ALL_STATUS);
+    setViewFilter('all');
     setGovernorateFilter('all');
     setDriverFilter('all');
     setMerchantFilter('all');
+    setPriorityFilter('all');
+    setCheckedIds([]);
+    const next = new URLSearchParams(searchParams);
+    next.delete('view');
+    next.delete('status');
+    next.delete('merchant');
+    next.delete('from');
+    next.delete('to');
+    next.delete('driver');
+    next.delete('governorate');
+    setSearchParams(next, { replace: true });
   };
+
+  const submitShipmentAction = async (payload: Record<string, string>) => {
+    if (!selected || !activeAction) return;
+    let commandResult;
+    if (activeAction === 'assign') {
+      commandResult = await delivery.execute({ type: 'shipment/assignDriver', shipmentIds: [selected.id], driverId: payload.driverId });
+    } else if (activeAction === 'status' && isShipmentStatus(payload.status)) {
+      commandResult = await delivery.execute({ type: 'shipment/transition', shipmentIds: [selected.id], nextStatus: payload.status, reason: payload.note.trim() || `تحديث الحالة إلى ${statusConfig[payload.status].label}` });
+    } else if (activeAction === 'attempt') {
+      const note = payload.note.trim();
+      if (!note) { setToast('اكتب سبب أو نتيجة محاولة التسليم أولًا.'); return; }
+      commandResult = await delivery.execute({ type: 'shipment/addAttempt', shipmentId: selected.id, note });
+    } else if (activeAction === 'settlement') {
+      commandResult = await delivery.execute({ type: 'shipment/requestSettlement', shipmentIds: [selected.id] });
+    }
+    if (commandResult) setToast(commandResult.message);
+    setActiveAction(null);
+  };
+
+  const persistColumns = (columns: ShipmentColumn[]) => {
+    const next: ShipmentColumn[] = columns.length ? columns : ['customer'];
+    setVisibleColumns(next);
+    localStorage.setItem('deliver-it-shipment-columns', JSON.stringify(next));
+  };
+
+  const saveCurrentView = () => {
+    const name = viewName.trim();
+    if (!name) { setToast('اكتب اسمًا للـView أولًا.'); return; }
+    const nextView: SavedShipmentView = { id: `view-${Date.now()}`, name, query, statusFilter, viewFilter, governorateFilter, driverFilter, merchantFilter, priorityFilter, columns: visibleColumns };
+    const next = [nextView, ...savedViews].slice(0, 10);
+    setSavedViews(next);
+    localStorage.setItem('deliver-it-shipment-views', JSON.stringify(next));
+    setViewName(''); setSaveViewOpen(false); setToast(`تم حفظ View: ${name}`);
+  };
+
+  const applySavedView = (id: string) => {
+    const view = savedViews.find((item) => item.id === id);
+    if (!view) return;
+    setQuery(view.query); setStatusFilter(view.statusFilter); setViewFilter(view.viewFilter); setGovernorateFilter(view.governorateFilter); setDriverFilter(view.driverFilter); setMerchantFilter(view.merchantFilter); setPriorityFilter(view.priorityFilter); persistColumns(view.columns);
+    setToast(`تم تطبيق View: ${view.name}`);
+  };
+
+  const deleteSavedView = (id: string) => {
+    const next = savedViews.filter((item) => item.id !== id);
+    setSavedViews(next); localStorage.setItem('deliver-it-shipment-views', JSON.stringify(next));
+  };
+
+  const submitBulkAction = async (payload: Record<string, string>) => {
+    if (!bulkAction) return;
+    let commandResult;
+    if (bulkAction === 'print') handlePrint(checkedShipments);
+    else if (bulkAction === 'assign') commandResult = await delivery.execute({ type: 'shipment/assignDriver', shipmentIds: checkedShipments.map((shipment) => shipment.id), driverId: payload.driverId });
+    else if (bulkAction === 'status' && isShipmentStatus(payload.status)) commandResult = await delivery.execute({ type: 'shipment/transition', shipmentIds: checkedShipments.map((shipment) => shipment.id), nextStatus: payload.status, reason: `عملية جماعية: ${statusConfig[payload.status].label}` });
+    if (commandResult) setToast(commandResult.message);
+    setBulkAction(null);
+    setCheckedIds([]);
+  };
+
+  if (shipmentQuery.isLoading) return <PageSkeleton rows={4} />;
+  if (shipmentQuery.error) return <ErrorState message={shipmentQuery.error} onRetry={shipmentQuery.refetch} />;
 
   return (
     <div className="shipments-page">
-      <div className="filters-bar glass-card">
+      <header className="shipments-heading">
+        <div>
+          <p className="page-kicker">إدارة ومتابعة دورة الشحنة</p>
+          <h2>الشحنات</h2>
+          <p>بحث، فلاتر، إجراءات جماعية، ومراجعة تشغيلية ومالية من شاشة واحدة.</p>
+        </div>
+        <div className="heading-actions">
+          <button className="outline-btn" onClick={() => setColumnsOpen(true)}><Columns3 size={15} /> الأعمدة</button>
+          <button className="outline-btn" onClick={() => setSaveViewOpen(true)}><BookmarkPlus size={15} /> حفظ View</button>
+          <button className="outline-btn" onClick={exportFilteredShipments}><FileSpreadsheet size={15} /> تصدير المعروض</button>
+          <button className="btn-primary" onClick={() => fileInputRef.current?.click()}><Upload size={15} /> استيراد CSV</button>
+          <input ref={fileInputRef} className="visually-hidden" type="file" accept=".csv,text/csv" onChange={(event) => { const file = event.target.files?.[0]; if (file) readShipmentSheet(file); event.currentTarget.value = ''; }} />
+        </div>
+      </header>
+
+      <section className="shipment-toolbar glass-card">
         <div className="search-field">
-          <Search size={16} className="search-icon" />
-          <input
-            className="input-glass search-input"
-            type="text"
-            placeholder="بحث برقم الشحنة، العميل، المندوب، أو التاجر"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          {query && (
-            <button className="clear-btn" onClick={() => setQuery('')} title="مسح البحث">
-              <X size={14} />
-            </button>
-          )}
+          <Search size={17} />
+          <input type="search" placeholder="رقم الشحنة، الهاتف، العميل، العنوان، التاجر أو المندوب" value={query} onChange={(event) => setQuery(event.target.value)} aria-label="البحث في الشحنات" />
+          {query && <button className="icon-plain" onClick={() => setQuery('')} aria-label="مسح البحث"><X size={15} /></button>}
         </div>
-
-        <div className="status-filters">
-          {statusOptions.map((option) => (
-            <button
-              key={option.value}
-              className={`filter-pill ${statusFilter === option.value ? 'active' : ''}`}
-              onClick={() => setStatusFilter(option.value)}
-            >
-              {option.label}
-            </button>
-          ))}
+        <div className="shipment-status-filters">
+          {statusOptions.map((option) => <button key={option.value} className={`filter-pill ${statusFilter === option.value ? 'active' : ''}`} onClick={() => setStatusFilter(option.value)}>{option.label}</button>)}
         </div>
+      </section>
 
-        <div className="results-count">
-          <span>{filtered.length}</span> شحنة
-        </div>
-      </div>
+      <section className="advanced-filters glass-card">
+        <select className="input-glass" value={governorateFilter} onChange={(event) => setGovernorateFilter(event.target.value)} aria-label="فلتر المحافظة"><option value="all">كل المحافظات</option>{filterOptions.governorates.map((item) => <option key={item}>{item}</option>)}</select>
+        <select className="input-glass" value={driverFilter} onChange={(event) => setDriverFilter(event.target.value)} aria-label="فلتر المندوب"><option value="all">كل المناديب</option><option value="unassigned">غير معين</option>{filterOptions.shipmentDrivers.map((item) => <option key={item}>{item}</option>)}</select>
+        <select className="input-glass" value={merchantFilter} onChange={(event) => setMerchantFilter(event.target.value)} aria-label="فلتر التاجر"><option value="all">كل التجار</option>{filterOptions.merchants.map((item) => <option key={item}>{item}</option>)}</select>
+        <select className="input-glass saved-view-select" defaultValue="" onChange={(event) => { applySavedView(event.target.value); event.currentTarget.value = ''; }} aria-label="تطبيق View محفوظ"><option value="">Views محفوظة ({formatNumber(savedViews.length)})</option>{savedViews.map((view) => <option key={view.id} value={view.id}>{view.name}</option>)}</select>
+        <select className="input-glass" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} aria-label="فلتر الأولوية"><option value="all">كل الأولويات</option><option value="urgent">عاجل</option><option value="high">مهم</option><option value="normal">طبيعي</option></select>
+        <button className="outline-btn compact-btn" onClick={clearFilters} disabled={activeFilterCount === 0}><FilterX size={15} /> مسح الفلاتر ({formatNumber(activeFilterCount)})</button>
+        <div className="results-count"><strong>{formatNumber(filtered.length)}</strong><span>من {formatNumber(allShipments.length)} شحنة</span></div>
+      </section>
 
-      <div className="advanced-filters glass-card">
-        <select className="input-glass" value={governorateFilter} onChange={(event) => setGovernorateFilter(event.target.value)}>
-          <option value="all">كل المحافظات</option>
-          {filterOptions.governorates.map((governorate) => (
-            <option key={governorate} value={governorate}>{governorate}</option>
-          ))}
-        </select>
-
-        <select className="input-glass" value={driverFilter} onChange={(event) => setDriverFilter(event.target.value)}>
-          <option value="all">كل المناديب</option>
-          <option value="unassigned">غير معين</option>
-          {filterOptions.shipmentDrivers.map((driver) => (
-            <option key={driver} value={driver}>{driver}</option>
-          ))}
-        </select>
-
-        <select className="input-glass" value={merchantFilter} onChange={(event) => setMerchantFilter(event.target.value)}>
-          <option value="all">كل التجار</option>
-          {filterOptions.merchants.map((merchant) => (
-            <option key={merchant} value={merchant}>{merchant}</option>
-          ))}
-        </select>
-
-        <button className="outline-btn compact-btn" onClick={clearFilters}>إعادة ضبط</button>
-      </div>
-
-      {checkedShipments.length > 0 && (
-        <div className="selection-bar glass-card">
-          <strong>تم تحديد {checkedShipments.length} شحنة</strong>
-          <div className="selection-actions">
-            <button className="outline-btn compact-btn" onClick={() => setBulkAction('assign')}>
-              <Truck size={15} />
-              تعيين مندوب
-            </button>
-            <button className="outline-btn compact-btn" onClick={() => setBulkAction('status')}>
-              <RefreshCcw size={15} />
-              تحديث الحالة
-            </button>
-            <button className="outline-btn compact-btn" onClick={() => setBulkAction('print')}>
-              <Printer size={15} />
-              طباعة البوليصات
-            </button>
-            <button className="ghost-link" onClick={() => setCheckedIds([])}>إلغاء التحديد</button>
-          </div>
+      {activeFilterCount > 0 && (
+        <div className="active-filter-chips" aria-label="الفلاتر النشطة">
+          {query && <UiFilterChip label={`البحث: ${query}`} onRemove={() => setQuery('')} />}
+          {statusFilter !== ALL_STATUS && <UiFilterChip label={`الحالة: ${statusConfig[statusFilter].label}`} onRemove={() => setStatusFilter(ALL_STATUS)} />}
+          {viewFilter !== 'all' && <UiFilterChip label={viewFilterLabels[viewFilter]} onRemove={() => setViewFilter('all')} />}
+          {governorateFilter !== 'all' && <UiFilterChip label={`المحافظة: ${governorateFilter}`} onRemove={() => setGovernorateFilter('all')} />}
+          {driverFilter !== 'all' && <UiFilterChip label={`المندوب: ${driverFilter === 'unassigned' ? 'غير معين' : driverFilter}`} onRemove={() => setDriverFilter('all')} />}
+          {merchantFilter !== 'all' && <UiFilterChip label={`التاجر: ${merchantFilter}`} onRemove={() => setMerchantFilter('all')} />}
+          {priorityFilter !== 'all' && <UiFilterChip label={`الأولوية: ${priorityConfig[priorityFilter as keyof typeof priorityConfig].label}`} onRemove={() => setPriorityFilter('all')} />}
+          {fromDate && <UiFilterChip label={`من: ${fromDate}`} onRemove={() => { const next = new URLSearchParams(searchParams); next.delete('from'); setSearchParams(next, { replace: true }); }} />}
+          {toDate && <UiFilterChip label={`إلى: ${toDate}`} onRemove={() => { const next = new URLSearchParams(searchParams); next.delete('to'); setSearchParams(next, { replace: true }); }} />}
         </div>
       )}
 
-      {lastAction && <div className="operation-feedback page-feedback">{lastAction}</div>}
+      {checkedShipments.length > 0 && (
+        <SelectionBar
+          count={checkedShipments.length}
+          total={filtered.length}
+          totalCod={checkedShipments.reduce((sum, shipment) => sum + shipment.expectedCollection, 0)}
+          onAssign={() => setBulkAction('assign')}
+          onStatus={() => setBulkAction('status')}
+          onPrint={() => setBulkAction('print')}
+          onClear={() => setCheckedIds([])}
+        />
+      )}
 
-      <div className="table-container glass-card">
-        <div className="table-wrapper">
-          <table className="data-table shipments-table">
-            <thead>
-              <tr>
-                <th>
-                  <button className="table-check" onClick={toggleAllVisible} title="تحديد المعروض">
-                    {allVisibleSelected ? <CheckSquare size={17} /> : <Square size={17} />}
-                  </button>
-                </th>
-                <th>رقم الشحنة</th>
-                <th>العميل</th>
-                <th>المحافظة</th>
-                <th>التاجر</th>
-                <th>المندوب</th>
-                <th>الحالة</th>
-                <th>الدفع</th>
-                <th>المبلغ</th>
-                <th>التاريخ</th>
-                <th>إجراءات</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="empty-row">لا توجد نتائج مطابقة للفلاتر الحالية</td>
-                </tr>
-              ) : filtered.map((shipment) => {
-                const cfg = statusConfig[shipment.status];
-                const checked = checkedIds.includes(shipment.id);
-
-                return (
-                  <tr key={shipment.id} className={`table-row ${checked ? 'selected-row' : ''}`}>
-                    <td>
-                      <button className="table-check" onClick={() => toggleShipment(shipment.id)} title="تحديد الشحنة">
-                        {checked ? <CheckSquare size={17} /> : <Square size={17} />}
-                      </button>
-                    </td>
-                    <td className="tracking-num">{shipment.id}</td>
-                    <td>
-                      <strong>{shipment.customerName}</strong>
-                      <small className="cell-sub" dir="ltr">{shipment.customerPhone}</small>
-                    </td>
-                    <td>{shipment.governorate}</td>
-                    <td>{shipment.merchantName}</td>
-                    <td>{shipment.driverName ?? <span className="unassigned">غير معين</span>}</td>
-                    <td>
-                      <span className="status-badge" style={{ color: cfg.color, background: cfg.bg }}>
-                        {cfg.label}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`payment-badge ${shipment.paymentType}`}>
-                        {paymentTypeLabels[shipment.paymentType]}
-                      </span>
-                    </td>
-                    <td className="amount">{formatCurrency(shipment.total)}</td>
-                    <td className="date">{shipment.createdAt}</td>
-                    <td>
-                      <div className="action-btns">
-                        <button className="btn-icon sm" title="عرض التفاصيل" onClick={() => setSelectedId(shipment.id)}>
-                          <Eye size={15} />
-                        </button>
-                        <button className="btn-icon sm" title="طباعة بوليصة" onClick={() => handlePrint([shipment])}>
-                          <Printer size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {filtered.length === 0 ? (
+        <EmptyState title="لا توجد شحنات مطابقة" description="جرّب مسح بعض الفلاتر أو استخدام كلمة بحث مختلفة." actionLabel="مسح كل الفلاتر" onAction={clearFilters} />
+      ) : (
+        <section className="table-container glass-card">
+          <div className="table-wrapper">
+            <table className="data-table shipments-table">
+              <thead><tr><th><button className="table-check" onClick={toggleAllVisible} aria-label="تحديد كل النتائج الظاهرة">{allVisibleSelected ? <CheckSquare size={17} /> : <Square size={17} />}</button></th><th>رقم الشحنة</th>{visibleColumns.includes('customer') && <th>العميل</th>}{visibleColumns.includes('merchant') && <th>التاجر</th>}{visibleColumns.includes('area') && <th>المنطقة</th>}{visibleColumns.includes('driver') && <th>المندوب</th>}{visibleColumns.includes('status') && <th>الحالة</th>}{visibleColumns.includes('task') && <th>المطلوب</th>}{visibleColumns.includes('collection') && <th>التحصيل</th>}{visibleColumns.includes('updated') && <th>آخر تحديث</th>}<th>إجراءات</th></tr></thead>
+              <tbody>
+                {filtered.map((shipment) => (
+                  <ShipmentRow
+                    key={shipment.id}
+                    shipment={shipment}
+                    checked={checkedIds.includes(shipment.id)}
+                    onToggle={() => setCheckedIds((current) => current.includes(shipment.id) ? current.filter((id) => id !== shipment.id) : [...current, shipment.id])}
+                    onOpen={() => openDrawer(shipment.id)}
+                    onPrint={() => handlePrint([shipment])}
+                    now={now}
+                    visibleColumns={visibleColumns}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {selected && (
-        <div className="drawer-overlay" onClick={() => setSelectedId(null)}>
-          <div className="detail-drawer glass-panel" onClick={(event) => event.stopPropagation()}>
-            <div className="drawer-header">
-              <div>
-                <h3>تفاصيل الشحنة</h3>
-                <p className="drawer-id">{selected.id}</p>
-              </div>
-              <button className="btn-icon" onClick={() => setSelectedId(null)} title="إغلاق">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="drawer-body">
-              <section className="detail-section">
-                <h4>بيانات العميل</h4>
-                <DetailRow label="الاسم" value={selected.customerName} />
-                <DetailRow label="الهاتف" value={selected.customerPhone} dir="ltr" />
-                <DetailRow label="المحافظة" value={selected.governorate} />
-                <DetailRow label="المدينة" value={selected.city} />
-                <DetailRow label="العنوان" value={selected.address} />
-              </section>
-
-              <section className="detail-section">
-                <h4>بيانات الشحنة</h4>
-                <DetailRow label="المندوب" value={selected.driverName ?? 'غير معين'} />
-                <DetailRow label="التاجر" value={selected.merchantName} />
-                <DetailRow label="نوع الدفع" value={paymentTypeLabels[selected.paymentType]} />
-                <DetailRow label="التاريخ" value={selected.createdAt} />
-              </section>
-
-              <section className="detail-section">
-                <h4>سجل الحركة</h4>
-                <Timeline shipment={selected} attempts={attempts[selected.id] ?? []} />
-              </section>
-
-              <section className="detail-section">
-                <h4>عمليات التشغيل</h4>
-                <div className="shipment-ops-grid">
-                  <button className="outline-btn" onClick={() => setActiveAction('assign')}>
-                    <Truck size={16} />
-                    تعيين مندوب
-                  </button>
-                  <button className="outline-btn" onClick={() => setActiveAction('status')}>
-                    <RefreshCcw size={16} />
-                    تحديث الحالة
-                  </button>
-                  <button className="outline-btn" onClick={() => setActiveAction('attempt')}>
-                    <Clock3 size={16} />
-                    محاولة تسليم
-                  </button>
-                  <button className="outline-btn" onClick={() => setActiveAction('settlement')}>
-                    <Banknote size={16} />
-                    طلب تسوية
-                  </button>
-                </div>
-              </section>
-
-              <section className="detail-section">
-                <h4>التفاصيل المالية</h4>
-                <DetailRow label="إجمالي المنتجات" value={formatCurrency(selectedFinancials?.itemsSubtotal ?? 0)} />
-                <DetailRow label="رسوم الشحن" value={formatCurrency(selectedFinancials?.deliveryFee ?? 0)} />
-                <DetailRow label="الخصم" value={formatCurrency(selectedFinancials?.discount ?? 0)} />
-                <DetailRow label="المبلغ النهائي" value={formatCurrency(selectedFinancials?.finalTotal ?? 0)} bold />
-              </section>
-
-              <div className="drawer-actions">
-                <button className="btn-primary full-btn" onClick={() => handlePrint([selected])}>
-                  <Printer size={16} />
-                  طباعة البوليصة
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {activeAction && (
-            <ShipmentActionDialog
-              action={activeAction}
-              shipment={selected}
-              onCancel={() => setActiveAction(null)}
-              onSubmit={(payload) => {
-                if (activeAction === 'assign') {
-                  const driver = drivers.find((item) => item.id === payload.driverId);
-                  if (driver) {
-                    updateShipment(selected.id, { driverId: driver.id, driverName: driver.name, status: 'deliveredToDriver' }, `تم تعيين ${selected.id} إلى ${driver.name}.`);
-                  }
-                }
-
-                if (activeAction === 'status') {
-                  updateShipment(selected.id, { status: payload.status as ShipmentStatus }, `تم تحديث حالة ${selected.id} إلى ${statusConfig[payload.status as ShipmentStatus].label}.`);
-                }
-
-                if (activeAction === 'attempt') {
-                  const note = payload.note || 'محاولة تسليم بدون ملاحظة';
-                  setAttempts((current) => ({
-                    ...current,
-                    [selected.id]: [...(current[selected.id] ?? []), note],
-                  }));
-                  updateShipment(selected.id, { status: 'postponed' }, `تم تسجيل محاولة تسليم للشحنة ${selected.id}.`);
-                }
-
-                if (activeAction === 'settlement') {
-                  updateShipment(selected.id, { settlementStatus: 'settled' }, `تم إنشاء طلب تسوية للشحنة ${selected.id} وإرساله للمحاسبة.`);
-                }
-
-                setActiveAction(null);
-              }}
-            />
-          )}
-        </div>
+        <ShipmentDrawer
+          shipment={selected}
+          attempts={(selected.attempts ?? []).map((attempt) => attempt.note)}
+          activeAction={activeAction}
+          drivers={driversQuery.drivers}
+          onClose={closeDrawer}
+          onAction={setActiveAction}
+          onCancelAction={() => setActiveAction(null)}
+          onSubmitAction={submitShipmentAction}
+          onPrint={() => handlePrint([selected])}
+        />
       )}
 
       {bulkAction && (
         <BulkActionDialog
           action={bulkAction}
-          count={checkedShipments.length}
+          shipments={checkedShipments}
+          drivers={driversQuery.drivers}
           onCancel={() => setBulkAction(null)}
-          onSubmit={(payload) => {
-            if (bulkAction === 'assign') {
-              const driver = drivers.find((item) => item.id === payload.driverId);
-              if (driver) {
-                checkedShipments.forEach((shipment) => {
-                  updateShipment(shipment.id, { driverId: driver.id, driverName: driver.name, status: 'deliveredToDriver' });
-                });
-                setLastAction(`تم تعيين ${checkedShipments.length} شحنة إلى ${driver.name}.`);
-              }
-            }
-
-            if (bulkAction === 'status') {
-              checkedShipments.forEach((shipment) => {
-                updateShipment(shipment.id, { status: payload.status as ShipmentStatus });
-              });
-              setLastAction(`تم تحديث ${checkedShipments.length} شحنة إلى ${statusConfig[payload.status as ShipmentStatus].label}.`);
-            }
-
-            if (bulkAction === 'print') {
-              handlePrint(checkedShipments);
-            }
-
-            setCheckedIds([]);
-            setBulkAction(null);
-          }}
+          onSubmit={submitBulkAction}
         />
       )}
+
+      {csvPreview && <CsvPreviewDialog preview={csvPreview} onCancel={() => setCsvPreview(null)} onConfirm={confirmImport} />}
+
+      {columnsOpen && <Modal title="تخصيص أعمدة الجدول" description="اختر المعلومات التي تظهر في جدول الشحنات. يتم حفظ الاختيار على هذا الجهاز." onClose={() => setColumnsOpen(false)} footer={<><button className="outline-btn" onClick={() => persistColumns(defaultColumns)}>إظهار الكل</button><button className="btn-primary" onClick={() => setColumnsOpen(false)}>تم</button></>}><div className="column-picker">{shipmentColumns.map((column) => <label key={column.id}><input type="checkbox" checked={visibleColumns.includes(column.id)} onChange={() => persistColumns(visibleColumns.includes(column.id) ? visibleColumns.filter((item) => item !== column.id) : [...visibleColumns, column.id])}/><span>{column.label}</span></label>)}</div></Modal>}
+      {saveViewOpen && <Modal title="حفظ View جديدة" description="سيتم حفظ البحث والفلاتر والأعمدة الحالية لفتحها لاحقًا بضغطة واحدة." onClose={() => setSaveViewOpen(false)} footer={<><button className="outline-btn" onClick={() => setSaveViewOpen(false)}>إلغاء</button><button className="btn-primary" onClick={saveCurrentView}>حفظ</button></>}><label className="dialog-field"><span>اسم الـView</span><input className="input-glass" autoFocus value={viewName} onChange={(event) => setViewName(event.target.value)} placeholder="مثال: شحنات الجيزة المتأخرة" /></label>{savedViews.length > 0 && <div className="saved-views-manager"><strong>المحفوظ حاليًا</strong>{savedViews.map((view) => <div key={view.id}><button onClick={() => { applySavedView(view.id); setSaveViewOpen(false); }}>{view.name}</button><button className="danger-link" onClick={() => deleteSavedView(view.id)}>حذف</button></div>)}</div>}</Modal>}
+
+      {toast && <div className="shipment-toast" role="status"><CheckCircle2 size={16} /><span>{toast}</span><button onClick={() => setToast(null)} aria-label="إغلاق الرسالة"><X size={14} /></button></div>}
     </div>
   );
 }
 
-function ShipmentActionDialog({
-  action,
-  shipment,
-  onCancel,
-  onSubmit,
-}: {
-  action: ShipmentAction;
-  shipment: Shipment;
-  onCancel: () => void;
-  onSubmit: (payload: Record<string, string>) => void;
-}) {
-  const [driverId, setDriverId] = useState(shipment.driverId ?? drivers[0].id);
-  const [status, setStatus] = useState<ShipmentStatus>(shipment.status);
-  const [note, setNote] = useState('');
-
-  const title = {
-    assign: 'تعيين مندوب',
-    status: 'تحديث حالة الشحنة',
-    attempt: 'تسجيل محاولة تسليم',
-    settlement: 'طلب تسوية',
-  }[action];
-
-  return (
-    <div className="shipment-action-dialog glass-panel">
-      <div className="drawer-header compact">
-        <div>
-          <h3>{title}</h3>
-          <p className="drawer-id">{shipment.id}</p>
-        </div>
-        <button className="btn-icon sm" onClick={onCancel} title="إغلاق"><X size={14} /></button>
-      </div>
-
-      <div className="shipment-action-body">
-        {action === 'assign' && (
-          <label className="form-field">
-            <span>المندوب</span>
-            <select className="input-glass" value={driverId} onChange={(event) => setDriverId(event.target.value)}>
-              {drivers.map((driver) => (
-                <option key={driver.id} value={driver.id}>{driver.name}</option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {action === 'status' && (
-          <label className="form-field">
-            <span>الحالة الجديدة</span>
-            <select className="input-glass" value={status} onChange={(event) => setStatus(event.target.value as ShipmentStatus)}>
-              {statusOptions.filter((item) => item.value !== ALL_STATUS).map((item) => (
-                <option key={item.value} value={item.value}>{item.label}</option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {action === 'attempt' && (
-          <label className="form-field">
-            <span>ملاحظة المحاولة</span>
-            <textarea
-              className="input-glass"
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="مثال: العميل لا يرد، تم الاتفاق على التسليم غدا..."
-            />
-          </label>
-        )}
-
-        {action === 'settlement' && (
-          <div className="operation-feedback">
-            سيتم إرسال الشحنة للمحاسبة كطلب تسوية مع ربطها بالتاجر والمبلغ المحصل.
-          </div>
-        )}
-
-        <div className="contact-actions">
-          <button className="outline-btn" onClick={onCancel}>إلغاء</button>
-          <button className="btn-primary" onClick={() => onSubmit({ driverId, status, note })}>
-            حفظ العملية
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+function isShipmentStatus(value: string | null): value is ShipmentStatus {
+  return value !== null && statusOptions.some((item) => item.value === value && value !== ALL_STATUS);
 }
 
-function BulkActionDialog({
-  action,
-  count,
-  onCancel,
-  onSubmit,
-}: {
-  action: BulkAction;
-  count: number;
-  onCancel: () => void;
-  onSubmit: (payload: Record<string, string>) => void;
-}) {
-  const [driverId, setDriverId] = useState(drivers[0].id);
-  const [status, setStatus] = useState<ShipmentStatus>('deliveredToDriver');
-
-  const title = {
-    assign: 'تعيين مندوب للشحنات المحددة',
-    status: 'تحديث حالة الشحنات المحددة',
-    print: 'طباعة البوليصات المحددة',
-  }[action];
-
-  return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="confirm-modal glass-panel bulk-modal" onClick={(event) => event.stopPropagation()}>
-        <div className="drawer-header compact">
-          <div>
-            <h3>{title}</h3>
-            <p className="drawer-id">{count} شحنة</p>
-          </div>
-          <button className="btn-icon sm" onClick={onCancel} title="إغلاق"><X size={14} /></button>
-        </div>
-
-        <div className="shipment-action-body">
-          {action === 'assign' && (
-            <label className="form-field">
-              <span>اختر المندوب</span>
-              <select className="input-glass" value={driverId} onChange={(event) => setDriverId(event.target.value)}>
-                {drivers.map((driver) => (
-                  <option key={driver.id} value={driver.id}>{driver.name}</option>
-                ))}
-              </select>
-            </label>
-          )}
-
-          {action === 'status' && (
-            <label className="form-field">
-              <span>الحالة الجديدة</span>
-              <select className="input-glass" value={status} onChange={(event) => setStatus(event.target.value as ShipmentStatus)}>
-                {statusOptions.filter((item) => item.value !== ALL_STATUS).map((item) => (
-                  <option key={item.value} value={item.value}>{item.label}</option>
-                ))}
-              </select>
-            </label>
-          )}
-
-          {action === 'print' && (
-            <div className="operation-feedback">
-              سيتم تجهيز كل البوليصات المحددة للطباعة دفعة واحدة.
-            </div>
-          )}
-
-          <div className="contact-actions">
-            <button className="outline-btn" onClick={onCancel}>إلغاء</button>
-            <button className="btn-primary" onClick={() => onSubmit({ driverId, status })}>
-              تنفيذ
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+function isViewFilter(value: string | null): value is ViewFilter {
+  return value === 'all' || value === 'unassigned' || value === 'delayed' || value === 'financial-review';
 }
 
-function Timeline({ shipment, attempts }: { shipment: Shipment; attempts: string[] }) {
-  const items = [
-    { title: 'تم إنشاء الشحنة', detail: `${shipment.merchantName} - ${shipment.createdAt}`, done: true },
-    { title: 'وصلت مكتب الشحن', detail: 'تم استلامها ومراجعتها داخليا', done: ['receivedAtOffice', 'deliveredToDriver', 'inTransit', 'delivered', 'postponed', 'failedToDeliver', 'returned'].includes(shipment.status) },
-    { title: 'تم تسليمها للمندوب', detail: shipment.driverName ?? 'لم يتم تعيين مندوب بعد', done: Boolean(shipment.driverName) },
-    { title: 'تحديث التسليم', detail: statusConfig[shipment.status].label, done: ['delivered', 'postponed', 'failedToDeliver', 'returned'].includes(shipment.status) },
-  ];
+const viewFilterLabels: Record<ViewFilter, string> = {
+  all: 'كل المشاهدات',
+  unassigned: 'شحنات بلا مندوب',
+  delayed: 'الشحنات المتأخرة',
+  'financial-review': 'تحتاج مراجعة مالية',
+};
 
-  return (
-    <div className="timeline-list">
-      {items.map((item) => (
-        <div key={item.title} className={`timeline-item ${item.done ? 'done' : ''}`}>
-          <span className="timeline-dot" />
-          <div>
-            <strong>{item.title}</strong>
-            <small>{item.detail}</small>
-          </div>
-        </div>
-      ))}
-      {attempts.map((attempt, index) => (
-        <div key={`${shipment.id}-attempt-${index}`} className="timeline-item warning">
-          <span className="timeline-dot" />
-          <div>
-            <strong>محاولة تسليم</strong>
-            <small>{attempt}</small>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DetailRow({
-  label,
-  value,
-  dir,
-  bold,
-}: {
-  label: string;
-  value: string;
-  dir?: string;
-  bold?: boolean;
-}) {
-  return (
-    <div className="detail-row">
-      <span className="detail-label">{label}</span>
-      <span className={`detail-value ${bold ? 'bold-value' : ''}`} dir={dir}>{value}</span>
-    </div>
-  );
-}

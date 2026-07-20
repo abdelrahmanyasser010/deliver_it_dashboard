@@ -180,3 +180,65 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Compact density pass */
+.merchants-page {
+  gap: 0.75rem;
+  padding: 0.9rem;
+}
+
+.merchants-summary {
+  gap: 0.6rem;
+}
+
+.ms-card {
+  min-height: 58px;
+  gap: 0.58rem;
+}
+
+.ms-label,
+.merchant-contact-header p,
+.contact-phone-box span,
+.merchant-form-grid .form-field span {
+  font-size: 0.72rem;
+}
+
+.ms-value,
+.contact-phone-box strong {
+  font-size: 0.92rem;
+}
+
+.management-feedback {
+  margin-bottom: 0.55rem;
+  padding: 0.52rem 0.65rem;
+  font-size: 0.76rem;
+}
+
+.merchant-contact-dialog {
+  width: min(390px, 100%);
+  padding: 0.78rem;
+}
+
+.merchant-contact-header {
+  margin-bottom: 0.75rem;
+}
+
+.merchant-contact-header h3 {
+  font-size: 0.9rem;
+}
+
+.contact-phone-box {
+  padding: 0.65rem;
+}
+
+.contact-actions,
+.merchant-form-grid,
+.merchant-shipment-preview {
+  gap: 0.42rem;
+}
+
+.merchant-shipment-row {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.76rem;
+}
+.merchant-profile-top{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;color:var(--text-secondary);font-size:.72rem}.merchant-profile-tabs{display:flex;gap:.4rem;margin:.8rem 0;border-bottom:1px solid rgba(255,255,255,.07);padding-bottom:.45rem}.merchant-profile-tabs button{border:0;background:none;color:var(--text-secondary);font-family:inherit;padding:.4rem .6rem;cursor:pointer;border-radius:7px}.merchant-profile-tabs button.active{background:rgba(14,165,233,.12);color:#bae6fd}.merchant-profile-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.65rem}.merchant-profile-box{display:flex;align-items:center;gap:.6rem}.merchant-profile-box>span{color:#7dd3fc}.merchant-profile-box section{display:flex;flex-direction:column}.merchant-profile-box small,.merchant-profile-box em{color:var(--text-muted);font-size:.67rem;font-style:normal}.merchant-branches{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.merchant-branches>div{display:flex;gap:.6rem}.merchant-branches section{display:flex;flex-direction:column}.merchant-branches small,.merchant-branches p{color:var(--text-muted);font-size:.7rem}.merchant-branches p{display:flex;gap:.3rem;margin-top:.35rem}.merchant-performance{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem}.merchant-performance>div{display:flex;flex-direction:column;padding:.7rem;background:rgba(255,255,255,.03);border-radius:8px}.merchant-performance i{height:7px;background:#10b981;border-radius:99px;margin-top:.4rem}.merchant-performance i.danger{background:#ef4444}.merchant-performance p{grid-column:1/-1;color:var(--text-secondary)}@media(max-width:900px){.merchant-profile-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.merchant-profile-grid,.merchant-branches,.merchant-performance{grid-template-columns:1fr}.merchant-profile-tabs{overflow-x:auto}}

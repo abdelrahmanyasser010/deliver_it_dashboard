@@ -11,9 +11,5 @@ export type {
   ShipmentStatus,
 } from '../domain/logistics/entities';
 
-const snapshot = logisticsMockRepository.getSnapshot();
-
-export const mockShipments = snapshot.shipments;
-export const mockDrivers = snapshot.drivers;
-export const mockBrands = snapshot.merchants;
-export const mockStats = snapshot.stats;
+// Legacy compatibility helper. Prefer application hooks in new code.
+export const getMockSnapshot = () => logisticsMockRepository.getSnapshot();

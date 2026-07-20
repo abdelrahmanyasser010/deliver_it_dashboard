@@ -71,3 +71,17 @@ export default defineConfig([
   },
 ])
 ```
+
+## Frontend Freeze and backend handoff
+
+- Arabic frontend freeze: `docs/FRONTEND_FREEZE_AR.md`
+- Backend readiness notes: `docs/BACKEND_HANDOFF_READINESS_AR.md`
+
+Quality commands:
+
+```bash
+npm ci
+npm run lint
+npm run test:run
+npm run build
+```

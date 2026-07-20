@@ -31,7 +31,7 @@ const reportsSnapshot: ReportsSnapshot = {
     { label: 'مرتجع / فشل', count: 41, tone: 'danger' },
   ],
   delays: [
-    { id: 'DLY-01', shipmentId: 'SHP-2003', merchantName: 'متجر الأزياء', driverName: 'محمد علي', governorate: 'القاهرة', reason: 'تأخر عن SLA التسليم', lateByHours: 9, severity: 'medium' },
+    { id: 'DLY-01', shipmentId: 'SHP-2003', merchantName: 'متجر الأزياء', driverName: 'محمد علي', governorate: 'القاهرة', reason: 'تأخر عن موعد التسليم المتفق عليه', lateByHours: 9, severity: 'medium' },
     { id: 'DLY-02', shipmentId: 'SHP-2010', merchantName: 'هوم ديكور', driverName: 'خالد إبراهيم', governorate: 'الجيزة', reason: 'لم يتم الاستلام من التاجر في الموعد', lateByHours: 14, severity: 'high' },
     { id: 'DLY-03', shipmentId: 'SHP-2020', merchantName: 'إلكترونيات بلس', governorate: 'الدقهلية', reason: 'لم يعين مندوب بعد', lateByHours: 11, severity: 'medium' },
   ],
@@ -64,14 +64,14 @@ const accountingSnapshot: AccountingSnapshot = {
     { id: 'LED-902', date: '٣٠ يونيو', account: 'مستحقات التجار', description: 'مستحقات التجار', debit: 0, credit: 361800, status: 'posted' },
     { id: 'LED-903', date: '٣٠ يونيو', account: 'إيراد الشحن', description: 'إيراد شحنات الشهر', debit: 0, credit: 38250, status: 'posted' },
     { id: 'LED-904', date: '٣٠ يونيو', account: 'أتعاب المناديب', description: 'أتعاب المناديب', debit: 26800, credit: 0, status: 'pending' },
-    { id: 'LED-905', date: '٣٠ يونيو', account: 'فرق كاش', description: 'فرق كاش يحتاج مراجعة', debit: 1250, credit: 0, status: 'pending' },
+    { id: 'LED-905', date: '٣٠ يونيو', account: 'فرق التحصيل', description: 'فرق التحصيل يحتاج مراجعة', debit: 1250, credit: 0, status: 'pending' },
   ],
   checklist: [
     { id: 'CLS-1', label: 'اعتماد كل تحديثات المناديب', done: true },
-    { id: 'CLS-2', label: 'مطابقة توريدات الكاش مع المحافظ', done: false },
+    { id: 'CLS-2', label: 'مطابقة توريدات التحصيل مع المحافظ', done: false },
     { id: 'CLS-3', label: 'اعتماد تسويات التجار', done: true },
     { id: 'CLS-4', label: 'مراجعة المرتجعات ورسومها', done: false },
-    { id: 'CLS-5', label: 'تثبيت قيود الأستاذ العام', done: false },
+    { id: 'CLS-5', label: 'مراجعة حركات الحسابات النهائية', done: false },
   ],
 };
 
@@ -83,3 +83,6 @@ export const reportsMockRepository = {
     return accountingSnapshot;
   },
 };
+
+
+

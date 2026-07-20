@@ -1,0 +1,99 @@
+import type { Driver, Merchant, Shipment } from '../../domain/logistics/entities';
+import type { DeliveryBatch, DriverShipmentUpdate, PickupTask } from '../../domain/operations/entities';
+import type { FinancialLedgerEntry, MerchantSettlement } from '../../domain/finance/entities';
+
+export interface BarcodeBatch {
+  id: string;
+  pickupTaskId?: string;
+  merchantId?: string;
+  merchantName?: string;
+  expectedShipmentIds: string[];
+  scannedShipmentIds: string[];
+  unexpectedShipmentIds: string[];
+  duplicateScans: string[];
+  status: 'open' | 'closed';
+  createdAt: string;
+  closedAt?: string;
+  operatorName: string;
+}
+
+export interface ChatMessageRecord {
+  id: string;
+  text: string;
+  type: 'incoming' | 'outgoing' | 'note';
+  time: string;
+  createdAt: string;
+}
+
+export interface ChatRoomRecord {
+  id: string;
+  name: string;
+  role: string;
+  category: 'merchant' | 'driver' | 'internal';
+  lastMessage: string;
+  unread: number;
+  linkedShipmentId?: string;
+  assignedTo: string;
+  status: 'open' | 'closed';
+  pinned?: boolean;
+  messages: ChatMessageRecord[];
+}
+
+export interface AuditEvent {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  detail: string;
+  actor: string;
+  createdAt: string;
+}
+
+export interface DeliveryState {
+  shipments: Shipment[];
+  drivers: Driver[];
+  merchants: Merchant[];
+  pickupTasks: PickupTask[];
+  deliveryBatches: DeliveryBatch[];
+  driverUpdates: DriverShipmentUpdate[];
+  settlements: MerchantSettlement[];
+  ledgerEntries: FinancialLedgerEntry[];
+  barcodeBatches: BarcodeBatch[];
+  chatRooms: ChatRoomRecord[];
+  auditEvents: AuditEvent[];
+  closedPeriods: string[];
+  lastSyncedAt: string;
+}
+
+export type DeliveryCommand =
+  | { type: 'shipment/assignDriver'; shipmentIds: string[]; driverId: string; actor?: string }
+  | { type: 'shipment/transition'; shipmentIds: string[]; nextStatus: Shipment['status']; reason: string; actor?: string }
+  | { type: 'shipment/addAttempt'; shipmentId: string; note: string; outcome?: 'noAnswer' | 'postponed' | 'wrongAddress' | 'refused' | 'failed' | 'delivered'; actor?: string }
+  | { type: 'shipment/import'; shipments: Shipment[]; actor?: string }
+  | { type: 'shipment/requestSettlement'; shipmentIds: string[]; actor?: string }
+  | { type: 'pickup/approve'; taskId: string; actor?: string }
+  | { type: 'pickup/review'; taskId: string; actor?: string }
+  | { type: 'batch/assign'; batchId: string; driverId: string; actor?: string }
+  | { type: 'driverUpdate/approve'; updateId: string; actor?: string }
+  | { type: 'driverUpdate/reject'; updateId: string; actor?: string }
+  | { type: 'barcode/create'; batch: BarcodeBatch; actor?: string }
+  | { type: 'barcode/scan'; batchId: string; shipmentId: string; actor?: string }
+  | { type: 'barcode/undo'; batchId: string; actor?: string }
+  | { type: 'barcode/close'; batchId: string; actor?: string }
+  | { type: 'exception/resolve'; shipmentId: string; resolution: string; driverId?: string; actor?: string }
+  | { type: 'driver/upsert'; driver: Driver; actor?: string }
+  | { type: 'driver/delete'; driverId: string; actor?: string }
+  | { type: 'merchant/upsert'; merchant: Merchant; actor?: string }
+  | { type: 'settlement/create'; shipmentIds: string[]; actor?: string }
+  | { type: 'settlement/approve'; settlementId: string; actor?: string }
+  | { type: 'settlement/pay'; settlementId: string; paymentReference: string; actor?: string }
+  | { type: 'finance/reconcileShipment'; shipmentId: string; remittedCash: number; note: string; actor?: string }
+  | { type: 'ledger/postAll'; actor?: string }
+  | { type: 'period/close'; period: string; actor?: string }
+  | { type: 'chat/send'; roomId: string; text: string; note: boolean; actor?: string }
+  | { type: 'chat/toggle'; roomId: string; actor?: string }
+  | { type: 'chat/transfer'; roomId: string; assignedTo: string; actor?: string }
+  | { type: 'chat/read'; roomId: string; actor?: string };
+
+export interface CommandError { entityId?: string; message: string; }
+export interface CommandResult { ok: boolean; message: string; errors?: CommandError[]; createdId?: string; }

@@ -1,54 +1,41 @@
 import { useMemo } from 'react';
 import {
   ALL_STATUS,
+  calculateDashboardStats,
   calculateDriverSummary,
   calculateMerchantSummary,
   filterShipments,
   getRecentShipments,
   type FilterStatus,
 } from '../../domain/logistics/analytics';
-import { logisticsMockRepository } from '../../infrastructure/mock/logisticsMockRepository';
+import { useDeliveryData } from '../../context/DeliveryDataContext';
 
 export { ALL_STATUS };
 export type { FilterStatus };
 
 export function useLogisticsDashboard() {
-  return useMemo(() => {
-    const snapshot = logisticsMockRepository.getSnapshot();
-
-    return {
-      stats: snapshot.stats,
-      recentShipments: getRecentShipments(snapshot.shipments),
-    };
-  }, []);
+  const query = useDeliveryData();
+  const shipments = useMemo(() => query.state?.shipments ?? [], [query.state?.shipments]);
+  const drivers = useMemo(() => query.state?.drivers ?? [], [query.state?.drivers]);
+  const merchants = useMemo(() => query.state?.merchants ?? [], [query.state?.merchants]);
+  const stats = useMemo(() => query.state ? calculateDashboardStats(shipments, drivers, merchants) : null, [query.state, shipments, drivers, merchants]);
+  return { stats, shipments, drivers, merchants, recentShipments: getRecentShipments(shipments), isLoading: query.isLoading, error: query.error, refetch: query.refetch };
 }
 
-export function useShipments(query: string, statusFilter: FilterStatus = ALL_STATUS) {
-  return useMemo(() => {
-    const { shipments } = logisticsMockRepository.getSnapshot();
-
-    return filterShipments(shipments, query, statusFilter);
-  }, [query, statusFilter]);
+export function useShipments(queryText: string, statusFilter: FilterStatus = ALL_STATUS) {
+  const query = useDeliveryData();
+  const shipments = useMemo(() => filterShipments(query.state?.shipments ?? [], queryText, statusFilter), [query.state?.shipments, queryText, statusFilter]);
+  return { shipments, isLoading: query.isLoading, error: query.error, refetch: query.refetch };
 }
 
 export function useDrivers() {
-  return useMemo(() => {
-    const { drivers } = logisticsMockRepository.getSnapshot();
-
-    return {
-      drivers,
-      summary: calculateDriverSummary(drivers),
-    };
-  }, []);
+  const query = useDeliveryData();
+  const drivers = useMemo(() => query.state?.drivers ?? [], [query.state?.drivers]);
+  return { drivers, summary: calculateDriverSummary(drivers), isLoading: query.isLoading, error: query.error, refetch: query.refetch };
 }
 
 export function useMerchants() {
-  return useMemo(() => {
-    const { merchants } = logisticsMockRepository.getSnapshot();
-
-    return {
-      merchants,
-      summary: calculateMerchantSummary(merchants),
-    };
-  }, []);
+  const query = useDeliveryData();
+  const merchants = useMemo(() => query.state?.merchants ?? [], [query.state?.merchants]);
+  return { merchants, summary: calculateMerchantSummary(merchants), isLoading: query.isLoading, error: query.error, refetch: query.refetch };
 }

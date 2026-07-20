@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AdminMetrics,
   AuditLogEntry,
   MerchantApplication,
@@ -187,7 +187,7 @@ const auditLogs: AuditLogEntry[] = [
     id: 'AUD-9002',
     actorName: 'سلمى عادل',
     actorRole: 'accountant',
-    action: 'اعتماد توريد كاش',
+    action: 'اعتماد توريد تحصيل',
     target: 'SET-502',
     severity: 'info',
     createdAt: 'أمس 07:40 م',
@@ -240,3 +240,4 @@ export const adminMockRepository = {
     };
   },
 };
+

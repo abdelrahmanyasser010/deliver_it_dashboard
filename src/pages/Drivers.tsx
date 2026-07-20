@@ -1,8 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Banknote, Edit3, KeyRound, Plus, Search, ShieldOff, Trash2, UserCheck, Users, X } from 'lucide-react';
+import { Activity, AlertTriangle, Banknote, Clock3, Edit3, Eye, KeyRound, MapPin, Package, Plus, Search, ShieldOff, Trash2, TrendingUp, UserCheck, Users, X } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useDrivers } from '../application/logistics/useLogisticsData';
+import { Modal, StatusBadge } from '../components/ui/Ui';
+import { useDeliveryData } from '../context/DeliveryDataContext';
+import { useWorkspace } from '../context/WorkspaceContext';
 import type { Driver } from '../domain/logistics/entities';
-import { formatCurrency } from '../utils/helpers';
+import { formatAge, formatCurrency, formatDateTime } from '../utils/helpers';
 import './Drivers.css';
 
 type DriverDialog =
@@ -30,13 +34,18 @@ const emptyForm: DriverFormState = {
 };
 
 export function DriversPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { drivers, summary } = useDrivers();
-  const [localDrivers, setLocalDrivers] = useState(drivers);
+  const localDrivers = drivers;
+  const { execute } = useDeliveryData();
+  const { showToast } = useWorkspace();
   const [query, setQuery] = useState('');
   const [dialog, setDialog] = useState<DriverDialog>(null);
   const [form, setForm] = useState<DriverFormState>(emptyForm);
   const [password, setPassword] = useState('');
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const profileId = searchParams.get('driver');
+  const profile = localDrivers.find((driver) => driver.id === profileId) ?? null;
 
   const filteredDrivers = useMemo(() => {
     const value = query.trim().toLocaleLowerCase('ar-EG');
@@ -60,8 +69,8 @@ export function DriversPage() {
       name: driver.name,
       phone: driver.phone,
       zone: driver.zone,
-      capacity: String(Math.max(driver.shipmentsCount, 8)),
-      username: driver.id.toLowerCase(),
+      capacity: String(driver.capacity),
+      username: driver.userCode ?? driver.id.toLowerCase(),
     });
     setDialog({ type: 'edit', driver });
   };
@@ -76,57 +85,48 @@ export function DriversPage() {
     setPassword('');
   };
 
-  const saveNewDriver = () => {
-    const nextIndex = localDrivers.length + 1;
+  const saveNewDriver = async () => {
+    const phone = form.phone.trim();
+    if (!/^01\d{9}$/.test(phone)) { setActionMessage('رقم الهاتف يجب أن يكون ١١ رقمًا ويبدأ بـ01.'); return; }
+    if (localDrivers.some((item) => item.phone === phone || item.userCode === form.username.trim())) { setActionMessage('رقم الهاتف أو اسم المستخدم مستخدم بالفعل.'); return; }
+    const nextNumber = Math.max(0, ...localDrivers.map((item) => Number(item.id.replace(/\D/g, '')) || 0)) + 1;
     const newDriver: Driver = {
-      id: `DRV-${String(nextIndex).padStart(3, '0')}`,
-      name: form.name.trim() || 'مندوب جديد',
-      phone: form.phone.trim() || '01000000000',
-      zone: form.zone.trim() || 'غير محدد',
-      shipmentsCount: Number(form.capacity) || 0,
-      pendingCash: 0,
-      deliveredToday: 0,
-      status: 'active',
+      id: `DRV-${String(nextNumber).padStart(3, '0')}`, name: form.name.trim() || 'مندوب جديد', phone,
+      zone: form.zone.trim() || 'غير محدد', shipmentsCount: 0, pendingCash: 0, deliveredToday: 0,
+      status: 'active', availability: 'available', capacity: Math.max(1, Number(form.capacity) || 8), activeLoad: 0,
+      shiftEndsAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(), lastLocationUpdateAt: new Date().toISOString(), successRate: 0,
+      userCode: form.username.trim() || `driver${nextNumber}`, vehicleType: 'motorcycle',
     };
-
-    setLocalDrivers((items) => [newDriver, ...items]);
-    setActionMessage(`تم إضافة المندوب: ${newDriver.name}`);
-    closeDialog();
+    const result = await execute({ type: 'driver/upsert', driver: newDriver });
+    setActionMessage(result.message); showToast(result.message, result.ok ? 'success' : 'danger'); if (result.ok) closeDialog();
   };
 
-  const saveDriverEdit = (driver: Driver) => {
-    setLocalDrivers((items) => items.map((item) => (
-      item.id === driver.id
-        ? {
-            ...item,
-            name: form.name.trim() || item.name,
-            phone: form.phone.trim() || item.phone,
-            zone: form.zone.trim() || item.zone,
-            shipmentsCount: Number(form.capacity) || item.shipmentsCount,
-          }
-        : item
-    )));
-    setActionMessage(`تم تعديل بيانات المندوب: ${form.name || driver.name}`);
-    closeDialog();
+  const saveDriverEdit = async (driver: Driver) => {
+    const phone = form.phone.trim();
+    if (!/^01\d{9}$/.test(phone)) { setActionMessage('رقم الهاتف غير صحيح.'); return; }
+    if (localDrivers.some((item) => item.id !== driver.id && (item.phone === phone || item.userCode === form.username.trim()))) { setActionMessage('رقم الهاتف أو اسم المستخدم مستخدم بالفعل.'); return; }
+    const updated: Driver = { ...driver, name: form.name.trim() || driver.name, phone, zone: form.zone.trim() || driver.zone, capacity: Math.max(driver.activeLoad, Number(form.capacity) || driver.capacity), userCode: form.username.trim() || driver.userCode };
+    const result = await execute({ type: 'driver/upsert', driver: updated });
+    setActionMessage(result.message); showToast(result.message, result.ok ? 'success' : 'danger'); if (result.ok) closeDialog();
   };
 
-  const savePassword = (driver: Driver) => {
-    setActionMessage(`تم تغيير كلمة سر المندوب: ${driver.name}`);
-    closeDialog();
+  const savePassword = (driver: Driver) => { setActionMessage(`تمت محاكاة طلب تغيير كلمة السر لـ ${driver.name}. سيُنقل لاحقًا إلى خدمة الهوية.`); closeDialog(); };
+
+  const blockDriver = async (driver: Driver) => {
+    const result = await execute({ type: 'driver/upsert', driver: { ...driver, status: 'off', availability: 'offline' } });
+    setActionMessage(result.message); showToast(result.message, result.ok ? 'success' : 'danger'); if (result.ok) closeDialog();
   };
 
-  const blockDriver = (driver: Driver) => {
-    setLocalDrivers((items) => items.map((item) => (
-      item.id === driver.id ? { ...item, status: 'off' } : item
-    )));
-    setActionMessage(`تم حظر المندوب: ${driver.name}`);
-    closeDialog();
+  const deleteDriver = async (driver: Driver) => {
+    const result = await execute({ type: 'driver/delete', driverId: driver.id });
+    setActionMessage(result.message); showToast(result.message, result.ok ? 'success' : 'danger'); if (result.ok) closeDialog();
   };
 
-  const deleteDriver = (driver: Driver) => {
-    setLocalDrivers((items) => items.filter((item) => item.id !== driver.id));
-    setActionMessage(`تم حذف حساب المندوب: ${driver.name}`);
-    closeDialog();
+  const openProfile = (driver: Driver) => {
+    const next = new URLSearchParams(searchParams); next.set('driver', driver.id); setSearchParams(next, { replace: true });
+  };
+  const closeProfile = () => {
+    const next = new URLSearchParams(searchParams); next.delete('driver'); setSearchParams(next, { replace: true });
   };
 
   return (
@@ -135,14 +135,14 @@ export function DriversPage() {
         <div className="driver-summary-card glass-card compact-card">
           <Users size={18} className="ds-icon blue" />
           <div>
-            <p className="ds-label">المناديب النشطون</p>
+            <p className="ds-label">المناديب النشطين</p>
             <p className="ds-value">{localDrivers.filter((driver) => driver.status === 'active').length} / {localDrivers.length}</p>
           </div>
         </div>
         <div className="driver-summary-card glass-card compact-card">
           <Banknote size={18} className="ds-icon amber" />
           <div>
-            <p className="ds-label">كاش معلق</p>
+            <p className="ds-label">تحصيل معلق</p>
             <p className="ds-value">{formatCurrency(localDrivers.reduce((sum, driver) => sum + driver.pendingCash, 0) || summary.pendingCash)}</p>
           </div>
         </div>
@@ -167,7 +167,7 @@ export function DriversPage() {
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="بحث باسم المندوب، الهاتف، الزون..."
+                placeholder="بحث باسم المندوب، الهاتف، المنطقة..."
               />
             </div>
             <button className="btn-primary" onClick={openCreateDialog}>
@@ -186,11 +186,11 @@ export function DriversPage() {
                 <th>الكود</th>
                 <th>المندوب</th>
                 <th>الهاتف</th>
-                <th>الزون</th>
+                <th>المنطقة</th>
                 <th>الحالة</th>
                 <th>العهدة</th>
                 <th>تم اليوم</th>
-                <th>كاش معلق</th>
+                <th>تحصيل معلق</th>
                 <th>إجراءات</th>
               </tr>
             </thead>
@@ -211,10 +211,11 @@ export function DriversPage() {
                   <td className="amount">{formatCurrency(driver.pendingCash)}</td>
                   <td>
                     <div className="driver-row-actions">
-                      <button className="btn-icon sm" title="تعديل بيانات المندوب" onClick={() => openEditDialog(driver)}><Edit3 size={14} /></button>
-                      <button className="btn-icon sm" title="تغيير كلمة السر" onClick={() => openPasswordDialog(driver)}><KeyRound size={14} /></button>
-                      <button className="btn-icon sm" title="حظر المندوب" onClick={() => setDialog({ type: 'block', driver })}><ShieldOff size={14} /></button>
-                      <button className="btn-icon sm danger" title="حذف الحساب" onClick={() => setDialog({ type: 'delete', driver })}><Trash2 size={14} /></button>
+                      <button className="btn-icon sm" title="فتح ملف المندوب" aria-label="فتح ملف المندوب" onClick={() => openProfile(driver)}><Eye size={14} /></button>
+                      <button className="btn-icon sm" title="تعديل بيانات المندوب" aria-label="تعديل بيانات المندوب" onClick={() => openEditDialog(driver)}><Edit3 size={14} /></button>
+                      <button className="btn-icon sm" title="تغيير كلمة السر" aria-label="تغيير كلمة السر" onClick={() => openPasswordDialog(driver)}><KeyRound size={14} /></button>
+                      <button className="btn-icon sm" title="حظر المندوب" aria-label="حظر المندوب" onClick={() => setDialog({ type: 'block', driver })}><ShieldOff size={14} /></button>
+                      <button className="btn-icon sm danger" title="حذف الحساب" aria-label="حذف الحساب" onClick={() => setDialog({ type: 'delete', driver })}><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
@@ -223,6 +224,8 @@ export function DriversPage() {
           </table>
         </div>
       </section>
+
+      {profile && <DriverProfile driver={profile} onClose={closeProfile} onEdit={() => { closeProfile(); openEditDialog(profile); }} />}
 
       {dialog?.type === 'create' && (
         <DriverFormDialog
@@ -291,6 +294,28 @@ export function DriversPage() {
   );
 }
 
+function DriverProfile({ driver, onClose, onEdit }: { driver: Driver; onClose: () => void; onEdit: () => void }) {
+  const [now] = useState(() => Date.now());
+  const loadRatio = driver.capacity ? Math.round((driver.activeLoad / driver.capacity) * 100) : 0;
+  const alerts = [
+    driver.pendingCash > 10000 ? `عهدة نقدية مرتفعة: ${formatCurrency(driver.pendingCash)}` : null,
+    now - new Date(driver.lastLocationUpdateAt).getTime() > 15 * 60 * 1000 ? `آخر تحديث للموقع منذ ${formatAge(driver.lastLocationUpdateAt)}` : null,
+    driver.successRate < 85 ? `نسبة النجاح منخفضة: ${driver.successRate.toLocaleString('ar-EG')}٪` : null,
+    driver.activeLoad >= driver.capacity ? 'المندوب وصل للحد الأقصى للسعة' : null,
+  ].filter(Boolean) as string[];
+  return <Modal wide title={driver.name} description={`${driver.id} — ${driver.zone}`} onClose={onClose} footer={<><button className="outline-btn" onClick={onClose}>إغلاق</button><button className="btn-primary" onClick={onEdit}><Edit3 size={15}/> تعديل البيانات</button></>}>
+    <div className="driver-profile-status"><StatusBadge label={driver.status === 'active' ? 'الحساب فعال' : 'الحساب موقوف'} tone={driver.status === 'active' ? 'success' : 'danger'}/><StatusBadge label={{ available: 'متاح', busy: 'في توصيل', break: 'استراحة', offline: 'غير متصل' }[driver.availability]} tone={driver.availability === 'available' ? 'success' : driver.availability === 'offline' ? 'neutral' : 'warning'}/><span dir="ltr">{driver.phone}</span></div>
+    <div className="driver-profile-grid">
+      <ProfileMetric icon={<Package size={18}/>} label="الحمولة الحالية" value={`${driver.activeLoad.toLocaleString('ar-EG')} / ${driver.capacity.toLocaleString('ar-EG')}`} detail={`${loadRatio.toLocaleString('ar-EG')}٪ من السعة`} />
+      <ProfileMetric icon={<TrendingUp size={18}/>} label="نسبة النجاح" value={`${driver.successRate.toLocaleString('ar-EG')}٪`} detail={`${driver.deliveredToday.toLocaleString('ar-EG')} تسليمات اليوم`} />
+      <ProfileMetric icon={<Banknote size={18}/>} label="العهدة النقدية" value={formatCurrency(driver.pendingCash)} detail="تحتاج توريد ومطابقة" />
+      <ProfileMetric icon={<Clock3 size={18}/>} label="نهاية الوردية" value={formatDateTime(driver.shiftEndsAt)} detail={`الموقع: ${formatAge(driver.lastLocationUpdateAt)}`} />
+    </div>
+    <div className="driver-profile-sections"><section className="glass-card"><h4><MapPin size={17}/> الوضع التشغيلي</h4><p>المنطقة الأساسية: <strong>{driver.zone}</strong></p><p>آخر تحديث موقع: <strong>{formatDateTime(driver.lastLocationUpdateAt)}</strong></p><p>الشحنات المسجلة على العهدة: <strong>{driver.shipmentsCount.toLocaleString('ar-EG')}</strong></p><div className="driver-load-track"><i style={{ width: `${Math.min(100, loadRatio)}%` }}/></div></section><section className="glass-card"><h4><Activity size={17}/> تنبيهات الملف</h4>{alerts.length ? <div className="driver-alert-list">{alerts.map((alert) => <div key={alert}><AlertTriangle size={15}/><span>{alert}</span></div>)}</div> : <p className="driver-all-good">لا توجد تنبيهات حرجة على المندوب.</p>}</section></div>
+  </Modal>;
+}
+function ProfileMetric({ icon, label, value, detail }: { icon: React.ReactNode; label: string; value: string; detail: string }) { return <div className="driver-profile-metric glass-card"><span>{icon}</span><div><small>{label}</small><strong>{value}</strong><em>{detail}</em></div></div>; }
+
 function DriverFormDialog({
   title,
   form,
@@ -322,7 +347,7 @@ function DriverFormDialog({
           <input dir="ltr" value={form.phone} onChange={(event) => updateField('phone', event.target.value)} placeholder="01000000000" />
         </label>
         <label className="dialog-field">
-          <span>الزون</span>
+          <span>المنطقة</span>
           <input value={form.zone} onChange={(event) => updateField('zone', event.target.value)} placeholder="مدينة نصر" />
         </label>
         <label className="dialog-field">
@@ -377,10 +402,12 @@ function DialogShell({ title, onCancel, children }: { title: string; onCancel: (
       <div className="driver-dialog glass-panel" onClick={(event) => event.stopPropagation()}>
         <div className="dialog-header">
           <h3>{title}</h3>
-          <button className="btn-icon sm" onClick={onCancel} title="إغلاق"><X size={14} /></button>
+          <button className="btn-icon sm" onClick={onCancel} title="تقفيل" aria-label="إغلاق"><X size={14} /></button>
         </div>
         {children}
       </div>
     </div>
   );
 }
+
+

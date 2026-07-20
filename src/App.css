@@ -66,3 +66,30 @@
     margin-right: 0;
   }
 }
+
+/* Compact density pass */
+.main-area {
+  margin-right: 244px;
+}
+
+.app-shell.sidebar-collapsed .main-area {
+  margin-right: 66px;
+}
+
+.floating-chat {
+  left: 1rem;
+  bottom: 1rem;
+  width: 48px;
+  height: 48px;
+}
+
+.floating-chat-badge {
+  min-width: 18px;
+  height: 18px;
+  font-size: 0.62rem;
+}
+.global-search-trigger{min-width:220px;height:34px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:rgba(0,0,0,.18);color:var(--text-secondary);font-family:inherit;display:flex;align-items:center;gap:.5rem;padding:0 .65rem;cursor:pointer}.global-search-trigger span{flex:1;text-align:right}.global-search-trigger kbd{font-family:inherit;font-size:.65rem;border:1px solid rgba(255,255,255,.12);padding:.1rem .3rem;border-radius:4px}.global-search-input{display:flex;align-items:center;gap:.55rem;border:1px solid rgba(125,211,252,.28);background:rgba(2,6,23,.42);border-radius:10px;padding:.7rem}.global-search-input input{flex:1;border:0;background:none;color:white;outline:0;font-family:inherit}.global-search-input button{border:0;background:none;color:var(--text-secondary);cursor:pointer}.global-search-empty{padding:2rem;text-align:center;color:var(--text-muted)}.global-results{display:flex;flex-direction:column;gap:.8rem}.global-result-group h4{display:flex;align-items:center;gap:.4rem;font-size:.78rem;color:#bae6fd;margin-bottom:.35rem}.global-result-group>div{display:flex;flex-direction:column}.global-result-group button{display:flex;justify-content:space-between;gap:1rem;text-align:right;border:0;border-bottom:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);color:inherit;padding:.65rem;cursor:pointer;font-family:inherit}.global-result-group button:hover{background:rgba(14,165,233,.08)}.global-result-group button span{display:flex;flex-direction:column}.global-result-group button small{color:var(--text-muted)}.global-result-group button em{font-style:normal;color:var(--text-secondary);font-size:.72rem}.global-settlement-shortcut{align-self:flex-start;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--text-primary);border-radius:8px;padding:.5rem .7rem;font-family:inherit;display:flex;gap:.4rem;cursor:pointer}@media(max-width:900px){.global-search-trigger{min-width:auto}.global-search-trigger span,.global-search-trigger kbd{display:none}}
+
+@media (max-width: 760px) {
+  .global-search-trigger { width: 36px; padding: 0; justify-content: center; }
+}
