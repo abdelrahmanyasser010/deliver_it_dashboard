@@ -18,7 +18,7 @@ const fmt = (value: number) => value.toLocaleString('ar-EG');
 function buildStatementRows(shipments: Shipment[]): StatementRow[] {
   return shipments.flatMap((shipment) => {
     const rows: StatementRow[] = [];
-    if (['delivered', 'returned'].includes(shipment.status)) rows.push({ id: `MER-${shipment.id}`, date: shipment.statusChangedAt, partyType: 'merchant', partyName: shipment.merchantName, shipmentId: shipment.id, description: shipment.status === 'returned' ? 'رسوم مرتجع ورسوم تشغيل' : 'صافي مستحق شحنة مسلمة', debit: shipment.status === 'returned' ? Math.round(shipment.deliveryFee * .6) : 0, credit: shipment.status === 'delivered' ? Math.max(0, shipment.collectedCash - shipment.deliveryFee - shipment.discount) : 0 });
+    if (['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status)) rows.push({ id: `MER-${shipment.id}`, date: shipment.statusChangedAt, partyType: 'merchant', partyName: shipment.merchantName, shipmentId: shipment.id, description: shipment.status === 'returned' ? 'رسوم مرتجع ورسوم تشغيل' : 'صافي مستحق شحنة مسلمة', debit: shipment.status === 'returned' ? Math.round(shipment.deliveryFee * .6) : 0, credit: ['delivered', 'partiallyDelivered'].includes(shipment.status) ? Math.max(0, shipment.collectedCash - shipment.deliveryFee - shipment.discount) : 0 });
     if (shipment.driverId && shipment.collectedCash > 0) rows.push({ id: `DRV-${shipment.id}`, date: shipment.lastUpdatedAt, partyType: 'driver', partyName: shipment.driverName ?? shipment.driverId, shipmentId: shipment.id, description: 'عهدة تحصيل مطلوب توريدها', debit: shipment.collectedCash, credit: shipment.remittedCash });
     return rows;
   });

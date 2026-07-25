@@ -159,7 +159,7 @@ function MerchantProfile({ merchant, shipments, tab, onTab, onClose, onOpenShipm
 
 function deriveMerchantPerformance(shipments: Shipment[]) {
   const completed = shipments.filter((item) => ['delivered', 'returned', 'failedToDeliver'].includes(item.status));
-  const delivered = completed.filter((item) => item.status === 'delivered').length;
+  const delivered = completed.filter((item) => ['delivered', 'partiallyDelivered'].includes(item.status)).length;
   const returned = completed.filter((item) => item.status === 'returned').length;
   const governorates = new Map<string, number>();
   shipments.forEach((item) => governorates.set(item.governorate, (governorates.get(item.governorate) ?? 0) + 1));
@@ -167,7 +167,7 @@ function deriveMerchantPerformance(shipments: Shipment[]) {
   const reasons = new Map<string, number>();
   shipments.filter((item) => item.exceptionReason).forEach((item) => reasons.set(item.exceptionReason!, (reasons.get(item.exceptionReason!) ?? 0) + 1));
   const topReturnReason = [...reasons.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
-  const averageDeliveryHours = delivered ? Math.round(shipments.filter((item) => item.status === 'delivered').reduce((sum, item) => sum + Math.max(1, (new Date(item.statusChangedAt).getTime() - new Date(item.createdAt).getTime()) / 3600000), 0) / delivered) : 0;
+  const averageDeliveryHours = delivered ? Math.round(shipments.filter((item) => ['delivered', 'partiallyDelivered'].includes(item.status)).reduce((sum, item) => sum + Math.max(1, (new Date(item.statusChangedAt).getTime() - new Date(item.createdAt).getTime()) / 3600000), 0) / delivered) : 0;
   return { successRate: completed.length ? Math.round(delivered / completed.length * 100) : 0, returnRate: completed.length ? Math.round(returned / completed.length * 100) : 0, addressQuality: Math.max(0, 100 - Math.round(shipments.filter((item) => item.exceptionReason?.includes('عنوان')).length / Math.max(1, shipments.length) * 100)), averageDeliveryHours, topGovernorate, topReturnReason };
 }
 

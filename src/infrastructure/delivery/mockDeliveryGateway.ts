@@ -1,8 +1,9 @@
 import type { DeliveryGateway, GatewayCommandResponse } from '../../application/delivery/contracts';
 import type { DeliveryCommand, DeliveryState } from '../../application/delivery/types';
 import type { Merchant } from '../../domain/logistics/entities';
-import type { DeliveryBatch, DriverShipmentUpdate, PickupTask } from '../../domain/operations/entities';
+import type { DeliveryBatch, DriverShipmentUpdate, PickupTask, ReturnCase } from '../../domain/operations/entities';
 import type { FinancialLedgerEntry, MerchantSettlement } from '../../domain/finance/entities';
+import { defaultTenantOperationalSettings } from '../../domain/settings/entities';
 import { logisticsMockRepository } from '../mock/logisticsMockRepository';
 
 const delay = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -54,11 +55,47 @@ function createDeliveryBatches(state: Pick<DeliveryState, 'shipments'>): Deliver
 
 function createDriverUpdates(state: Pick<DeliveryState, 'shipments'>): DriverShipmentUpdate[] {
   const pending = state.shipments.filter((shipment) => shipment.taskStatus === 'needsStatusApproval' && shipment.driverId);
-  return pending.map((shipment, index) => ({
-    id: `UPD-${7001 + index}`, shipmentId: shipment.id, driverId: shipment.driverId!, driverName: shipment.driverName ?? 'مندوب', merchantName: shipment.merchantName,
-    reportedStatus: index % 2 === 0 ? 'delivered' : 'failed', previousStatus: shipment.status, customerName: shipment.customerName,
-    evidence: index % 2 === 0 ? 'صورة إثبات التسليم مرفقة' : 'سجل محاولة اتصال', note: index % 2 === 0 ? 'تم التحصيل بالكامل' : 'العميل لا يرد',
-    createdAt: iso(-0.5 - index), status: 'pendingAdminApproval',
+  return pending.map((shipment, index) => {
+    const isPartial = index === 0 && shipment.items.length >= 2;
+    return {
+      id: `UPD-${7001 + index}`, shipmentId: shipment.id, driverId: shipment.driverId!, driverName: shipment.driverName ?? 'مندوب', merchantName: shipment.merchantName,
+      reportedStatus: isPartial ? 'partiallyDelivered' : index % 2 === 0 ? 'delivered' : 'failed', previousStatus: shipment.status, customerName: shipment.customerName,
+      evidence: isPartial ? 'صورة التسليم الجزئي مرفقة' : index % 2 === 0 ? 'صورة إثبات التسليم مرفقة' : 'سجل محاولة اتصال',
+      evidenceReference: isPartial ? '/demo/proofs/partial-delivery.jpg' : '/demo/proofs/delivery.jpg',
+      recipientName: isPartial ? 'أحمد محمود' : shipment.customerName,
+      location: { latitude: 30.0444, longitude: 31.2357, accuracyMeters: isPartial ? 32 : 47, capturedAt: iso(-0.55 - index), distanceFromDestinationMeters: isPartial ? 41 : 73 },
+      partialDeliveryLines: isPartial ? shipment.items.map((item, itemIndex) => ({
+        itemIndex, itemName: item.name, orderedQuantity: item.quantity,
+        deliveredQuantity: itemIndex === 0 ? item.quantity : 0,
+        undeliveredAction: itemIndex === 0 ? undefined : itemIndex % 2 === 0 ? 'retry' : 'return',
+        reason: itemIndex === 0 ? undefined : itemIndex % 2 === 0 ? 'العميل طلب المحاولة غدًا' : 'العميل رفض المقاس',
+      })) : undefined,
+      reportedCollectedCash: isPartial ? shipment.items[0].quantity * shipment.items[0].price + shipment.deliveryFee - shipment.discount : shipment.expectedCollection,
+      requiresManualReview: isPartial,
+      reviewReason: isPartial ? 'تسليم جزئي يتطلب تقسيم البوليصة واعتماد الشركة.' : undefined,
+      note: isPartial ? 'العميل استلم عنصرًا ورفض عنصرًا؛ رسوم الشحن الأساسية كاملة.' : index % 2 === 0 ? 'تم التحصيل بالكامل' : 'العميل لا يرد',
+      createdAt: iso(-0.5 - index), status: 'pendingAdminApproval' as const,
+    };
+  });
+}
+
+function createReturnCases(state: Pick<DeliveryState, 'shipments'>): ReturnCase[] {
+  return state.shipments.filter((shipment) => shipment.taskStatus === 'needsReturnProcessing').slice(0, 4).map((shipment, index) => ({
+    id: `RET-${4101 + index}`,
+    shipmentId: shipment.id,
+    rootShipmentId: shipment.rootShipmentId ?? shipment.id,
+    merchantId: shipment.merchantId,
+    merchantName: shipment.merchantName,
+    sourceDriverId: shipment.driverId,
+    sourceDriverName: shipment.driverName,
+    status: index === 0 ? 'receivedAtHub' : 'returningToHub',
+    reason: shipment.exceptionReason ?? 'رفض المستلم استلام المنتجات',
+    itemSummary: shipment.items.map((item) => `${item.name} × ${item.quantity}`).join('، '),
+    quantity: shipment.items.reduce((sum, item) => sum + item.quantity, 0),
+    returnFee: 0,
+    receivedAtHubAt: index === 0 ? iso(-3) : undefined,
+    createdAt: shipment.statusChangedAt,
+    updatedAt: shipment.lastUpdatedAt,
   }));
 }
 
@@ -104,14 +141,15 @@ async function createBootstrap(): Promise<DeliveryState> {
   const snapshot = await logisticsMockRepository.getSnapshot();
   const merchants = snapshot.merchants.map(enrichMerchant);
   const base: DeliveryState = {
-    shipments: snapshot.shipments.map((shipment) => ({ ...shipment, version: 1, events: [{ id: `EVT-${shipment.id}-1`, shipmentId: shipment.id, type: 'created', title: 'تم إنشاء الشحنة', detail: `أنشأها ${shipment.merchantName}`, createdAt: shipment.createdAt, actor: shipment.merchantName }], attempts: [] })),
+    shipments: snapshot.shipments.map((shipment) => ({ ...shipment, version: 1, pricingSnapshot: { shippingFee: shipment.deliveryFee, returnFeeMode: 'disabled', returnFeeValue: 0, freeAttempts: 3, extraAttemptFeeMode: 'disabled', extraAttemptFeeValue: 0, collectionFeeMode: 'disabled', collectionFeeValue: 0, vatEnabled: false, vatRate: 0 }, events: [{ id: `EVT-${shipment.id}-1`, shipmentId: shipment.id, type: 'created', title: 'تم إنشاء الشحنة', detail: `أنشأها ${shipment.merchantName}`, createdAt: shipment.createdAt, actor: shipment.merchantName }], attempts: [] })),
     drivers: snapshot.drivers.map((driver, index) => ({ ...driver, vehicleType: index % 3 === 0 ? 'van' : index % 2 === 0 ? 'car' : 'motorcycle', vehicleNumber: `د ل ف ${1000 + index}`, userCode: `driver${index + 1}` })),
     merchants,
-    pickupTasks: [], deliveryBatches: [], driverUpdates: [], settlements: [], ledgerEntries: [], barcodeBatches: [], chatRooms: [], auditEvents: [], closedPeriods: [], lastSyncedAt: iso(),
+    pickupTasks: [], deliveryBatches: [], driverUpdates: [], returnCases: [], settlements: [], ledgerEntries: [], barcodeBatches: [], chatRooms: [], auditEvents: [], closedPeriods: [], settings: structuredClone(defaultTenantOperationalSettings), lastSyncedAt: iso(),
   };
   base.pickupTasks = createPickupTasks(base);
   base.deliveryBatches = createDeliveryBatches(base);
   base.driverUpdates = createDriverUpdates(base);
+  base.returnCases = createReturnCases(base);
   base.settlements = createSettlements(base);
   base.ledgerEntries = createLedger(base);
   base.chatRooms = createChatRooms(base);

@@ -15,6 +15,7 @@ export const routeRoles: Record<string, WorkspaceRole[]> = {
   '/settlements': ['management', 'accounting'],
   '/users': ['management'],
   '/audit-log': ['management'],
+  '/settings': ['management'],
 };
 
 export function canAccessRoute(role: WorkspaceRole, path: string) {

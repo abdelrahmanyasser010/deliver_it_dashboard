@@ -20,7 +20,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [now] = useState(() => Date.now());
   const notifications = useMemo<WorkspaceNotification[]>(() => {
     if (!state) return [];
-    const openShipments = state.shipments.filter((shipment) => !['delivered', 'returned'].includes(shipment.status));
+    const openShipments = state.shipments.filter((shipment) => !['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status));
     const delayed = openShipments.filter((shipment) => shipment.expectedDeliveryAt && new Date(shipment.expectedDeliveryAt).getTime() < now);
     const discrepancies = state.shipments.filter((shipment) => shipment.financialStatus === 'discrepancy');
     const pendingUpdates = state.driverUpdates.filter((update) => update.status === 'pendingAdminApproval');

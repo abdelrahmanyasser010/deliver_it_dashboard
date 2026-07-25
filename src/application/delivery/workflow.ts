@@ -7,6 +7,7 @@ export const shipmentTransitions: Record<ShipmentStatus, ShipmentStatus[]> = {
   deliveredToDriver: ['inTransit', 'returned'],
   inTransit: ['delivered', 'postponed', 'failedToDeliver', 'returned'],
   delivered: [],
+  partiallyDelivered: [],
   postponed: ['inTransit', 'failedToDeliver', 'returned'],
   failedToDeliver: ['inTransit', 'postponed', 'returned'],
   returned: [],

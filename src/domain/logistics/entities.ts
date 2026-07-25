@@ -5,6 +5,7 @@ export const shipmentStatuses = [
   'deliveredToDriver',
   'inTransit',
   'delivered',
+  'partiallyDelivered',
   'postponed',
   'failedToDeliver',
   'returned',
@@ -43,10 +44,18 @@ export type SettlementStatus = 'unsettled' | 'settled';
 export type DriverStatus = 'active' | 'off';
 export type DriverAvailability = 'available' | 'busy' | 'break' | 'offline';
 
+export type ShipmentItemDisposition = 'delivered' | 'retry' | 'return';
+
 export interface ShipmentItem {
+  id?: string;
   name: string;
   quantity: number;
   price: number;
+  deliveredQuantity?: number;
+  pendingQuantity?: number;
+  returnedQuantity?: number;
+  disposition?: ShipmentItemDisposition;
+  dispositionReason?: string;
 }
 
 export interface ShipmentEvent {
@@ -59,6 +68,24 @@ export interface ShipmentEvent {
   actor: string;
   fromStatus?: ShipmentStatus;
   toStatus?: ShipmentStatus;
+}
+
+export interface LocationSnapshot {
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number;
+  capturedAt: string;
+  distanceFromDestinationMeters?: number;
+}
+
+export interface DeliveryProof {
+  type: 'photo' | 'otp' | 'signature';
+  reference: string;
+  recipientName: string;
+  capturedAt: string;
+  location?: LocationSnapshot;
+  reviewStatus: 'pending' | 'accepted' | 'needsReview';
+  reviewNote?: string;
 }
 
 export interface DeliveryAttempt {
@@ -104,6 +131,24 @@ export interface Shipment {
   settlementId?: string;
   pickupTaskId?: string;
   deliveryBatchId?: string;
+  rootShipmentId?: string;
+  parentShipmentId?: string;
+  splitSequence?: number;
+  childShipmentIds?: string[];
+  deliveryProof?: DeliveryProof;
+  merchantVisibleStatus?: string;
+  pricingSnapshot?: {
+    shippingFee: number;
+    returnFeeMode: 'disabled' | 'fixed' | 'percentage';
+    returnFeeValue: number;
+    freeAttempts: number;
+    extraAttemptFeeMode: 'disabled' | 'fixed' | 'percentage';
+    extraAttemptFeeValue: number;
+    collectionFeeMode: 'disabled' | 'fixed' | 'percentage';
+    collectionFeeValue: number;
+    vatEnabled: boolean;
+    vatRate: number;
+  };
   version?: number;
   events?: ShipmentEvent[];
   attempts?: DeliveryAttempt[];

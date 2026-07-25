@@ -1,6 +1,7 @@
 import type { Driver, Merchant, Shipment } from '../../domain/logistics/entities';
-import type { DeliveryBatch, DriverShipmentUpdate, PickupTask } from '../../domain/operations/entities';
+import type { DeliveryBatch, DriverShipmentUpdate, PickupTask, ReturnCase } from '../../domain/operations/entities';
 import type { FinancialLedgerEntry, MerchantSettlement } from '../../domain/finance/entities';
+import type { DeliveryPolicySettings, DriverLocationPolicySettings, PricingPolicySettings, ProofPolicySettings, TenantOperationalSettings } from '../../domain/settings/entities';
 
 export interface BarcodeBatch {
   id: string;
@@ -56,12 +57,14 @@ export interface DeliveryState {
   pickupTasks: PickupTask[];
   deliveryBatches: DeliveryBatch[];
   driverUpdates: DriverShipmentUpdate[];
+  returnCases: ReturnCase[];
   settlements: MerchantSettlement[];
   ledgerEntries: FinancialLedgerEntry[];
   barcodeBatches: BarcodeBatch[];
   chatRooms: ChatRoomRecord[];
   auditEvents: AuditEvent[];
   closedPeriods: string[];
+  settings: TenantOperationalSettings;
   lastSyncedAt: string;
 }
 
@@ -76,6 +79,10 @@ export type DeliveryCommand =
   | { type: 'batch/assign'; batchId: string; driverId: string; actor?: string }
   | { type: 'driverUpdate/approve'; updateId: string; actor?: string }
   | { type: 'driverUpdate/reject'; updateId: string; actor?: string }
+  | { type: 'return/receiveAtHub'; returnCaseId: string; actor?: string }
+  | { type: 'return/assignDriver'; returnCaseId: string; driverId: string; actor?: string }
+  | { type: 'return/markOutForMerchant'; returnCaseId: string; actor?: string }
+  | { type: 'return/confirmMerchantReceipt'; returnCaseId: string; proofReference: string; actor?: string }
   | { type: 'barcode/create'; batch: BarcodeBatch; actor?: string }
   | { type: 'barcode/scan'; batchId: string; shipmentId: string; actor?: string }
   | { type: 'barcode/undo'; batchId: string; actor?: string }
@@ -90,6 +97,10 @@ export type DeliveryCommand =
   | { type: 'finance/reconcileShipment'; shipmentId: string; remittedCash: number; note: string; actor?: string }
   | { type: 'ledger/postAll'; actor?: string }
   | { type: 'period/close'; period: string; actor?: string }
+  | { type: 'settings/updateDelivery'; policy: DeliveryPolicySettings; actor?: string }
+  | { type: 'settings/updatePricing'; policy: PricingPolicySettings; actor?: string }
+  | { type: 'settings/updateProof'; policy: ProofPolicySettings; actor?: string }
+  | { type: 'settings/updateLocation'; policy: DriverLocationPolicySettings; actor?: string }
   | { type: 'chat/send'; roomId: string; text: string; note: boolean; actor?: string }
   | { type: 'chat/toggle'; roomId: string; actor?: string }
   | { type: 'chat/transfer'; roomId: string; assignedTo: string; actor?: string }

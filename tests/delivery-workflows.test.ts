@@ -88,3 +88,57 @@ describe('CSV import validation', () => {
     expect(result.duplicate).toBe(true);
   });
 });
+
+describe('company-controlled driver updates', () => {
+  it('approves a partial-delivery report and splits the original shipment without duplicating shipping fees', () => {
+    const update = base.driverUpdates.find((item) => item.reportedStatus === 'partiallyDelivered');
+    expect(update).toBeDefined();
+    const source = base.shipments.find((item) => item.id === update!.shipmentId)!;
+    const previousReturnCases = base.returnCases.length;
+    const output = reduceDeliveryCommand(base, { type: 'driverUpdate/approve', updateId: update!.id, actor: 'مدير التشغيل' });
+    expect(output.result.ok).toBe(true);
+    const root = output.state.shipments.find((item) => item.id === source.id)!;
+    const children = output.state.shipments.filter((item) => item.parentShipmentId === source.id);
+    expect(root.status).toBe('partiallyDelivered');
+    expect(root.childShipmentIds).toHaveLength(2);
+    expect(children).toHaveLength(2);
+    expect(children.every((item) => item.deliveryFee === 0)).toBe(true);
+    expect(root.deliveryFee).toBe(source.deliveryFee);
+    expect(root.merchantVisibleStatus).toContain('تم تسليم جزء');
+    expect(output.state.returnCases.length).toBe(previousReturnCases + 1);
+    expect(output.state.driverUpdates.find((item) => item.id === update!.id)?.status).toBe('approvedForMerchant');
+  });
+
+  it('keeps the merchant-facing state unchanged when the company rejects a driver report', () => {
+    const update = base.driverUpdates[0];
+    const source = base.shipments.find((item) => item.id === update.shipmentId)!;
+    const output = reduceDeliveryCommand(base, { type: 'driverUpdate/reject', updateId: update.id });
+    expect(output.result.ok).toBe(true);
+    expect(output.state.shipments.find((item) => item.id === source.id)?.status).toBe(source.status);
+    expect(output.state.driverUpdates.find((item) => item.id === update.id)?.status).toBe('rejectedForReview');
+  });
+});
+
+describe('tenant policy settings', () => {
+  it('updates delivery attempts policy and rejects inconsistent values', () => {
+    const valid = reduceDeliveryCommand(base, { type: 'settings/updateDelivery', policy: { ...base.settings.delivery, freeAttempts: 4, maxAttempts: 6 } });
+    expect(valid.result.ok).toBe(true);
+    expect(valid.state.settings.delivery.freeAttempts).toBe(4);
+    const invalid = reduceDeliveryCommand(base, { type: 'settings/updateDelivery', policy: { ...base.settings.delivery, freeAttempts: 5, maxAttempts: 3 } });
+    expect(invalid.result.ok).toBe(false);
+  });
+
+  it('supports the company-controlled return journey through the hub and back to the merchant', () => {
+    const seeded = base.returnCases[0];
+    expect(seeded).toBeDefined();
+    const initial = { ...seeded, status: 'returningToHub' as const };
+    const state = { ...base, returnCases: [initial, ...base.returnCases.slice(1)] };
+    let output = reduceDeliveryCommand(state, { type: 'return/receiveAtHub', returnCaseId: initial.id });
+    expect(output.state.returnCases.find((item) => item.id === initial.id)?.status).toBe('receivedAtHub');
+    const driver = output.state.drivers.find((item) => item.status === 'active')!;
+    output = reduceDeliveryCommand(output.state, { type: 'return/assignDriver', returnCaseId: initial.id, driverId: driver.id });
+    output = reduceDeliveryCommand(output.state, { type: 'return/markOutForMerchant', returnCaseId: initial.id });
+    output = reduceDeliveryCommand(output.state, { type: 'return/confirmMerchantReceipt', returnCaseId: initial.id, proofReference: 'PROOF-1' });
+    expect(output.state.returnCases.find((item) => item.id === initial.id)?.status).toBe('returnedToMerchant');
+  });
+});

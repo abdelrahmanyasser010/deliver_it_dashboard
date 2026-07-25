@@ -1,4 +1,4 @@
-import type { DriverShipmentUpdate } from '../../domain/operations/entities';
+import type { DriverShipmentUpdate, ReturnCase } from '../../domain/operations/entities';
 import type { FinancialLedgerEntry, MerchantSettlement, SettlementLine } from '../../domain/finance/entities';
 import type { Driver, Shipment, ShipmentEvent, ShipmentStatus } from '../../domain/logistics/entities';
 import type { CommandError, CommandResult, DeliveryCommand, DeliveryState } from './types';
@@ -7,6 +7,12 @@ import { canTransition, deriveShipmentStateAfterTransition } from './workflow';
 const nowIso = () => new Date().toISOString();
 const id = (prefix: string) => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 const actorOf = (command: DeliveryCommand) => command.actor ?? 'مستخدم تجريبي';
+
+function calculateConfiguredFee(mode: 'disabled' | 'fixed' | 'percentage', value: number, base: number) {
+  if (mode === 'fixed') return Math.max(0, value);
+  if (mode === 'percentage') return Math.max(0, Math.round((base * value) / 100));
+  return 0;
+}
 
 function audit(state: DeliveryState, command: DeliveryCommand, entityType: string, entityId: string, detail: string): DeliveryState {
   return {
@@ -27,16 +33,16 @@ function updateShipment(state: DeliveryState, shipmentId: string, updater: (ship
 function refreshDerivedPeople(state: DeliveryState): DeliveryState {
   const today = new Date().toDateString();
   const drivers = state.drivers.map((driver) => {
-    const assigned = state.shipments.filter((shipment) => shipment.driverId === driver.id && !['delivered', 'returned'].includes(shipment.status));
-    const deliveredToday = state.shipments.filter((shipment) => shipment.driverId === driver.id && shipment.status === 'delivered' && new Date(shipment.statusChangedAt).toDateString() === today);
+    const assigned = state.shipments.filter((shipment) => shipment.driverId === driver.id && !['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status));
+    const deliveredToday = state.shipments.filter((shipment) => shipment.driverId === driver.id && ['delivered', 'partiallyDelivered'].includes(shipment.status) && new Date(shipment.statusChangedAt).toDateString() === today);
     const pendingCash = state.shipments.filter((shipment) => shipment.driverId === driver.id).reduce((sum, shipment) => sum + Math.max(0, shipment.collectedCash - shipment.remittedCash), 0);
     return { ...driver, shipmentsCount: assigned.length, activeLoad: assigned.length, deliveredToday: deliveredToday.length, pendingCash };
   });
   const merchants = state.merchants.map((merchant) => {
     const shipments = state.shipments.filter((shipment) => shipment.merchantId === merchant.id);
-    const delivered = shipments.filter((shipment) => shipment.status === 'delivered').length;
+    const delivered = shipments.filter((shipment) => ['delivered', 'partiallyDelivered'].includes(shipment.status)).length;
     const returned = shipments.filter((shipment) => shipment.status === 'returned').length;
-    const delayed = shipments.filter((shipment) => shipment.expectedDeliveryAt && new Date(shipment.expectedDeliveryAt).getTime() < Date.now() && !['delivered', 'returned'].includes(shipment.status)).length;
+    const delayed = shipments.filter((shipment) => shipment.expectedDeliveryAt && new Date(shipment.expectedDeliveryAt).getTime() < Date.now() && !['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status)).length;
     const pendingSettlement = shipments.filter((shipment) => ['remitted', 'inSettlement'].includes(shipment.financialStatus) && shipment.settlementStatus === 'unsettled').reduce((sum, shipment) => sum + Math.max(0, shipment.collectedCash - shipment.deliveryFee - shipment.discount), 0);
     const totalOrderValue = shipments.reduce((sum, shipment) => sum + shipment.total, 0);
     const performance = {
@@ -76,6 +82,134 @@ function buildSettlement(shipments: Shipment[]): MerchantSettlement | null {
   };
 }
 
+
+function buildPartialDeliveryProjection(state: DeliveryState, update: DriverShipmentUpdate, shipment: Shipment, actor: string): DeliveryState {
+  const lines = update.partialDeliveryLines ?? [];
+  if (!lines.length) return state;
+  const deliveredSubtotal = lines.reduce((sum, line) => {
+    const item = shipment.items[line.itemIndex];
+    return sum + (item?.price ?? 0) * Math.max(0, Math.min(line.deliveredQuantity, item?.quantity ?? 0));
+  }, 0);
+  const collectedCash = shipment.paymentType === 'cashOnDelivery'
+    ? Math.max(0, update.reportedCollectedCash ?? deliveredSubtotal + shipment.deliveryFee - shipment.discount)
+    : 0;
+  const splitTimestamp = nowIso();
+  const rootId = shipment.rootShipmentId ?? shipment.id;
+  const grouped = new Map<'retry' | 'return', Array<{ line: NonNullable<DriverShipmentUpdate['partialDeliveryLines']>[number]; item: Shipment['items'][number]; quantity: number }>>();
+  lines.forEach((line) => {
+    const item = shipment.items[line.itemIndex];
+    if (!item) return;
+    const quantity = Math.max(0, item.quantity - line.deliveredQuantity);
+    if (!quantity || !line.undeliveredAction) return;
+    grouped.set(line.undeliveredAction, [...(grouped.get(line.undeliveredAction) ?? []), { line, item, quantity }]);
+  });
+
+  const children: Shipment[] = [];
+  const returnCases: ReturnCase[] = [];
+  let sequence = Math.max(0, ...state.shipments.filter((item) => (item.rootShipmentId ?? item.id) === rootId).map((item) => item.splitSequence ?? 0));
+  for (const [action, entries] of grouped.entries()) {
+    sequence += 1;
+    const childId = `${rootId}-${action === 'retry' ? 'A' : 'R'}${sequence}`;
+    const itemSubtotal = entries.reduce((sum, entry) => sum + entry.item.price * entry.quantity, 0);
+    const childStatus = action === 'retry' ? 'postponed' as const : 'returned' as const;
+    const taskStatus = action === 'retry' ? 'needsCustomerService' as const : 'needsReturnProcessing' as const;
+    const child: Shipment = {
+      ...shipment,
+      id: childId,
+      trackingNumber: `${shipment.trackingNumber}-${action === 'retry' ? 'A' : 'R'}${sequence}`,
+      rootShipmentId: rootId,
+      parentShipmentId: shipment.id,
+      splitSequence: sequence,
+      childShipmentIds: [],
+      status: childStatus,
+      taskStatus,
+      financialStatus: action === 'retry' && shipment.paymentType === 'cashOnDelivery' ? 'awaitingCollection' : 'notDue',
+      total: itemSubtotal,
+      deliveryFee: 0,
+      discount: 0,
+      expectedCollection: action === 'retry' && shipment.paymentType === 'cashOnDelivery' ? itemSubtotal : 0,
+      collectedCash: 0,
+      remittedCash: 0,
+      items: entries.map(({ item, quantity, line }, itemIndex) => ({ ...item, id: `${childId}-I${itemIndex + 1}`, quantity, deliveredQuantity: 0, pendingQuantity: action === 'retry' ? quantity : 0, returnedQuantity: action === 'return' ? quantity : 0, disposition: action, dispositionReason: line.reason })),
+      attemptCount: action === 'retry' ? shipment.attemptCount + 1 : shipment.attemptCount,
+      exceptionReason: entries.map((entry) => entry.line.reason).filter(Boolean).join('، ') || (action === 'retry' ? 'جزء ينتظر إعادة محاولة' : 'جزء مرتجع إلى الشركة'),
+      settlementStatus: 'unsettled',
+      settlementId: undefined,
+      expectedDeliveryAt: action === 'retry' ? shipment.expectedDeliveryAt : undefined,
+      statusChangedAt: splitTimestamp,
+      lastUpdatedAt: splitTimestamp,
+      version: 1,
+      deliveryProof: undefined,
+      merchantVisibleStatus: action === 'retry' ? 'تم تأجيل جزء من الطلب لمحاولة جديدة' : 'جزء من الطلب في دورة المرتجع',
+      events: [shipmentEvent(childId, 'created', action === 'retry' ? 'إنشاء بوليصة إعادة محاولة' : 'إنشاء بوليصة مرتجع جزئي', `من البوليصة الأصلية ${shipment.id}`, actor)],
+      attempts: [],
+    };
+    children.push(child);
+    if (action === 'return') {
+      const returnFee = calculateConfiguredFee(state.settings.pricing.returnFeeMode, state.settings.pricing.returnFeeValue, shipment.deliveryFee);
+      returnCases.push({
+        id: id('RET'), shipmentId: child.id, rootShipmentId: rootId, merchantId: shipment.merchantId, merchantName: shipment.merchantName,
+        sourceDriverId: shipment.driverId, sourceDriverName: shipment.driverName, status: 'returningToHub',
+        reason: child.exceptionReason ?? 'مرتجع جزئي', itemSummary: child.items.map((item) => `${item.name} × ${item.quantity}`).join('، '),
+        quantity: child.items.reduce((sum, item) => sum + item.quantity, 0), returnFee, createdAt: splitTimestamp, updatedAt: splitTimestamp,
+      });
+    }
+  }
+
+  const rootItems = shipment.items.map((item, itemIndex) => {
+    const line = lines.find((entry) => entry.itemIndex === itemIndex);
+    if (!line) return item;
+    const deliveredQuantity = Math.max(0, Math.min(item.quantity, line.deliveredQuantity));
+    const undelivered = item.quantity - deliveredQuantity;
+    return {
+      ...item,
+      deliveredQuantity,
+      pendingQuantity: line.undeliveredAction === 'retry' ? undelivered : 0,
+      returnedQuantity: line.undeliveredAction === 'return' ? undelivered : 0,
+      disposition: deliveredQuantity === item.quantity ? 'delivered' as const : line.undeliveredAction,
+      dispositionReason: line.reason,
+    };
+  });
+  const proof = update.evidenceReference ? {
+    type: 'photo' as const,
+    reference: update.evidenceReference,
+    recipientName: update.recipientName ?? shipment.customerName,
+    capturedAt: update.location?.capturedAt ?? update.createdAt,
+    location: update.location,
+    reviewStatus: update.requiresManualReview ? 'needsReview' as const : 'accepted' as const,
+    reviewNote: update.reviewReason,
+  } : undefined;
+  const rootTotal = deliveredSubtotal + shipment.deliveryFee - shipment.discount;
+  const updatedRoot: Shipment = {
+    ...shipment,
+    rootShipmentId: rootId,
+    status: 'partiallyDelivered',
+    taskStatus: 'none',
+    financialStatus: shipment.paymentType === 'cashOnDelivery' ? 'partiallyCollected' : 'notDue',
+    total: Math.max(0, rootTotal),
+    expectedCollection: collectedCash,
+    collectedCash,
+    items: rootItems,
+    childShipmentIds: children.map((child) => child.id),
+    deliveryProof: proof,
+    merchantVisibleStatus: 'تم تسليم جزء من الطلب وجارٍ معالجة الجزء المتبقي',
+    exceptionReason: undefined,
+    statusChangedAt: splitTimestamp,
+    lastUpdatedAt: splitTimestamp,
+    version: (shipment.version ?? 0) + 1,
+    events: [...(shipment.events ?? []), shipmentEvent(shipment.id, 'statusChanged', 'اعتماد التسليم الجزئي', `تم إنشاء ${children.length} بوليصة فرعية؛ رسوم الشحن الأساسية محفوظة على البوليصة الأصلية.`, actor, shipment.status, 'partiallyDelivered')],
+  };
+  return {
+    ...state,
+    shipments: [...state.shipments.map((item) => item.id === shipment.id ? updatedRoot : item), ...children],
+    returnCases: [...returnCases, ...state.returnCases],
+  };
+}
+
+function updateReturnCase(state: DeliveryState, returnCaseId: string, updater: (item: ReturnCase) => ReturnCase) {
+  return { ...state, returnCases: state.returnCases.map((item) => item.id === returnCaseId ? updater(item) : item) };
+}
+
 function result(ok: boolean, message: string, errors?: CommandError[], createdId?: string): CommandResult { return { ok, message, errors, createdId }; }
 
 export function reduceDeliveryCommand(previous: DeliveryState, command: DeliveryCommand): { state: DeliveryState; result: CommandResult } {
@@ -86,7 +220,7 @@ export function reduceDeliveryCommand(previous: DeliveryState, command: Delivery
     case 'shipment/assignDriver': {
       const driver = state.drivers.find((item) => item.id === command.driverId);
       if (!driver || driver.status !== 'active') return { state, result: result(false, 'المندوب غير موجود أو غير فعال.') };
-      const eligible = command.shipmentIds.filter((shipmentId) => state.shipments.some((shipment) => shipment.id === shipmentId && !['delivered', 'returned'].includes(shipment.status)));
+      const eligible = command.shipmentIds.filter((shipmentId) => state.shipments.some((shipment) => shipment.id === shipmentId && !['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status)));
       const capacityLeft = Math.max(0, driver.capacity - driver.activeLoad);
       const accepted = eligible.slice(0, capacityLeft);
       const rejected = eligible.slice(capacityLeft).map((entityId) => ({ entityId, message: 'تجاوز سعة المندوب.' }));
@@ -158,17 +292,59 @@ export function reduceDeliveryCommand(previous: DeliveryState, command: Delivery
       if (!update) return { state, result: result(false, 'تحديث المندوب غير موجود.') };
       const approved = command.type === 'driverUpdate/approve';
       state = { ...state, driverUpdates: state.driverUpdates.map((item) => item.id === update.id ? { ...item, status: approved ? 'approvedForMerchant' : 'rejectedForReview' } : item) };
-      if (approved) {
-        const mapping: Partial<Record<DriverShipmentUpdate['reportedStatus'], ShipmentStatus>> = { delivered: 'delivered', failed: 'failedToDeliver', returned: 'returned', postponed: 'postponed', inTransit: 'inTransit' };
-        const next = mapping[update.reportedStatus];
-        const shipment = state.shipments.find((item) => item.id === update.shipmentId);
-        if (next && shipment && canTransition(shipment.status, next)) {
-          const transitioned = reduceDeliveryCommand(state, { type: 'shipment/transition', shipmentIds: [shipment.id], nextStatus: next, reason: update.note ?? 'اعتماد تحديث المندوب', actor });
-          state = transitioned.state;
-        } else if (shipment) state = updateShipment(state, shipment.id, (item) => ({ ...item, taskStatus: 'none', lastUpdatedAt: nowIso() }));
+      const shipment = state.shipments.find((item) => item.id === update.shipmentId);
+      if (approved && shipment) {
+        if (update.reportedStatus === 'partiallyDelivered') {
+          state = buildPartialDeliveryProjection(state, update, shipment, actor);
+        } else {
+          const mapping: Partial<Record<DriverShipmentUpdate['reportedStatus'], ShipmentStatus>> = { delivered: 'delivered', failed: 'failedToDeliver', returned: 'returned', postponed: 'postponed', inTransit: 'inTransit' };
+          const next = mapping[update.reportedStatus];
+          if (next && canTransition(shipment.status, next)) {
+            const transitioned = reduceDeliveryCommand(state, { type: 'shipment/transition', shipmentIds: [shipment.id], nextStatus: next, reason: update.note ?? 'اعتماد تحديث المندوب', actor });
+            state = transitioned.state;
+            if (update.evidenceReference && next === 'delivered') {
+              state = updateShipment(state, shipment.id, (item) => ({
+                ...item,
+                deliveryProof: { type: 'photo', reference: update.evidenceReference!, recipientName: update.recipientName ?? item.customerName, capturedAt: update.location?.capturedAt ?? update.createdAt, location: update.location, reviewStatus: update.requiresManualReview ? 'needsReview' : 'accepted', reviewNote: update.reviewReason },
+                merchantVisibleStatus: 'تم تسليم الشحنة واعتماد الإثبات من شركة الشحن',
+              }));
+            }
+          } else state = updateShipment(state, shipment.id, (item) => ({ ...item, taskStatus: 'none', lastUpdatedAt: nowIso() }));
+        }
       }
-      state = audit(state, command, 'driverUpdate', update.id, approved ? 'اعتماد تحديث المندوب' : 'رفض تحديث المندوب');
-      return { state, result: result(true, approved ? 'تم اعتماد التحديث وتحديث الشحنة.' : 'تم رفض التحديث للمراجعة.') };
+      state = refreshDerivedPeople(audit(state, command, 'driverUpdate', update.id, approved ? 'اعتماد تحديث المندوب وإصدار الحالة الرسمية' : 'رفض تحديث المندوب للمراجعة الداخلية'));
+      return { state, result: result(true, approved ? 'تم اعتماد تحديث المندوب وإصدار الحالة الرسمية للتاجر.' : 'تم رفض التحديث وإبقاؤه داخل مراجعة الشركة.') };
+    }
+    case 'return/receiveAtHub': {
+      const returnCase = state.returnCases.find((item) => item.id === command.returnCaseId);
+      if (!returnCase || returnCase.status !== 'returningToHub') return { state, result: result(false, 'المرتجع غير قابل لتأكيد الوصول للمخزن.') };
+      state = updateReturnCase(state, returnCase.id, (item) => ({ ...item, status: 'receivedAtHub', receivedAtHubAt: nowIso(), updatedAt: nowIso() }));
+      state = audit(state, command, 'returnCase', returnCase.id, 'استلام المرتجع في الشركة وفحصه');
+      return { state, result: result(true, 'تم استلام المرتجع في الشركة وأصبح جاهزًا للإسناد.') };
+    }
+    case 'return/assignDriver': {
+      const returnCase = state.returnCases.find((item) => item.id === command.returnCaseId);
+      const driver = state.drivers.find((item) => item.id === command.driverId && item.status === 'active');
+      if (!returnCase || !['receivedAtHub', 'awaitingMerchantAssignment'].includes(returnCase.status)) return { state, result: result(false, 'المرتجع غير جاهز للإسناد.') };
+      if (!driver) return { state, result: result(false, 'المندوب غير موجود أو غير فعال.') };
+      state = updateReturnCase(state, returnCase.id, (item) => ({ ...item, status: 'assignedToDriver', assignedDriverId: driver.id, assignedDriverName: driver.name, assignedAt: nowIso(), updatedAt: nowIso() }));
+      state = audit(state, command, 'returnCase', returnCase.id, `إسناد المرتجع إلى ${driver.name}`);
+      return { state, result: result(true, 'تم إسناد مهمة إعادة المرتجع للتاجر.') };
+    }
+    case 'return/markOutForMerchant': {
+      const returnCase = state.returnCases.find((item) => item.id === command.returnCaseId);
+      if (!returnCase || returnCase.status !== 'assignedToDriver') return { state, result: result(false, 'يجب إسناد المرتجع لمندوب أولًا.') };
+      state = updateReturnCase(state, returnCase.id, (item) => ({ ...item, status: 'outForMerchantReturn', updatedAt: nowIso() }));
+      state = audit(state, command, 'returnCase', returnCase.id, 'خرج المرتجع من الشركة إلى التاجر');
+      return { state, result: result(true, 'تم تسجيل خروج المرتجع إلى التاجر.') };
+    }
+    case 'return/confirmMerchantReceipt': {
+      const returnCase = state.returnCases.find((item) => item.id === command.returnCaseId);
+      if (!returnCase || returnCase.status !== 'outForMerchantReturn') return { state, result: result(false, 'المرتجع ليس في مرحلة التسليم للتاجر.') };
+      state = updateReturnCase(state, returnCase.id, (item) => ({ ...item, status: 'returnedToMerchant', completedAt: nowIso(), proofReference: command.proofReference, updatedAt: nowIso() }));
+      state = updateShipment(state, returnCase.shipmentId, (item) => ({ ...item, taskStatus: 'none', merchantVisibleStatus: 'تم تسليم المرتجع إلى التاجر', lastUpdatedAt: nowIso(), events: [...(item.events ?? []), shipmentEvent(item.id, 'note', 'إغلاق دورة المرتجع', 'أكدت الشركة تسليم المرتجع للتاجر.', actor)] }));
+      state = audit(state, command, 'returnCase', returnCase.id, 'تأكيد استلام التاجر للمرتجع');
+      return { state, result: result(true, 'تم تأكيد استلام التاجر وإغلاق دورة المرتجع.') };
     }
     case 'barcode/create': {
       state = audit({ ...state, barcodeBatches: [command.batch, ...state.barcodeBatches] }, command, 'barcodeBatch', command.batch.id, 'إنشاء دفعة باركود');
@@ -214,7 +390,7 @@ export function reduceDeliveryCommand(previous: DeliveryState, command: Delivery
       return { state, result: result(true, exists ? 'تم تحديث بيانات المندوب.' : 'تم إضافة المندوب.') };
     }
     case 'driver/delete': {
-      const hasActive = state.shipments.some((shipment) => shipment.driverId === command.driverId && !['delivered', 'returned'].includes(shipment.status));
+      const hasActive = state.shipments.some((shipment) => shipment.driverId === command.driverId && !['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status));
       if (hasActive) return { state, result: result(false, 'لا يمكن حذف مندوب لديه شحنات نشطة.') };
       state = audit({ ...state, drivers: state.drivers.filter((item) => item.id !== command.driverId) }, command, 'driver', command.driverId, 'حذف مندوب');
       return { state, result: result(true, 'تم حذف المندوب.') };
@@ -263,6 +439,26 @@ export function reduceDeliveryCommand(previous: DeliveryState, command: Delivery
       if (blockers) return { state, result: result(false, 'لا يمكن إغلاق الفترة قبل إنهاء القيود والفروقات والاعتمادات المعلقة.') };
       state = audit({ ...state, closedPeriods: [...state.closedPeriods, command.period] }, command, 'period', command.period, 'إغلاق فترة مالية');
       return { state, result: result(true, 'تم إغلاق الفترة المالية.') };
+    }
+    case 'settings/updateDelivery': {
+      if (command.policy.freeAttempts < 0 || command.policy.maxAttempts < command.policy.freeAttempts) return { state, result: result(false, 'تحقق من عدد المحاولات المجانية والحد الأقصى.') };
+      state = audit({ ...state, settings: { ...state.settings, delivery: command.policy, updatedAt: nowIso(), updatedBy: actor } }, command, 'settings', 'delivery', 'تحديث سياسة التوصيل والمحاولات');
+      return { state, result: result(true, 'تم حفظ سياسة التوصيل والمحاولات.') };
+    }
+    case 'settings/updatePricing': {
+      if (command.policy.vatRate < 0 || command.policy.vatRate > 100) return { state, result: result(false, 'نسبة الضريبة يجب أن تكون بين 0 و100.') };
+      state = audit({ ...state, settings: { ...state.settings, pricing: command.policy, updatedAt: nowIso(), updatedBy: actor } }, command, 'settings', 'pricing', 'تحديث سياسة الرسوم والضرائب');
+      return { state, result: result(true, 'تم حفظ سياسة الرسوم والضرائب.') };
+    }
+    case 'settings/updateProof': {
+      if (command.policy.preferredAccuracyMeters > command.policy.maximumAccuracyMeters) return { state, result: result(false, 'الدقة المفضلة يجب ألا تتجاوز الحد الأقصى المقبول.') };
+      state = audit({ ...state, settings: { ...state.settings, proof: command.policy, updatedAt: nowIso(), updatedBy: actor } }, command, 'settings', 'proof', 'تحديث سياسة إثبات التسليم');
+      return { state, result: result(true, 'تم حفظ سياسة إثبات التسليم.') };
+    }
+    case 'settings/updateLocation': {
+      if (command.policy.activeTaskIntervalSeconds < 15 || command.policy.idleIntervalSeconds < command.policy.activeTaskIntervalSeconds) return { state, result: result(false, 'تحقق من فترات إرسال الموقع؛ أثناء المهمة يجب أن يكون أسرع من وقت الخمول.') };
+      state = audit({ ...state, settings: { ...state.settings, location: command.policy, updatedAt: nowIso(), updatedBy: actor } }, command, 'settings', 'location', 'تحديث سياسة تتبع موقع المندوب');
+      return { state, result: result(true, 'تم حفظ سياسة تتبع الموقع.') };
     }
     case 'chat/send': {
       const room = state.chatRooms.find((item) => item.id === command.roomId);

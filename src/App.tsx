@@ -27,9 +27,10 @@ const ApplicationsPage = lazyNamed(() => import('./pages/Applications'), 'Applic
 const SettlementsPage = lazyNamed(() => import('./pages/Settlements'), 'SettlementsPage');
 const UsersPage = lazyNamed(() => import('./pages/Users'), 'UsersPage');
 const AuditLogPage = lazyNamed(() => import('./pages/AuditLog'), 'AuditLogPage');
+const SettingsPage = lazyNamed(() => import('./pages/Settings'), 'SettingsPage');
 
 const PAGE_TITLES: Record<string, string> = {
-  '/': 'الرئيسية', '/shipments': 'إدارة الشحنات', '/operations': 'مركز العمليات', '/exceptions': 'مركز الاستثناءات', '/barcode': 'استلام بالباركود', '/reports': 'التقارير والإحصائيات', '/accounting': 'حسابات العملاء والمناديب', '/drivers': 'إدارة المناديب', '/merchants': 'إدارة التجار', '/chat': 'الشات', '/applications': 'طلبات التجار', '/settlements': 'التسويات والتحصيلات', '/users': 'المستخدمون والصلاحيات', '/audit-log': 'سجل العمليات',
+  '/': 'الرئيسية', '/shipments': 'إدارة الشحنات', '/operations': 'مركز العمليات', '/exceptions': 'مركز الاستثناءات', '/barcode': 'استلام بالباركود', '/reports': 'التقارير والإحصائيات', '/accounting': 'حسابات العملاء والمناديب', '/drivers': 'إدارة المناديب', '/merchants': 'إدارة التجار', '/chat': 'الشات', '/applications': 'طلبات التجار', '/settlements': 'التسويات والتحصيلات', '/users': 'المستخدمون والصلاحيات', '/audit-log': 'سجل العمليات', '/settings': 'إعدادات الشركة',
 };
 
 function ProtectedPage({ path, children }: { path: string; children: React.ReactNode }) {
@@ -67,6 +68,7 @@ function App() {
         <Route path="/settlements" element={<ProtectedPage path="/settlements"><SettlementsPage /></ProtectedPage>} />
         <Route path="/users" element={<ProtectedPage path="/users"><UsersPage /></ProtectedPage>} />
         <Route path="/audit-log" element={<ProtectedPage path="/audit-log"><AuditLogPage /></ProtectedPage>} />
+        <Route path="/settings" element={<ProtectedPage path="/settings"><SettingsPage /></ProtectedPage>} />
         <Route path="*" element={<Navigate to={firstAllowedRoute(role)} replace />} />
       </Routes></Suspense></main>
     </div>

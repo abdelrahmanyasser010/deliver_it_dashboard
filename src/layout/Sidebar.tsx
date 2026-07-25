@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, Barcode, Bell, ChartNoAxesCombined, CheckCheck, ChevronLeft, ChevronRight, LayoutDashboard, LogOut,
-  MessageCircle, Package, ReceiptText, Route, ShieldCheck, Store, TruckIcon, Users,
+  MessageCircle, Package, ReceiptText, Route, Settings2, ShieldCheck, Store, TruckIcon, Users,
 } from 'lucide-react';
 import { useLogisticsDashboard } from '../application/logistics/useLogisticsData';
 import { GlobalSearch } from '../components/GlobalSearch';
@@ -36,6 +36,7 @@ const navSections: NavSection[] = [
     { id: 'drivers', label: 'المناديب', icon: <Users size={20}/>, roles: ['management', 'operations'] },
     { id: 'merchants', label: 'التجار', icon: <Store size={20}/>, roles: allRoles },
     { id: 'users', label: 'المستخدمون والصلاحيات', icon: <ShieldCheck size={20}/>, roles: ['management'] },
+    { id: 'settings', label: 'إعدادات الشركة', icon: <Settings2 size={20}/>, roles: ['management'] },
   ]},
 ];
 const formatNumber = (value: number) => value.toLocaleString('ar-EG');

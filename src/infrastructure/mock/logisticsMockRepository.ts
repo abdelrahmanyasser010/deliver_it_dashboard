@@ -136,7 +136,13 @@ function buildShipment(seed: ShipmentSeed, index: number): Shipment {
     collectedCash: paymentType === 'prepaid' ? 0 : seed.collectedCash ?? 0,
     expectedCollection,
     remittedCash: paymentType === 'prepaid' ? 0 : seed.remittedCash ?? 0,
-    items: [{ name: index % 2 === 0 ? 'منتج رئيسي' : 'طلب متجر', quantity: randomBetween(1, 3), price: seed.total - deliveryFee + discount }],
+    items: seed.id === 'SHP-0002'
+      ? [
+          { id: `${seed.id}-I1`, name: 'قميص قطني', quantity: 1, price: 500 },
+          { id: `${seed.id}-I2`, name: 'بنطلون جينز', quantity: 1, price: 280 },
+          { id: `${seed.id}-I3`, name: 'حزام', quantity: 1, price: Math.max(40, seed.total - deliveryFee + discount - 780) },
+        ]
+      : [{ id: `${seed.id}-I1`, name: index % 2 === 0 ? 'منتج رئيسي' : 'طلب متجر', quantity: randomBetween(1, 3), price: seed.total - deliveryFee + discount }],
     driverId: driver?.id,
     driverName: driver?.name,
     merchantId: merchant.id,

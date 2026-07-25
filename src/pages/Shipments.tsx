@@ -117,7 +117,7 @@ export function ShipmentsPage() {
     const matchesPriority = priorityFilter === 'all' || shipment.priority === priorityFilter;
     const createdTime = new Date(shipment.createdAt).getTime();
     const matchesDate = (!fromDate || createdTime >= new Date(`${fromDate}T00:00:00`).getTime()) && (!toDate || createdTime <= new Date(`${toDate}T23:59:59.999`).getTime());
-    const isDelayed = Boolean(shipment.expectedDeliveryAt) && new Date(shipment.expectedDeliveryAt as string).getTime() < now && !['delivered', 'returned'].includes(shipment.status);
+    const isDelayed = Boolean(shipment.expectedDeliveryAt) && new Date(shipment.expectedDeliveryAt as string).getTime() < now && !['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status);
     const matchesView = viewFilter === 'all'
       || (viewFilter === 'unassigned' && shipment.taskStatus === 'needsDriverAssignment')
       || (viewFilter === 'delayed' && isDelayed)
@@ -401,6 +401,7 @@ export function ShipmentsPage() {
       {selected && (
         <ShipmentDrawer
           shipment={selected}
+          relatedShipments={allShipments.filter((item) => item.parentShipmentId === selected.id || (selected.parentShipmentId && item.id === selected.parentShipmentId))}
           attempts={(selected.attempts ?? []).map((attempt) => attempt.note)}
           activeAction={activeAction}
           drivers={driversQuery.drivers}

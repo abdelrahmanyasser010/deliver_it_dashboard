@@ -48,14 +48,14 @@ function buildExceptions(shipments: Shipment[], now: number): ExceptionItem[] {
   const items: ExceptionItem[] = [];
   const severityScore = { urgent: 3, high: 2, medium: 1 } as const;
   shipments.forEach((shipment) => {
-    const delayed = shipment.expectedDeliveryAt && new Date(shipment.expectedDeliveryAt).getTime() < now && !['delivered', 'returned'].includes(shipment.status);
+    const delayed = shipment.expectedDeliveryAt && new Date(shipment.expectedDeliveryAt).getTime() < now && !['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status);
     const staleHours = (now - new Date(shipment.lastUpdatedAt).getTime()) / 3600000;
     if (delayed) items.push({ id: `${shipment.id}-delay`, shipment, category: 'delay', title: 'شحنة متأخرة', reason: shipment.exceptionReason ?? 'تجاوزت موعد التسليم المتوقع.', severity: staleHours > 12 ? 'urgent' : 'high' });
     if (shipment.taskStatus === 'needsDriverAssignment') items.push({ id: `${shipment.id}-assignment`, shipment, category: 'assignment', title: 'تحتاج تعيين مندوب', reason: 'الشحنة جاهزة للتوزيع ولا يوجد مندوب معين لها.', severity: shipment.priority === 'urgent' ? 'urgent' : 'high' });
     if (shipment.taskStatus === 'needsFinancialReview' || shipment.financialStatus === 'discrepancy') items.push({ id: `${shipment.id}-financial`, shipment, category: 'financial', title: 'فرق تحصيل', reason: shipment.exceptionReason ?? 'المبلغ المحصل لا يطابق المبلغ المتوقع.', severity: 'urgent' });
     if (shipment.taskStatus === 'needsReturnProcessing') items.push({ id: `${shipment.id}-return`, shipment, category: 'return', title: 'مرتجع معلق', reason: shipment.exceptionReason ?? 'المرتجع يحتاج استكمال التسليم للتاجر.', severity: 'high' });
     if (shipment.taskStatus === 'needsCustomerService') items.push({ id: `${shipment.id}-customer`, shipment, category: 'customer', title: 'تحتاج تدخل خدمة العملاء', reason: shipment.exceptionReason ?? `${taskStatusConfig[shipment.taskStatus].label} بعد ${statusConfig[shipment.status].label}.`, severity: 'medium' });
-    if (staleHours > 24 && !['delivered', 'returned'].includes(shipment.status)) items.push({ id: `${shipment.id}-stale`, shipment, category: 'stale', title: 'لا يوجد تحديث حديث', reason: `آخر تحديث منذ ${formatAge(shipment.lastUpdatedAt)}.`, severity: staleHours > 48 ? 'urgent' : 'medium' });
+    if (staleHours > 24 && !['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status)) items.push({ id: `${shipment.id}-stale`, shipment, category: 'stale', title: 'لا يوجد تحديث حديث', reason: `آخر تحديث منذ ${formatAge(shipment.lastUpdatedAt)}.`, severity: staleHours > 48 ? 'urgent' : 'medium' });
   });
   return items.sort((a, b) => severityScore[b.severity] - severityScore[a.severity]);
 }

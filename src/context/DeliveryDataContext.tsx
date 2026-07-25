@@ -14,7 +14,7 @@ interface DeliveryDataContextValue {
 }
 
 const DeliveryDataContext = createContext<DeliveryDataContextValue | null>(null);
-const STORAGE_KEY = 'deliver-it-unified-state-v3';
+const STORAGE_KEY = 'deliver-it-unified-state-v4';
 
 function readPersisted(): DeliveryState | null {
   try {
