@@ -233,7 +233,7 @@
 .table-wrapper { overflow: auto; }
 
 .shipments-table {
-  min-width: 1450px;
+  /* Removed min-width: 1450px to allow table to fit full screen without scrollbar */
 }
 
 .shipments-table th {
