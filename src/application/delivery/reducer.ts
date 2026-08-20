@@ -389,16 +389,33 @@ export function reduceDeliveryCommand(previous: DeliveryState, command: Delivery
       state = refreshDerivedPeople(audit({ ...state, drivers: exists ? state.drivers.map((item) => item.id === driver.id ? driver : item) : [driver, ...state.drivers] }, command, 'driver', driver.id, exists ? 'تعديل مندوب' : 'إضافة مندوب'));
       return { state, result: result(true, exists ? 'تم تحديث بيانات المندوب.' : 'تم إضافة المندوب.') };
     }
-    case 'driver/delete': {
+    case 'driver/archive': {
+      const driver = state.drivers.find((item) => item.id === command.driverId);
+      if (!driver) return { state, result: result(false, 'المندوب غير موجود.') };
       const hasActive = state.shipments.some((shipment) => shipment.driverId === command.driverId && !['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status));
-      if (hasActive) return { state, result: result(false, 'لا يمكن حذف مندوب لديه شحنات نشطة.') };
-      state = audit({ ...state, drivers: state.drivers.filter((item) => item.id !== command.driverId) }, command, 'driver', command.driverId, 'حذف مندوب');
-      return { state, result: result(true, 'تم حذف المندوب.') };
+      if (hasActive || driver.pendingCash > 0) return { state, result: result(false, 'لا يمكن أرشفة مندوب لديه مهام نشطة أو عهدة COD. أوقف الإسناد وسوِّ العهدة أولًا.') };
+      const archived = { ...driver, status: 'off' as const, availability: 'offline' as const, accountStatus: 'archived' as const, operationalStatus: 'offline' as const, onShift: false, archivedAt: nowIso() };
+      state = audit({ ...state, drivers: state.drivers.map((item) => item.id === command.driverId ? archived : item) }, command, 'driver', command.driverId, `أرشفة مندوب: ${command.reason}`);
+      return { state, result: result(true, 'تمت أرشفة المندوب مع الاحتفاظ بكل السجل.') };
+    }
+    case 'driver/resetAccess': {
+      const driver = state.drivers.find((item) => item.id === command.driverId);
+      if (!driver) return { state, result: result(false, 'المندوب غير موجود.') };
+      state = audit(state, command, 'driver', command.driverId, `طلب إعادة تعيين الدخول${command.invalidateSessions ? ' مع إنهاء الجلسات' : ''}${command.forcePasswordChange ? ' وإلزام تغيير كلمة السر' : ''}`);
+      return { state, result: result(true, 'تم تسجيل طلب إعادة تعيين الدخول. في الإنتاج سترسل خدمة الهوية OTP/رابط تفعيل دون كشف كلمة المرور للإدارة.') };
     }
     case 'merchant/upsert': {
       const exists = state.merchants.some((item) => item.id === command.merchant.id);
       state = refreshDerivedPeople(audit({ ...state, merchants: exists ? state.merchants.map((item) => item.id === command.merchant.id ? command.merchant : item) : [command.merchant, ...state.merchants] }, command, 'merchant', command.merchant.id, exists ? 'تعديل تاجر' : 'إضافة تاجر'));
       return { state, result: result(true, exists ? 'تم تحديث بيانات التاجر.' : 'تم إضافة التاجر.') };
+    }
+    case 'merchant/archive': {
+      const merchant = state.merchants.find((item) => item.id === command.merchantId);
+      if (!merchant) return { state, result: result(false, 'التاجر غير موجود.') };
+      const hasActive = state.shipments.some((shipment) => shipment.merchantId === command.merchantId && !['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status));
+      if (hasActive) return { state, result: result(false, 'لا يمكن أرشفة تاجر لديه شحنات تشغيلية مفتوحة.') };
+      state = audit({ ...state, merchants: state.merchants.map((item) => item.id === command.merchantId ? { ...item, status: 'archived' as const } : item) }, command, 'merchant', command.merchantId, `أرشفة تاجر: ${command.reason}`);
+      return { state, result: result(true, 'تمت أرشفة التاجر مع الاحتفاظ بالسجل المالي والتشغيلي.') };
     }
     case 'settlement/approve': {
       const settlement = state.settlements.find((item) => item.id === command.settlementId);
@@ -460,11 +477,20 @@ export function reduceDeliveryCommand(previous: DeliveryState, command: Delivery
       state = audit({ ...state, settings: { ...state.settings, location: command.policy, updatedAt: nowIso(), updatedBy: actor } }, command, 'settings', 'location', 'تحديث سياسة تتبع موقع المندوب');
       return { state, result: result(true, 'تم حفظ سياسة تتبع الموقع.') };
     }
+    case 'settings/updatePrinting': {
+      if (command.policy.defaultCopies < 1 || command.policy.defaultCopies > 5) return { state, result: result(false, 'عدد نسخ الطباعة الافتراضي يجب أن يكون بين 1 و5.') };
+      state = audit({ ...state, settings: { ...state.settings, printing: command.policy, updatedAt: nowIso(), updatedBy: actor } }, command, 'settings', 'printing', 'تحديث إعدادات طباعة البوالص');
+      return { state, result: result(true, 'تم حفظ إعدادات الطباعة.') };
+    }
+    case 'settings/updateNotifications': {
+      state = audit({ ...state, settings: { ...state.settings, notifications: command.policy, updatedAt: nowIso(), updatedBy: actor } }, command, 'settings', 'notifications', 'تحديث سياسة الإشعارات');
+      return { state, result: result(true, 'تم حفظ إعدادات الإشعارات.') };
+    }
     case 'chat/send': {
       const room = state.chatRooms.find((item) => item.id === command.roomId);
       if (!room) return { state, result: result(false, 'المحادثة غير موجودة.') };
-      const message = { id: id('MSG'), text: command.text, type: command.note ? 'note' as const : 'outgoing' as const, time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }), createdAt: nowIso() };
-      state = { ...state, chatRooms: state.chatRooms.map((item) => item.id === room.id ? { ...item, lastMessage: command.note ? `ملاحظة داخلية: ${command.text}` : command.text, messages: [...item.messages, message] } : item) };
+      const message = { id: id('MSG'), text: command.text, type: command.note ? 'note' as const : 'outgoing' as const, time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }), createdAt: nowIso(), attachments: command.attachments ?? [] };
+      state = { ...state, chatRooms: state.chatRooms.map((item) => item.id === room.id ? { ...item, lastMessage: command.note ? `ملاحظة داخلية: ${command.text || 'مرفق'}` : (command.text || `${command.attachments?.length ?? 0} مرفق`), messages: [...item.messages, message] } : item) };
       return { state, result: result(true, 'تم إرسال الرسالة.') };
     }
     case 'chat/toggle':

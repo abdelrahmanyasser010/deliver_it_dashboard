@@ -60,7 +60,7 @@ export function OverviewPage() {
     ],
     accounting: [
       { label: 'فروقات تحصيل', value: stats.cashDiscrepancies, detail: 'تحتاج مطابقة', icon: <AlertCircle size={19} />, tone: 'danger', path: '/exceptions?category=financial' },
-      { label: 'مع المناديب', value: stats.cashWithDrivers, detail: 'قيمة نقدية غير موردة', icon: <Banknote size={19} />, tone: 'warning', path: '/accounting' },
+      { label: 'عهدة COD الحالية', value: stats.cashWithDrivers, detail: 'قيمة محصلة لم يتم توريدها', icon: <Banknote size={19} />, tone: 'warning', path: '/accounting' },
       { label: 'تسويات معلقة', value: stats.pendingSettlement, detail: 'مستحقات تحتاج مراجعة', icon: <RefreshCcw size={19} />, tone: 'warning', path: '/settlements' },
     ],
     support: [
@@ -190,7 +190,7 @@ export function OverviewPage() {
           <div className="cash-summary-grid">
             <div><span>تم تحصيله</span><strong>{formatCurrency(stats.totalCashCollected)}</strong></div>
             <div><span>تم توريده</span><strong>{formatCurrency(stats.remittedCash)}</strong></div>
-            <div className="cash-alert"><span>مع المناديب</span><strong>{formatCurrency(stats.cashWithDrivers)}</strong></div>
+            <div className="cash-alert"><span>عهدة COD لدى المناديب</span><strong>{formatCurrency(stats.cashWithDrivers)}</strong></div>
             <div><span>داخل تسويات معلقة</span><strong>{formatCurrency(stats.pendingSettlement)}</strong></div>
           </div>
           <button className="outline-btn full-width" onClick={() => navigate('/accounting')}>فتح المحاسبة والتسويات</button>
@@ -204,7 +204,7 @@ export function OverviewPage() {
         </div>
         <div className="table-wrapper">
           <table className="data-table">
-            <thead><tr><th>رقم الشحنة</th><th>العميل</th><th>التاجر</th><th>المندوب</th><th>الحالة</th><th>المبلغ</th><th>آخر تحديث</th></tr></thead>
+            <thead><tr><th>رقم الشحنة</th><th>المستلم</th><th>التاجر</th><th>المندوب</th><th>الحالة</th><th>المبلغ</th><th>آخر تحديث</th></tr></thead>
             <tbody>
               {recentShipments.map((shipment) => {
                 const status = statusConfig[shipment.status];

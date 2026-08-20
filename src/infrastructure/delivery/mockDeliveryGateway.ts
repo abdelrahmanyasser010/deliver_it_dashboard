@@ -24,6 +24,16 @@ function enrichMerchant(merchant: Merchant, index: number): Merchant {
       { id: `${merchant.id}-PR-3`, scope: 'الصعيد', deliveryFee: 95 + index * 3, returnFee: 50, collectionFee: 8, estimatedDays: 3 },
     ],
     bankAccountReference: merchant.bankAccountReference ?? `BANK-${merchant.id}`,
+    code: merchant.code ?? merchant.id.replace(/^BRN-/, 'MRC-'),
+    legalName: merchant.legalName ?? `${merchant.name} للتجارة`,
+    email: merchant.email ?? `merchant${index + 1}@example.com`,
+    status: merchant.status ?? 'active',
+    accountManagerName: merchant.accountManagerName ?? (index % 2 === 0 ? 'نور حسن' : 'سارة محمد'),
+    settlementMethod: merchant.settlementMethod ?? (index % 2 === 0 ? 'bank' : 'instapay'),
+    taxId: merchant.taxId ?? `TAX-${10000 + index}`,
+    registrationNumber: merchant.registrationNumber ?? `CR-${20000 + index}`,
+    usersCount: merchant.usersCount ?? 2,
+    documentsCount: merchant.documentsCount ?? 3,
   };
 }
 
@@ -142,7 +152,7 @@ async function createBootstrap(): Promise<DeliveryState> {
   const merchants = snapshot.merchants.map(enrichMerchant);
   const base: DeliveryState = {
     shipments: snapshot.shipments.map((shipment) => ({ ...shipment, version: 1, pricingSnapshot: { shippingFee: shipment.deliveryFee, returnFeeMode: 'disabled', returnFeeValue: 0, freeAttempts: 3, extraAttemptFeeMode: 'disabled', extraAttemptFeeValue: 0, collectionFeeMode: 'disabled', collectionFeeValue: 0, vatEnabled: false, vatRate: 0 }, events: [{ id: `EVT-${shipment.id}-1`, shipmentId: shipment.id, type: 'created', title: 'تم إنشاء الشحنة', detail: `أنشأها ${shipment.merchantName}`, createdAt: shipment.createdAt, actor: shipment.merchantName }], attempts: [] })),
-    drivers: snapshot.drivers.map((driver, index) => ({ ...driver, vehicleType: index % 3 === 0 ? 'van' : index % 2 === 0 ? 'car' : 'motorcycle', vehicleNumber: `د ل ف ${1000 + index}`, userCode: `driver${index + 1}` })),
+    drivers: snapshot.drivers.map((driver, index) => ({ ...driver, vehicleType: index % 3 === 0 ? 'van' : index % 2 === 0 ? 'car' : 'motorcycle', vehicleNumber: `د ل ف ${1000 + index}`, userCode: `driver${index + 1}`, accountStatus: driver.status === 'active' ? 'active' : 'suspended', operationalStatus: driver.status !== 'active' ? 'offline' : index % 3 === 0 ? 'delivery_task' : index % 2 === 0 ? 'busy' : 'available', branchId: index % 2 === 0 ? 'BR-Cairo' : 'BR-Giza', branchName: index % 2 === 0 ? 'فرع القاهرة' : 'فرع الجيزة', serviceAreas: [driver.zone], taskTypes: ['pickup','delivery','returns'], maxBatchShipments: driver.capacity, maxOpenTasks: Math.max(driver.capacity, 12), onShift: driver.status === 'active' && index !== 3, lastSeenAt: index === 3 ? iso(-5) : iso(-0.08 - index * 0.03) })),
     merchants,
     pickupTasks: [], deliveryBatches: [], driverUpdates: [], returnCases: [], settlements: [], ledgerEntries: [], barcodeBatches: [], chatRooms: [], auditEvents: [], closedPeriods: [], settings: structuredClone(defaultTenantOperationalSettings), lastSyncedAt: iso(),
   };

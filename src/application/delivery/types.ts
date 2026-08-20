@@ -1,7 +1,7 @@
 import type { Driver, Merchant, Shipment } from '../../domain/logistics/entities';
 import type { DeliveryBatch, DriverShipmentUpdate, PickupTask, ReturnCase } from '../../domain/operations/entities';
 import type { FinancialLedgerEntry, MerchantSettlement } from '../../domain/finance/entities';
-import type { DeliveryPolicySettings, DriverLocationPolicySettings, PricingPolicySettings, ProofPolicySettings, TenantOperationalSettings } from '../../domain/settings/entities';
+import type { DeliveryPolicySettings, DriverLocationPolicySettings, NotificationSettings, PricingPolicySettings, PrintingSettings, ProofPolicySettings, TenantOperationalSettings } from '../../domain/settings/entities';
 
 export interface BarcodeBatch {
   id: string;
@@ -18,12 +18,21 @@ export interface BarcodeBatch {
   operatorName: string;
 }
 
+export interface ChatAttachmentRecord {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  url?: string;
+}
+
 export interface ChatMessageRecord {
   id: string;
   text: string;
   type: 'incoming' | 'outgoing' | 'note';
   time: string;
   createdAt: string;
+  attachments?: ChatAttachmentRecord[];
 }
 
 export interface ChatRoomRecord {
@@ -89,8 +98,10 @@ export type DeliveryCommand =
   | { type: 'barcode/close'; batchId: string; actor?: string }
   | { type: 'exception/resolve'; shipmentId: string; resolution: string; driverId?: string; actor?: string }
   | { type: 'driver/upsert'; driver: Driver; actor?: string }
-  | { type: 'driver/delete'; driverId: string; actor?: string }
+  | { type: 'driver/archive'; driverId: string; reason: string; actor?: string }
+  | { type: 'driver/resetAccess'; driverId: string; invalidateSessions: boolean; forcePasswordChange: boolean; actor?: string }
   | { type: 'merchant/upsert'; merchant: Merchant; actor?: string }
+  | { type: 'merchant/archive'; merchantId: string; reason: string; actor?: string }
   | { type: 'settlement/create'; shipmentIds: string[]; actor?: string }
   | { type: 'settlement/approve'; settlementId: string; actor?: string }
   | { type: 'settlement/pay'; settlementId: string; paymentReference: string; actor?: string }
@@ -101,7 +112,9 @@ export type DeliveryCommand =
   | { type: 'settings/updatePricing'; policy: PricingPolicySettings; actor?: string }
   | { type: 'settings/updateProof'; policy: ProofPolicySettings; actor?: string }
   | { type: 'settings/updateLocation'; policy: DriverLocationPolicySettings; actor?: string }
-  | { type: 'chat/send'; roomId: string; text: string; note: boolean; actor?: string }
+  | { type: 'settings/updatePrinting'; policy: PrintingSettings; actor?: string }
+  | { type: 'settings/updateNotifications'; policy: NotificationSettings; actor?: string }
+  | { type: 'chat/send'; roomId: string; text: string; note: boolean; attachments?: ChatAttachmentRecord[]; actor?: string }
   | { type: 'chat/toggle'; roomId: string; actor?: string }
   | { type: 'chat/transfer'; roomId: string; assignedTo: string; actor?: string }
   | { type: 'chat/read'; roomId: string; actor?: string };

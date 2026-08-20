@@ -17,10 +17,9 @@ import {
 } from '../../utils/helpers';
 
 export type ShipmentAction = 'assign' | 'status' | 'attempt' | 'settlement';
-export type BulkAction = 'assign' | 'status' | 'print';
+export type BulkAction = 'assign' | 'print';
 export type ShipmentColumn = 'customer' | 'merchant' | 'area' | 'driver' | 'status' | 'task' | 'collection' | 'updated';
 
-const bulkStatusOptions: ShipmentStatus[] = ['receivedAtOffice', 'deliveredToDriver', 'inTransit', 'delivered', 'postponed', 'failedToDeliver', 'returned'];
 const formatNumber = (value: number) => value.toLocaleString('ar-EG');
 
 export function ShipmentRow({ shipment, checked, onToggle, onOpen, onPrint, now, visibleColumns }: { shipment: Shipment; checked: boolean; onToggle: () => void; onOpen: () => void; onPrint: () => void; now: number; visibleColumns: ShipmentColumn[] }) {
@@ -47,11 +46,11 @@ export function ShipmentRow({ shipment, checked, onToggle, onOpen, onPrint, now,
   );
 }
 
-export function SelectionBar({ count, total, totalCod, onAssign, onStatus, onPrint, onClear }: { count: number; total: number; totalCod: number; onAssign: () => void; onStatus: () => void; onPrint: () => void; onClear: () => void }) {
+export function SelectionBar({ count, total, totalCod, onAssign, onPrint, onClear }: { count: number; total: number; totalCod: number; onAssign: () => void; onPrint: () => void; onClear: () => void }) {
   return (
     <div className="selection-bar glass-panel">
       <div><strong>تم تحديد {formatNumber(count)} من {formatNumber(total)} نتيجة ظاهرة</strong><small>إجمالي التحصيل المتوقع: {formatCurrency(totalCod)}</small></div>
-      <div className="selection-actions"><button className="outline-btn" onClick={onAssign}><Truck size={15} /> تعيين مندوب</button><button className="outline-btn" onClick={onStatus}><RefreshCcw size={15} /> تغيير الحالة</button><button className="outline-btn" onClick={onPrint}><Printer size={15} /> طباعة</button><button className="icon-plain" onClick={onClear} aria-label="إلغاء التحديد"><X size={17} /></button></div>
+      <div className="selection-actions"><button className="outline-btn" onClick={onAssign}><Truck size={15} /> تعيين مندوب</button><button className="outline-btn" onClick={onPrint}><Printer size={15} /> طباعة</button><button className="icon-plain" onClick={onClear} aria-label="إلغاء التحديد"><X size={17} /></button></div>
     </div>
   );
 }
@@ -75,7 +74,7 @@ export function ShipmentDrawer({ shipment, relatedShipments, attempts, activeAct
         <div className="drawer-body">
           {shipment.exceptionReason && <div className="drawer-alert"><AlertCircle size={17} /><div><strong>سبب احتياج التدخل</strong><p>{shipment.exceptionReason}</p></div></div>}
 
-          <section className="detail-section"><h4>بيانات العميل والعنوان</h4><div className="detail-grid"><DetailRow label="الاسم" value={shipment.customerName} /><DetailRow label="الهاتف" value={shipment.customerPhone} dir="ltr" /><DetailRow label="المحافظة" value={shipment.governorate} /><DetailRow label="المدينة" value={shipment.city} /><DetailRow label="العنوان" value={shipment.address} wide /></div></section>
+          <section className="detail-section"><h4>بيانات المستلم والعنوان</h4><div className="detail-grid"><DetailRow label="الاسم" value={shipment.customerName} /><DetailRow label="الهاتف" value={shipment.customerPhone} dir="ltr" /><DetailRow label="المحافظة" value={shipment.governorate} /><DetailRow label="المدينة" value={shipment.city} /><DetailRow label="العنوان" value={shipment.address} wide /></div></section>
           <section className="detail-section"><h4>بيانات التشغيل</h4><div className="detail-grid"><DetailRow label="التاجر" value={shipment.merchantName} /><DetailRow label="المندوب" value={shipment.driverName ?? 'غير معين'} /><DetailRow label="نوع الدفع" value={paymentTypeLabels[shipment.paymentType]} /><DetailRow label="كود التتبع" value={shipment.trackingNumber} dir="ltr" /><DetailRow label="عدد المحاولات" value={formatNumber(shipment.attemptCount)} /><DetailRow label="موعد التوصيل" value={shipment.expectedDeliveryAt ? formatDateTime(shipment.expectedDeliveryAt) : 'غير محدد'} /></div></section>
           <section className="detail-section"><h4>عناصر البوليصة</h4><div className="shipment-items-table"><div className="shipment-items-head"><span>العنصر</span><span>المطلوب</span><span>المسلم</span><span>إعادة محاولة</span><span>مرتجع</span></div>{shipment.items.map((item, index) => <div className="shipment-items-row" key={item.id ?? `${shipment.id}-${index}`}><span><strong>{item.name}</strong><small>{formatCurrency(item.price)} للوحدة{item.dispositionReason ? ` · ${item.dispositionReason}` : ''}</small></span><span>{formatNumber(item.quantity)}</span><span className="success-text">{formatNumber(item.deliveredQuantity ?? (shipment.status === 'delivered' ? item.quantity : 0))}</span><span>{formatNumber(item.pendingQuantity ?? 0)}</span><span className="danger-value">{formatNumber(item.returnedQuantity ?? 0)}</span></div>)}</div></section>
           {(shipment.parentShipmentId || shipment.childShipmentIds?.length || relatedShipments.length > 0) && <section className="detail-section"><h4>تقسيم البوليصة</h4><div className="shipment-relations">{shipment.parentShipmentId && <div><span>البوليصة الأصلية</span><strong>{shipment.parentShipmentId}</strong></div>}{relatedShipments.map((item) => <div key={item.id}><span>{item.status === 'returned' ? 'جزء مرتجع' : item.status === 'postponed' ? 'جزء لإعادة المحاولة' : 'جزء تابع'}</span><strong>{item.id}</strong><small>{statusConfig[item.status].label} · {formatCurrency(item.expectedCollection)}</small></div>)}</div><p className="drawer-policy-note">رسوم الشحن الأساسية محفوظة على البوليصة الأصلية فقط، ولا تتكرر على الأجزاء التابعة.</p></section>}
@@ -84,7 +83,7 @@ export function ShipmentDrawer({ shipment, relatedShipments, attempts, activeAct
 
           <section className="detail-section"><h4>سجل الحركة</h4><Timeline shipment={shipment} attempts={attempts} /></section>
           <section className="detail-section"><h4>التفاصيل المالية</h4><div className="financial-grid"><DetailRow label="إجمالي المنتجات" value={formatCurrency(financials.itemsSubtotal)} /><DetailRow label="رسوم الشحن" value={formatCurrency(financials.deliveryFee)} /><DetailRow label="المطلوب تحصيله" value={formatCurrency(financials.expectedCollection)} bold /><DetailRow label="المحصل فعليًا" value={formatCurrency(financials.collectedCash)} /><DetailRow label="تم توريده" value={formatCurrency(financials.remittedCash)} /><DetailRow label="فرق التحصيل" value={formatCurrency(financials.cashVariance)} danger={financials.cashVariance !== 0} /></div></section>
-          <section className="detail-section"><h4>الإجراءات المتاحة</h4><div className="shipment-ops-grid"><button className="outline-btn" onClick={() => onAction('assign')}><Truck size={16} /> تعيين مندوب</button><button className="outline-btn" onClick={() => onAction('status')} disabled={nextShipmentStatuses[shipment.status].length === 0}><RefreshCcw size={16} /> تحديث الحالة</button><button className="outline-btn" onClick={() => onAction('attempt')}><Clock3 size={16} /> تسجيل محاولة</button><button className="outline-btn" onClick={() => onAction('settlement')} disabled={shipment.collectedCash === 0}><Banknote size={16} /> طلب تسوية</button></div></section>
+          <section className="detail-section"><h4>الإجراءات المتاحة</h4><div className="shipment-ops-grid"><button className="outline-btn" onClick={() => onAction('assign')}><Truck size={16} /> تعيين مندوب</button><button className="outline-btn" onClick={() => onAction('status')} disabled={nextShipmentStatuses[shipment.status].length === 0}><RefreshCcw size={16} /> إجراء تشغيلي</button><button className="outline-btn" onClick={() => onAction('attempt')}><Clock3 size={16} /> تسجيل محاولة يدويًا</button><button className="outline-btn" onClick={() => onAction('settlement')} disabled={shipment.collectedCash === 0}><Banknote size={16} /> طلب تسوية</button></div></section>
         </div>
 
         {activeAction && <ShipmentActionDialog action={activeAction} shipment={shipment} drivers={drivers} onCancel={onCancelAction} onSubmit={onSubmitAction} />}
@@ -97,15 +96,14 @@ function ShipmentActionDialog({ action, shipment, drivers, onCancel, onSubmit }:
   const [driverId, setDriverId] = useState(shipment.driverId ?? drivers[0]?.id ?? '');
   const [status, setStatus] = useState<ShipmentStatus>(availableStatuses[0] ?? shipment.status);
   const [note, setNote] = useState('');
-  const title = { assign: 'تعيين مندوب', status: 'تحديث حالة الشحنة', attempt: 'تسجيل محاولة تسليم', settlement: 'إرسال إلى التسوية' }[action];
+  const title = { assign: 'تعيين مندوب', status: 'اختيار إجراء تشغيلي مسموح', attempt: 'تسجيل محاولة يدويًا', settlement: 'إرسال إلى التسوية' }[action];
 
   return (
     <div className="drawer-action-panel" role="dialog" aria-modal="true" aria-label={title}>
       <div className="drawer-header compact"><div><h3>{title}</h3><p className="drawer-id">{shipment.id}</p></div><button className="btn-icon sm" onClick={onCancel} aria-label="إغلاق"><X size={14} /></button></div>
       <div className="shipment-action-body">
         {action === 'assign' && <label className="form-field"><span>المندوب</span><select className="input-glass" value={driverId} onChange={(event) => setDriverId(event.target.value)}>{drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</select></label>}
-        {action === 'status' && <label className="form-field"><span>الانتقال المنطقي التالي</span><select className="input-glass" value={status} onChange={(event) => setStatus(event.target.value as ShipmentStatus)}>{availableStatuses.map((item) => <option key={item} value={item}>{statusConfig[item].label}</option>)}</select><small>لا تظهر هنا إلا الحالات المتاحة من الحالة الحالية.</small></label>}
-        {action === 'attempt' && <label className="form-field"><span>سبب أو نتيجة المحاولة</span><textarea className="input-glass" value={note} onChange={(event) => setNote(event.target.value)} placeholder="مثال: العميل لا يرد، وتم الاتفاق على المحاولة غدًا" /></label>}
+        {action === 'attempt' && <label className="form-field"><span>سبب التسجيل اليدوي ونتيجة المحاولة</span><textarea className="input-glass" value={note} onChange={(event) => setNote(event.target.value)} placeholder="مثال: تم تسجيل المحاولة يدويًا بعد اتصال المندوب؛ المستلم لا يرد" /></label>}
         {action === 'settlement' && <div className="dialog-summary"><Banknote size={18} /><div><strong>{formatCurrency(shipment.collectedCash)}</strong><p>سيتم نقل الشحنة إلى حالة «داخل تسوية» وربطها بالتاجر.</p></div></div>}
         <div className="dialog-actions"><button className="outline-btn" onClick={onCancel}>إلغاء</button><button className="btn-primary" onClick={() => onSubmit({ driverId, status, note })} disabled={action === 'assign' && !driverId}>حفظ العملية</button></div>
       </div>
@@ -115,16 +113,14 @@ function ShipmentActionDialog({ action, shipment, drivers, onCancel, onSubmit }:
 
 export function BulkActionDialog({ action, shipments, drivers, onCancel, onSubmit }: { action: BulkAction; shipments: Shipment[]; drivers: Array<{ id: string; name: string }>; onCancel: () => void; onSubmit: (payload: Record<string, string>) => void }) {
   const [driverId, setDriverId] = useState(drivers[0]?.id ?? '');
-  const [status, setStatus] = useState<ShipmentStatus>('deliveredToDriver');
   const totalCod = shipments.reduce((sum, shipment) => sum + shipment.expectedCollection, 0);
   const urgentCount = shipments.filter((shipment) => shipment.priority === 'urgent').length;
-  const title = { assign: 'تعيين مندوب للشحنات المحددة', status: 'تحديث حالة الشحنات المحددة', print: 'طباعة البوليصات المحددة' }[action];
-  return <Modal title={title} description={`${formatNumber(shipments.length)} شحنة`} onClose={onCancel} footer={<><button className="outline-btn" onClick={onCancel}>إلغاء</button><button className="btn-primary" onClick={() => onSubmit({ driverId, status })}>تنفيذ</button></>}>
+  const title = { assign: 'تعيين مندوب للشحنات المحددة', print: 'طباعة البوليصات المحددة' }[action];
+  return <Modal title={title} description={`${formatNumber(shipments.length)} شحنة`} onClose={onCancel} footer={<><button className="outline-btn" onClick={onCancel}>إلغاء</button><button className="btn-primary" onClick={() => onSubmit({ driverId })}>تنفيذ</button></>}>
     <div className="shipment-action-body">
       <div className="bulk-summary"><div><span>إجمالي التحصيل</span><strong>{formatCurrency(totalCod)}</strong></div><div><span>شحنات عاجلة</span><strong>{formatNumber(urgentCount)}</strong></div><div><span>المناطق</span><strong>{formatNumber(new Set(shipments.map((shipment) => shipment.governorate)).size)}</strong></div></div>
       {action === 'assign' && <label className="form-field"><span>اختر المندوب</span><select className="input-glass" value={driverId} onChange={(event) => setDriverId(event.target.value)}>{drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</select></label>}
-      {action === 'status' && <label className="form-field"><span>الحالة الجديدة</span><select className="input-glass" value={status} onChange={(event) => setStatus(event.target.value as ShipmentStatus)}>{bulkStatusOptions.map((item) => <option key={item} value={item}>{statusConfig[item].label}</option>)}</select><small>سيتم تطبيق التغيير فقط على الشحنات التي يسمح الـWorkflow بانتقالها.</small></label>}
-      {action === 'print' && <div className="dialog-summary"><Printer size={18} /><p>سيتم فتح نافذة طباعة المتصفح لكل البوليصات المحددة.</p></div>}
+      {action === 'print' && <div className="dialog-summary"><Printer size={18} /><p>ستفتح معاينة البوالص لاختيار مقاس 10×15 أو A4 وعدد النسخ قبل نافذة الطباعة.</p></div>}
     </div>
   </Modal>;
 }

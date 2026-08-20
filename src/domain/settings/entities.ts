@@ -49,11 +49,32 @@ export interface DriverLocationPolicySettings {
   offlineBatchEnabled: boolean;
 }
 
+
+export interface PrintingSettings {
+  defaultLabelFormat: 'thermal' | 'a4';
+  defaultCopies: number;
+  a4LabelsPerPage: 4;
+  showCod: boolean;
+  showContents: boolean;
+  barcodeFormat: 'code128';
+}
+
+export interface NotificationSettings {
+  inAppEnabled: boolean;
+  pushDriverEnabled: boolean;
+  pushMerchantEnabled: boolean;
+  slaDelayEnabled: boolean;
+  notifyMerchantOnApprovedStatus: boolean;
+  notifyDriverOnClarification: boolean;
+}
+
 export interface TenantOperationalSettings {
   delivery: DeliveryPolicySettings;
   pricing: PricingPolicySettings;
   proof: ProofPolicySettings;
   location: DriverLocationPolicySettings;
+  printing: PrintingSettings;
+  notifications: NotificationSettings;
   updatedAt: string;
   updatedBy: string;
 }
@@ -103,6 +124,22 @@ export const defaultTenantOperationalSettings: TenantOperationalSettings = {
     proofSnapshotMaxAgeSeconds: 60,
     rawLocationRetentionDays: 90,
     offlineBatchEnabled: true,
+  },
+  printing: {
+    defaultLabelFormat: 'thermal',
+    defaultCopies: 1,
+    a4LabelsPerPage: 4,
+    showCod: true,
+    showContents: false,
+    barcodeFormat: 'code128',
+  },
+  notifications: {
+    inAppEnabled: true,
+    pushDriverEnabled: true,
+    pushMerchantEnabled: true,
+    slaDelayEnabled: true,
+    notifyMerchantOnApprovedStatus: true,
+    notifyDriverOnClarification: true,
   },
   updatedAt: new Date().toISOString(),
   updatedBy: 'إعدادات النظام الافتراضية',

@@ -1,25 +1,20 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Banknote, BarChart3, Building2, CalendarRange, ClipboardCheck, Copy, Edit3, Eye, MapPin, MessageCircle, Package, Search, Store, TrendingUp } from 'lucide-react';
+import { Archive, Banknote, BarChart3, Building2, CalendarRange, ClipboardCheck, Edit3, Eye, FileText, MapPin, MessageCircle, MoreHorizontal, Package, Search, Store, TrendingUp, Users } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Modal, StatusBadge } from '../components/ui/Ui';
 import { useDeliveryData } from '../context/DeliveryDataContext';
 import { useWorkspace } from '../context/WorkspaceContext';
 import type { Merchant, Shipment } from '../domain/logistics/entities';
-import { formatCurrency } from '../utils/helpers';
+import { formatCurrency, statusConfig } from '../utils/helpers';
 import './Merchants.css';
 
-type MerchantDialog = 'edit' | 'shipments' | 'settlement';
-type MerchantProfileTab = 'overview' | 'branches' | 'pricing' | 'performance';
+type MerchantDialog = 'edit' | 'settlement' | 'archive';
+type MerchantProfileTab = 'overview' | 'shipments' | 'branches' | 'pricing' | 'financial' | 'users' | 'documents' | 'performance';
+const merchantStatusLabels = { pending_onboarding: 'استكمال التفعيل', active: 'نشط', suspended: 'موقوف', archived: 'مؤرشف' } as const;
+const merchantStatusTone = (status: Merchant['status']) => status === 'active' ? 'success' : status === 'pending_onboarding' ? 'warning' : status === 'suspended' ? 'danger' : 'neutral';
 
-function toWhatsAppUrl(phone: string) {
-  const digits = phone.replace(/\D/g, '');
-  const egyptianNumber = digits.startsWith('0') ? `2${digits}` : digits;
-  return `https://wa.me/${egyptianNumber}`;
-}
-
-function isEgyptianPhone(value: string) {
-  return /^01[0125]\d{8}$/.test(value.replace(/\s/g, ''));
-}
+function isEgyptianPhone(value: string) { return /^01[0125]\d{8}$/.test(value.replace(/\s/g, '')); }
+function merchantCode(merchant: Merchant) { return merchant.code ?? merchant.id.replace(/^BRN-/, 'MRC-'); }
 
 export function MerchantsPage() {
   const navigate = useNavigate();
@@ -29,160 +24,87 @@ export function MerchantsPage() {
   const merchants = useMemo(() => state?.merchants ?? [], [state?.merchants]);
   const shipments = useMemo(() => state?.shipments ?? [], [state?.shipments]);
   const [query, setQuery] = useState('');
-  const [contactMerchantId, setContactMerchantId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState('all');
   const [dialog, setDialog] = useState<{ type: MerchantDialog; merchantId: string } | null>(null);
+  const [menuMerchantId, setMenuMerchantId] = useState<string | null>(null);
   const profileId = searchParams.get('merchant');
   const [profileTab, setProfileTab] = useState<MerchantProfileTab>('overview');
 
-
   const summary = useMemo(() => ({
-    totalMerchants: merchants.length,
+    activeMerchants: merchants.filter((m) => (m.status ?? 'active') === 'active').length,
     pendingSettlement: merchants.reduce((sum, merchant) => sum + merchant.pendingSettlement, 0),
-    totalOrderValue: merchants.reduce((sum, merchant) => sum + merchant.totalOrderValue, 0),
+    shipmentValue: merchants.reduce((sum, merchant) => sum + merchant.totalOrderValue, 0),
+    pendingApplications: 1,
   }), [merchants]);
 
   const filteredMerchants = useMemo(() => {
     const value = query.trim().toLocaleLowerCase('ar-EG');
-    if (!value) return merchants;
-    return merchants.filter((merchant) => `${merchant.name} ${merchant.phone} ${merchant.id} ${merchant.branchName}`.toLocaleLowerCase('ar-EG').includes(value));
-  }, [merchants, query]);
+    return merchants.filter((merchant) => (!value || `${merchant.name} ${merchant.phone} ${merchantCode(merchant)} ${merchant.email ?? ''}`.toLocaleLowerCase('ar-EG').includes(value)) && (statusFilter === 'all' || (merchant.status ?? 'active') === statusFilter));
+  }, [merchants, query, statusFilter]);
 
-  const contactMerchant = merchants.find((merchant) => merchant.id === contactMerchantId) ?? null;
   const profileMerchant = merchants.find((merchant) => merchant.id === profileId) ?? null;
   const activeDialogMerchant = merchants.find((merchant) => merchant.id === dialog?.merchantId) ?? null;
-
   const merchantShipments = (merchantId: string) => shipments.filter((shipment) => shipment.merchantId === merchantId);
-  const eligibleSettlementShipments = (merchantId: string) => merchantShipments(merchantId).filter((shipment) => ['remitted', 'inSettlement'].includes(shipment.financialStatus) && shipment.settlementStatus === 'unsettled');
+  const eligibleSettlementShipments = (merchantId: string) => merchantShipments(merchantId).filter((shipment) => ['remitted','inSettlement'].includes(shipment.financialStatus) && shipment.settlementStatus === 'unsettled');
 
-  const handleCopyPhone = async (phone: string) => {
-    await navigator.clipboard?.writeText(phone);
-    showToast(`تم نسخ رقم التاجر: ${phone}`, 'success');
-  };
-
-  const openProfile = (merchant: Merchant) => {
-    setProfileTab('overview');
-    const next = new URLSearchParams(searchParams);
-    next.set('merchant', merchant.id);
-    setSearchParams(next, { replace: true });
-  };
-
-  const closeProfile = () => {
-    const next = new URLSearchParams(searchParams);
-    next.delete('merchant');
-    setSearchParams(next, { replace: true });
-  };
-
+  const openProfile = (merchant: Merchant, tab: MerchantProfileTab = 'overview') => { setProfileTab(tab); const next = new URLSearchParams(searchParams); next.set('merchant', merchant.id); setSearchParams(next, { replace: true }); setMenuMerchantId(null); };
+  const closeProfile = () => { const next = new URLSearchParams(searchParams); next.delete('merchant'); setSearchParams(next, { replace: true }); };
   const saveMerchant = async (merchant: Merchant) => {
     if (!merchant.name.trim()) { showToast('اسم التاجر مطلوب.', 'warning'); return false; }
     if (!isEgyptianPhone(merchant.phone)) { showToast('رقم الهاتف يجب أن يكون رقمًا مصريًا صحيحًا.', 'warning'); return false; }
     const duplicate = merchants.some((item) => item.id !== merchant.id && item.phone.replace(/\s/g, '') === merchant.phone.replace(/\s/g, ''));
     if (duplicate) { showToast('رقم الهاتف مستخدم لتاجر آخر.', 'warning'); return false; }
-    const result = await execute({ type: 'merchant/upsert', merchant, actor: 'مدير النظام التجريبي' });
-    showToast(result.message, result.ok ? 'success' : 'danger');
-    return result.ok;
+    const result = await execute({ type: 'merchant/upsert', merchant, actor: 'مدير حسابات التجار' }); showToast(result.message, result.ok ? 'success' : 'danger'); return result.ok;
   };
+  const createSettlement = async (shipmentIds: string[]) => { const result = await execute({ type: 'settlement/create', shipmentIds, actor: 'مسؤول المحاسبة' }); showToast(result.message, result.ok ? 'success' : 'warning'); if (result.ok && result.createdId) navigate(`/settlements?settlement=${result.createdId}`); return result.ok; };
+  const openConversation = (merchant: Merchant) => { const room = state?.chatRooms.find((item) => item.category === 'merchant' && item.name === merchant.name); if (room) navigate(`/chat?room=${room.id}`); else { navigate('/chat'); showToast(`لا توجد محادثة مفتوحة مع ${merchant.name}. في الـBackend سيتم إنشاء Conversation عند الحاجة.`, 'info'); } };
 
-  const createSettlement = async (shipmentIds: string[]) => {
-    const result = await execute({ type: 'settlement/create', shipmentIds, actor: 'مسؤول المحاسبة التجريبي' });
-    showToast(result.message, result.ok ? 'success' : 'warning');
-    if (result.ok && result.createdId) navigate(`/settlements?settlement=${result.createdId}`);
-    return result.ok;
-  };
-
-  return (
-    <div className="merchants-page">
-      <div className="merchants-summary compact-summary">
-        <div className="ms-card glass-card compact-card"><Store size={18} style={{ color: '#0EA5E9' }} /><div><p className="ms-label">إجمالي التجار</p><p className="ms-value">{summary.totalMerchants.toLocaleString('ar-EG')} متجر</p></div></div>
-        <div className="ms-card glass-card compact-card"><TrendingUp size={18} style={{ color: '#10B981' }} /><div><p className="ms-label">قيمة الأوردرات</p><p className="ms-value">{formatCurrency(summary.totalOrderValue)}</p></div></div>
-        <div className="ms-card glass-card compact-card"><Banknote size={18} style={{ color: '#EF4444' }} /><div><p className="ms-label">تسويات معلقة</p><p className="ms-value">{formatCurrency(summary.pendingSettlement)}</p></div></div>
-        <button className="ms-card glass-card compact-card merchant-shortcut" onClick={() => navigate('/applications')}><ClipboardCheck size={18} style={{ color: '#F59E0B' }} /><div><p className="ms-label">طلبات التجار</p><p className="ms-value">مراجعة</p></div></button>
-      </div>
-
-      <section className="merchants-management glass-card">
-        <div className="management-toolbar">
-          <div><h3>إدارة التجار</h3><p>ملف تشغيلي ومالي موحد مشتق من نفس بيانات الشحنات.</p></div>
-          <div className="toolbar-actions"><div className="management-search"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="بحث باسم التاجر، الهاتف، الكود..." /></div></div>
-        </div>
-        <div className="table-wrapper">
-          <table className="data-table compact-table">
-            <thead><tr><th>الكود</th><th>التاجر</th><th>الهاتف</th><th>الشحنات</th><th>قيمة الأوردرات</th><th>تسوية معلقة</th><th>انضم في</th><th>إجراءات</th></tr></thead>
-            <tbody>{filteredMerchants.map((merchant) => (
-              <tr key={merchant.id} className="table-row">
-                <td className="tracking-num">{merchant.id}</td><td className="bold-cell">{merchant.name}</td><td dir="ltr">{merchant.phone}</td>
-                <td><Package size={13} className="inline-icon" /> {merchant.shipmentsCount.toLocaleString('ar-EG')}</td><td className="amount">{formatCurrency(merchant.totalOrderValue)}</td>
-                <td><span className="merchant-debt">{formatCurrency(merchant.pendingSettlement)}</span></td><td className="date">{merchant.joinedAt}</td>
-                <td><div className="driver-row-actions">
-                  <button className="btn-icon sm" aria-label={`فتح ملف ${merchant.name}`} onClick={() => openProfile(merchant)}><Eye size={14} /></button>
-                  <button className="btn-icon sm" aria-label={`تعديل ${merchant.name}`} onClick={() => setDialog({ type: 'edit', merchantId: merchant.id })}><Edit3 size={14} /></button>
-                  <button className="btn-icon sm" aria-label={`عرض شحنات ${merchant.name}`} onClick={() => setDialog({ type: 'shipments', merchantId: merchant.id })}><Package size={14} /></button>
-                  <button className="btn-icon sm" aria-label={`إنشاء تسوية ${merchant.name}`} onClick={() => setDialog({ type: 'settlement', merchantId: merchant.id })}><Banknote size={14} /></button>
-                  <button className="btn-icon sm" aria-label={`التواصل مع ${merchant.name}`} onClick={() => setContactMerchantId(merchant.id)}><MessageCircle size={14} /></button>
-                </div></td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </div>
-      </section>
-
-      {profileMerchant && <MerchantProfile merchant={profileMerchant} shipments={merchantShipments(profileMerchant.id)} tab={profileTab} onTab={setProfileTab} onClose={closeProfile} onOpenShipments={() => navigate(`/shipments?merchant=${encodeURIComponent(profileMerchant.name)}`)} />}
-
-      {contactMerchant && <Modal title={`تواصل مع ${contactMerchant.name}`} description="عرض ونسخ بيانات التواصل أو فتح واتساب." onClose={() => setContactMerchantId(null)} footer={<><button className="outline-btn" onClick={() => setContactMerchantId(null)}>إغلاق</button><button className="btn-secondary" onClick={() => void handleCopyPhone(contactMerchant.phone)}><Copy size={15} /> نسخ الرقم</button><button className="btn-primary" onClick={() => window.open(toWhatsAppUrl(contactMerchant.phone), '_blank', 'noopener,noreferrer')}><MessageCircle size={15} /> فتح واتساب</button></>}><div className="contact-phone-box"><span>رقم الهاتف</span><strong dir="ltr">{contactMerchant.phone}</strong></div></Modal>}
-
-      {dialog && activeDialogMerchant && <MerchantActionDialog
-        type={dialog.type}
-        merchant={activeDialogMerchant}
-        shipments={merchantShipments(activeDialogMerchant.id)}
-        eligibleShipmentIds={eligibleSettlementShipments(activeDialogMerchant.id).map((shipment) => shipment.id)}
-        onClose={() => setDialog(null)}
-        onSave={async (merchant) => { if (await saveMerchant(merchant)) setDialog(null); }}
-        onCreateSettlement={async (ids) => { if (await createSettlement(ids)) setDialog(null); }}
-        onOpenShipments={() => { setDialog(null); navigate(`/shipments?merchant=${encodeURIComponent(activeDialogMerchant.name)}`); }}
-      />}
+  return <div className="merchants-page">
+    <div className="merchants-summary compact-summary">
+      <button className="ms-card glass-card compact-card merchant-shortcut" onClick={() => setStatusFilter('active')}><Store size={18} style={{ color:'#0EA5E9' }}/><div><p className="ms-label">التجار النشطون</p><p className="ms-value">{summary.activeMerchants.toLocaleString('ar-EG')} متجر</p></div></button>
+      <div className="ms-card glass-card compact-card"><TrendingUp size={18} style={{ color:'#10B981' }}/><div><p className="ms-label">إجمالي قيمة الشحنات</p><p className="ms-value">{formatCurrency(summary.shipmentValue)}</p></div></div>
+      <button className="ms-card glass-card compact-card merchant-shortcut" onClick={() => navigate('/settlements')}><Banknote size={18} style={{ color:'#EF4444' }}/><div><p className="ms-label">مستحقات قيد التسوية</p><p className="ms-value">{formatCurrency(summary.pendingSettlement)}</p></div></button>
+      <button className="ms-card glass-card compact-card merchant-shortcut" onClick={() => navigate('/applications')}><ClipboardCheck size={18} style={{ color:'#F59E0B' }}/><div><p className="ms-label">طلبات انضمام</p><p className="ms-value">مراجعة</p></div></button>
     </div>
-  );
+
+    <section className="merchants-management glass-card"><div className="management-toolbar"><div><h3>إدارة التجار</h3><p>ملف Merchant 360° موحد: الشحنات، الفروع، التسعير، المستحقات، المستخدمون والمستندات.</p></div><div className="toolbar-actions"><div className="management-search"><Search size={16}/><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="اسم التاجر، الكود، الهاتف أو البريد..."/></div><select className="input-glass" value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value)}><option value="all">كل الحالات</option>{Object.entries(merchantStatusLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div></div>
+      <div className="table-wrapper"><table className="data-table compact-table"><thead><tr><th>الكود</th><th>التاجر</th><th>الحالة</th><th>الهاتف</th><th>الشحنات</th><th>قيمة الشحنات</th><th>مستحقات</th><th>دورة التسوية</th><th>إجراءات</th></tr></thead><tbody>{filteredMerchants.map((merchant) => <tr key={merchant.id}><td className="tracking-num">{merchantCode(merchant)}</td><td><button className="tracking-link" onClick={()=>openProfile(merchant)}>{merchant.name}</button><small className="muted-cell">{merchant.email ?? merchant.legalName ?? ''}</small></td><td><StatusBadge label={merchantStatusLabels[merchant.status ?? 'active']} tone={merchantStatusTone(merchant.status ?? 'active')}/></td><td dir="ltr">{merchant.phone}</td><td><button className="tracking-link" onClick={()=>openProfile(merchant,'shipments')}>{merchant.shipmentsCount.toLocaleString('ar-EG')}</button></td><td className="amount">{formatCurrency(merchant.totalOrderValue)}</td><td><button className="tracking-link merchant-debt" onClick={()=>openProfile(merchant,'financial')}>{formatCurrency(merchant.pendingSettlement)}</button></td><td>{cycleLabelMerchant(merchant.settlementCycle)}</td><td><div className="merchant-actions-v2"><button className="outline-btn compact-btn" onClick={()=>openProfile(merchant)}><Eye size={14}/> فتح</button><div className="merchant-more-wrap"><button className="btn-icon sm" onClick={()=>setMenuMerchantId(menuMerchantId===merchant.id?null:merchant.id)} aria-label={`المزيد لـ ${merchant.name}`}><MoreHorizontal size={15}/></button>{menuMerchantId===merchant.id && <div className="merchant-row-menu glass-panel"><button onClick={()=>{setDialog({type:'edit',merchantId:merchant.id});setMenuMerchantId(null);}}><Edit3 size={14}/> تعديل البيانات</button><button onClick={()=>openProfile(merchant,'shipments')}><Package size={14}/> الشحنات</button><button onClick={()=>openProfile(merchant,'financial')}><Banknote size={14}/> المستحقات والتسويات</button><button onClick={()=>openConversation(merchant)}><MessageCircle size={14}/> فتح المحادثة</button><button onClick={()=>{setDialog({type:'archive',merchantId:merchant.id});setMenuMerchantId(null);}}><Archive size={14}/> أرشفة</button></div>}</div></div></td></tr>)}</tbody></table></div>
+    </section>
+
+    {profileMerchant && <MerchantProfile merchant={profileMerchant} shipments={merchantShipments(profileMerchant.id)} settlements={(state?.settlements ?? []).filter((item)=>item.merchantId===profileMerchant.id)} tab={profileTab} onTab={setProfileTab} onClose={closeProfile} onOpenShipments={()=>navigate(`/shipments?merchant=${encodeURIComponent(profileMerchant.name)}`)} onOpenChat={()=>openConversation(profileMerchant)} onCreateSettlement={()=>setDialog({type:'settlement',merchantId:profileMerchant.id})}/>} 
+    {dialog && activeDialogMerchant && <MerchantActionDialog type={dialog.type} merchant={activeDialogMerchant} shipments={merchantShipments(activeDialogMerchant.id)} eligibleShipmentIds={eligibleSettlementShipments(activeDialogMerchant.id).map((shipment)=>shipment.id)} onClose={()=>setDialog(null)} onSave={async (merchant)=>{if(await saveMerchant(merchant))setDialog(null);}} onCreateSettlement={async(ids)=>{if(await createSettlement(ids))setDialog(null);}} onArchive={async(reason)=>{const result=await execute({type:'merchant/archive',merchantId:activeDialogMerchant.id,reason});showToast(result.message,result.ok?'success':'danger');if(result.ok)setDialog(null);}}/>}
+  </div>;
 }
 
-function MerchantProfile({ merchant, shipments, tab, onTab, onClose, onOpenShipments }: { merchant: Merchant; shipments: Shipment[]; tab: MerchantProfileTab; onTab: (tab: MerchantProfileTab) => void; onClose: () => void; onOpenShipments: () => void }) {
-  const performance = deriveMerchantPerformance(shipments);
-  const branches = merchant.branches ?? [];
-  const pricing = merchant.pricingRules ?? [];
-  const tabs = [{ id: 'overview', label: 'نظرة عامة' }, { id: 'branches', label: 'الفروع والاستلام' }, { id: 'pricing', label: 'الأسعار' }, { id: 'performance', label: 'الأداء' }] as const;
-  return <Modal wide title={merchant.name} description={`${merchant.id} — ${merchant.branchName}`} onClose={onClose} footer={<><button className="outline-btn" onClick={onClose}>إغلاق</button><button className="btn-primary" onClick={onOpenShipments}><Package size={15}/> فتح الشحنات</button></>}>
-    <div className="merchant-profile-top"><StatusBadge label={merchant.priorityLevel === 'priority' ? 'تاجر أولوية' : 'تاجر قياسي'} tone={merchant.priorityLevel === 'priority' ? 'info' : 'neutral'}/><span dir="ltr">{merchant.phone}</span><span>انضم: {merchant.joinedAt}</span></div>
-    <div className="merchant-profile-tabs">{tabs.map((item) => <button key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => onTab(item.id)}>{item.label}</button>)}</div>
-    {tab === 'overview' && <div className="merchant-profile-grid"><ProfileBox icon={<Package size={18}/>} label="إجمالي الشحنات" value={merchant.shipmentsCount.toLocaleString('ar-EG')} detail="من المصدر الموحد"/><ProfileBox icon={<Banknote size={18}/>} label="مستحقات معلقة" value={formatCurrency(merchant.pendingSettlement)} detail={cycleLabelMerchant(merchant.settlementCycle)}/><ProfileBox icon={<TrendingUp size={18}/>} label="قيمة الأوردرات" value={formatCurrency(merchant.totalOrderValue)} detail="مشتقة من الشحنات"/><ProfileBox icon={<BarChart3 size={18}/>} label="نجاح التسليم" value={`${performance.successRate.toLocaleString('ar-EG')}٪`} detail={`مرتجعات ${performance.returnRate.toLocaleString('ar-EG')}٪`}/></div>}
-    {tab === 'branches' && <div className="merchant-branches">{branches.length ? branches.map((branch) => <div className="glass-card" key={branch.id}><Building2 size={18}/><section><strong>{branch.name}</strong><small>{branch.active ? 'نشط' : 'غير نشط'} · {branch.contactName}</small><p><MapPin size={14}/> {branch.address}</p><p><CalendarRange size={14}/> {branch.pickupWindow}</p></section></div>) : <p>لا توجد فروع مسجلة.</p>}</div>}
-    {tab === 'pricing' && <div className="table-wrapper"><table className="data-table"><thead><tr><th>النطاق</th><th>التوصيل</th><th>المرتجع</th><th>رسوم التحصيل</th><th>المدة</th></tr></thead><tbody>{pricing.map((rule) => <tr key={rule.id}><td>{rule.scope}</td><td>{formatCurrency(rule.deliveryFee)}</td><td>{formatCurrency(rule.returnFee)}</td><td>{formatCurrency(rule.collectionFee)}</td><td>{rule.estimatedDays.toLocaleString('ar-EG')} يوم</td></tr>)}</tbody></table></div>}
-    {tab === 'performance' && <div className="merchant-performance"><PerformanceLine label="نجاح التسليم" value={performance.successRate}/><PerformanceLine label="جودة العناوين" value={performance.addressQuality}/><PerformanceLine label="المرتجعات" value={performance.returnRate} danger/><p>أكثر سبب مرتجع: {performance.topReturnReason || 'لا توجد بيانات'}. أعلى منطقة حجمًا: {performance.topGovernorate || 'لا توجد بيانات'}. متوسط التوصيل: {performance.averageDeliveryHours.toLocaleString('ar-EG')} ساعة.</p></div>}
+function MerchantProfile({ merchant, shipments, settlements, tab, onTab, onClose, onOpenShipments, onOpenChat, onCreateSettlement }: { merchant:Merchant; shipments:Shipment[]; settlements:Array<{id:string;status:string;netPayable:number;periodStart:string;periodEnd:string}>; tab:MerchantProfileTab; onTab:(tab:MerchantProfileTab)=>void; onClose:()=>void; onOpenShipments:()=>void; onOpenChat:()=>void; onCreateSettlement:()=>void }) {
+  const performance = deriveMerchantPerformance(shipments); const branches = merchant.branches ?? []; const pricing = merchant.pricingRules ?? [];
+  const tabs: Array<{id:MerchantProfileTab;label:string}> = [{id:'overview',label:'الملخص'},{id:'shipments',label:'الشحنات'},{id:'branches',label:'الفروع والاستلام'},{id:'pricing',label:'التسعير والعقد'},{id:'financial',label:'المستحقات'},{id:'users',label:'المستخدمون'},{id:'documents',label:'المستندات'},{id:'performance',label:'الأداء'}];
+  const recent = shipments.slice(0,8); const statusCounts = new Map<string,number>(); shipments.forEach((s)=>statusCounts.set(s.status,(statusCounts.get(s.status)??0)+1));
+  return <Modal wide title={merchant.name} description={`${merchantCode(merchant)} — ${merchant.legalName ?? merchant.branchName}`} onClose={onClose} footer={<><button className="outline-btn" onClick={onOpenChat}><MessageCircle size={15}/> المحادثة</button><button className="btn-primary" onClick={onOpenShipments}><Package size={15}/> كل الشحنات</button></>}><div className="merchant-profile-top"><StatusBadge label={merchantStatusLabels[merchant.status ?? 'active']} tone={merchantStatusTone(merchant.status ?? 'active')}/><StatusBadge label={merchant.priorityLevel==='priority'?'تاجر أولوية':'تاجر قياسي'} tone={merchant.priorityLevel==='priority'?'info':'neutral'}/><span dir="ltr">{merchant.phone}</span><span>مسؤول الحساب: {merchant.accountManagerName ?? 'غير محدد'}</span></div><div className="merchant-profile-tabs">{tabs.map((item)=><button key={item.id} className={tab===item.id?'active':''} onClick={()=>onTab(item.id)}>{item.label}</button>)}</div>
+  {tab==='overview' && <><div className="merchant-profile-grid"><ProfileBox icon={<Package size={18}/>} label="إجمالي الشحنات" value={merchant.shipmentsCount.toLocaleString('ar-EG')} detail="اضغط تبويب الشحنات للتفاصيل"/><ProfileBox icon={<Banknote size={18}/>} label="مستحقات قيد التسوية" value={formatCurrency(merchant.pendingSettlement)} detail={cycleLabelMerchant(merchant.settlementCycle)}/><ProfileBox icon={<TrendingUp size={18}/>} label="قيمة الشحنات" value={formatCurrency(merchant.totalOrderValue)} detail="ليست إيراد الشركة"/><ProfileBox icon={<BarChart3 size={18}/>} label="نجاح التسليم" value={`${performance.successRate.toLocaleString('ar-EG')}٪`} detail={`مرتجعات ${performance.returnRate.toLocaleString('ar-EG')}٪`}/></div><div className="merchant-overview-meta glass-card"><p>البريد: <strong>{merchant.email ?? 'غير مسجل'}</strong></p><p>دورة التسوية: <strong>{cycleLabelMerchant(merchant.settlementCycle)}</strong></p><p>طريقة الدفع: <strong>{merchant.settlementMethod ?? 'bank'}</strong></p><p>الرقم الضريبي: <strong>{merchant.taxId ?? 'غير مسجل'}</strong></p></div></>}
+  {tab==='shipments' && <><div className="merchant-status-summary">{[...statusCounts.entries()].slice(0,6).map(([status,count])=><button key={status} onClick={()=>onOpenShipments()}><span>{statusConfig[status as keyof typeof statusConfig]?.label ?? status}</span><strong>{count.toLocaleString('ar-EG')}</strong></button>)}</div><div className="table-wrapper"><table className="data-table"><thead><tr><th>الشحنة</th><th>المستلم</th><th>المحافظة</th><th>الحالة</th><th>COD</th></tr></thead><tbody>{recent.map((shipment)=><tr key={shipment.id}><td className="tracking-num">{shipment.id}</td><td>{shipment.customerName}</td><td>{shipment.governorate}</td><td>{statusConfig[shipment.status].label}</td><td>{formatCurrency(shipment.expectedCollection)}</td></tr>)}</tbody></table></div></>}
+  {tab==='branches' && <div className="merchant-branches">{branches.length?branches.map((branch)=><div className="glass-card" key={branch.id}><Building2 size={18}/><section><strong>{branch.name}</strong><small>{branch.active?'نشط':'غير نشط'} · {branch.contactName}</small><p><MapPin size={14}/> {branch.address}</p><p><CalendarRange size={14}/> {branch.pickupWindow}</p></section></div>):<p>لا توجد فروع مسجلة.</p>}</div>}
+  {tab==='pricing' && <><div className="merchant-overview-meta glass-card"><p>Pricing Profile: <strong>{merchant.priorityLevel==='priority'?'عقد أولوية':'التسعير القياسي'}</strong></p><p>يتم حفظ Pricing Snapshot على الشحنة حتى لا تتغير رسوم الشحنات السابقة عند تعديل الأسعار.</p></div><div className="table-wrapper"><table className="data-table"><thead><tr><th>النطاق</th><th>التوصيل</th><th>المرتجع</th><th>رسوم التحصيل</th><th>المدة</th></tr></thead><tbody>{pricing.map((rule)=><tr key={rule.id}><td>{rule.scope}</td><td>{formatCurrency(rule.deliveryFee)}</td><td>{formatCurrency(rule.returnFee)}</td><td>{formatCurrency(rule.collectionFee)}</td><td>{rule.estimatedDays.toLocaleString('ar-EG')} يوم</td></tr>)}</tbody></table></div></>}
+  {tab==='financial' && <><div className="merchant-profile-grid"><ProfileBox icon={<Banknote size={18}/>} label="المستحق الحالي" value={formatCurrency(merchant.pendingSettlement)} detail="مشتق من الشحنات المؤهلة والـLedger"/><ProfileBox icon={<CalendarRange size={18}/>} label="دورة التسوية" value={cycleLabelMerchant(merchant.settlementCycle)} detail="حسب العقد"/></div><button className="btn-primary" onClick={onCreateSettlement} disabled={!merchant.pendingSettlement}>إنشاء تسوية من الشحنات المؤهلة</button><div className="table-wrapper"><table className="data-table"><thead><tr><th>التسوية</th><th>الفترة</th><th>الصافي</th><th>الحالة</th></tr></thead><tbody>{settlements.map((item)=><tr key={item.id}><td className="tracking-num">{item.id}</td><td>{new Date(item.periodStart).toLocaleDateString('ar-EG')} — {new Date(item.periodEnd).toLocaleDateString('ar-EG')}</td><td>{formatCurrency(item.netPayable)}</td><td>{item.status}</td></tr>)}</tbody></table></div></>}
+  {tab==='users' && <div className="merchant-placeholder-grid"><ProfileBox icon={<Users size={18}/>} label="مستخدمو بوابة التاجر" value={(merchant.usersCount ?? 2).toLocaleString('ar-EG')} detail="Owner / Operations / Accountant / Viewer"/><p>هذه الحسابات مرتبطة بالتاجر ولا تظهر ضمن موظفي شركة الشحن.</p></div>}
+  {tab==='documents' && <div className="merchant-placeholder-grid"><ProfileBox icon={<FileText size={18}/>} label="المستندات" value={(merchant.documentsCount ?? 0).toLocaleString('ar-EG')} detail="عقد، سجل تجاري، بطاقة ضريبية، إثبات حساب"/><p>المرفقات ستستخدم File Module الموحدة مع حالة التحقق وتاريخ الانتهاء.</p></div>}
+  {tab==='performance' && <div className="merchant-performance"><PerformanceLine label="نجاح التسليم" value={performance.successRate}/><PerformanceLine label="جودة العناوين" value={performance.addressQuality}/><PerformanceLine label="المرتجعات" value={performance.returnRate} danger/><p>أكثر سبب مرتجع: {performance.topReturnReason||'لا توجد بيانات'}. أعلى منطقة حجمًا: {performance.topGovernorate||'لا توجد بيانات'}. متوسط التوصيل: {performance.averageDeliveryHours.toLocaleString('ar-EG')} ساعة.</p></div>}
   </Modal>;
 }
 
-function deriveMerchantPerformance(shipments: Shipment[]) {
-  const completed = shipments.filter((item) => ['delivered', 'returned', 'failedToDeliver'].includes(item.status));
-  const delivered = completed.filter((item) => ['delivered', 'partiallyDelivered'].includes(item.status)).length;
-  const returned = completed.filter((item) => item.status === 'returned').length;
-  const governorates = new Map<string, number>();
-  shipments.forEach((item) => governorates.set(item.governorate, (governorates.get(item.governorate) ?? 0) + 1));
-  const topGovernorate = [...governorates.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
-  const reasons = new Map<string, number>();
-  shipments.filter((item) => item.exceptionReason).forEach((item) => reasons.set(item.exceptionReason!, (reasons.get(item.exceptionReason!) ?? 0) + 1));
-  const topReturnReason = [...reasons.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
-  const averageDeliveryHours = delivered ? Math.round(shipments.filter((item) => ['delivered', 'partiallyDelivered'].includes(item.status)).reduce((sum, item) => sum + Math.max(1, (new Date(item.statusChangedAt).getTime() - new Date(item.createdAt).getTime()) / 3600000), 0) / delivered) : 0;
-  return { successRate: completed.length ? Math.round(delivered / completed.length * 100) : 0, returnRate: completed.length ? Math.round(returned / completed.length * 100) : 0, addressQuality: Math.max(0, 100 - Math.round(shipments.filter((item) => item.exceptionReason?.includes('عنوان')).length / Math.max(1, shipments.length) * 100)), averageDeliveryHours, topGovernorate, topReturnReason };
-}
-
-function PerformanceLine({ label, value, danger = false }: { label: string; value: number; danger?: boolean }) { return <div><span>{label}</span><strong>{value.toLocaleString('ar-EG')}٪</strong><i className={danger ? 'danger' : ''} style={{ width: `${Math.max(0, Math.min(100, value))}%` }}/></div>; }
-function ProfileBox({ icon, label, value, detail }: { icon: ReactNode; label: string; value: string; detail: string }) { return <div className="merchant-profile-box glass-card"><span>{icon}</span><section><small>{label}</small><strong>{value}</strong><em>{detail}</em></section></div>; }
-function cycleLabelMerchant(value: Merchant['settlementCycle']) { return { daily: 'تسوية يومية', twiceWeekly: 'مرتين أسبوعيًا', weekly: 'تسوية أسبوعية' }[value]; }
-
-function MerchantActionDialog({ type, merchant, shipments, eligibleShipmentIds, onClose, onSave, onCreateSettlement, onOpenShipments }: { type: MerchantDialog; merchant: Merchant; shipments: Array<{ id: string; status: string; financialStatus: string; expectedCollection: number }>; eligibleShipmentIds: string[]; onClose: () => void; onSave: (merchant: Merchant) => Promise<void>; onCreateSettlement: (ids: string[]) => Promise<void>; onOpenShipments: () => void }) {
-  const [name, setName] = useState(merchant.name);
-  const [phone, setPhone] = useState(merchant.phone);
-  const [selectedIds, setSelectedIds] = useState<string[]>(eligibleShipmentIds);
-  const toggle = (id: string) => setSelectedIds((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
-  return <Modal wide={type !== 'edit'} title={type === 'edit' ? 'تعديل بيانات التاجر' : type === 'shipments' ? 'شحنات التاجر' : 'إنشاء تسوية من الشحنات المؤهلة'} description={`${merchant.name} — ${merchant.id}`} onClose={onClose} footer={<><button className="outline-btn" onClick={onClose}>إلغاء</button>{type === 'shipments' ? <button className="btn-primary" onClick={onOpenShipments}>فتح صفحة الشحنات</button> : type === 'edit' ? <button className="btn-primary" onClick={() => void onSave({ ...merchant, name: name.trim(), phone: phone.trim() })}>حفظ البيانات</button> : <button className="btn-primary" disabled={!selectedIds.length} onClick={() => void onCreateSettlement(selectedIds)}>إنشاء تسوية ({selectedIds.length.toLocaleString('ar-EG')})</button>}</>}>
-    {type === 'edit' && <div className="merchant-form-grid"><label className="form-field"><span>اسم التاجر</span><input className="input-glass" value={name} onChange={(event) => setName(event.target.value)} /></label><label className="form-field"><span>رقم الهاتف</span><input className="input-glass" dir="ltr" value={phone} onChange={(event) => setPhone(event.target.value)} /></label></div>}
-    {type === 'shipments' && <div className="table-wrapper"><table className="data-table"><thead><tr><th>الشحنة</th><th>الحالة</th><th>الحالة المالية</th><th>التحصيل</th></tr></thead><tbody>{shipments.slice(0, 20).map((shipment) => <tr key={shipment.id}><td className="tracking-num">{shipment.id}</td><td>{shipment.status}</td><td>{shipment.financialStatus}</td><td>{formatCurrency(shipment.expectedCollection)}</td></tr>)}</tbody></table></div>}
-    {type === 'settlement' && <div><div className="contact-phone-box"><span>الشحنات المؤهلة</span><strong>{eligibleShipmentIds.length.toLocaleString('ar-EG')}</strong></div>{eligibleShipmentIds.length ? <div className="merchant-shipment-preview">{shipments.filter((shipment) => eligibleShipmentIds.includes(shipment.id)).map((shipment) => <label key={shipment.id} className="merchant-shipment-row"><input type="checkbox" checked={selectedIds.includes(shipment.id)} onChange={() => toggle(shipment.id)} /><span className="tracking-num">{shipment.id}</span><span>{formatCurrency(shipment.expectedCollection)}</span></label>)}</div> : <p>لا توجد شحنات موردة وغير مسوّاة لهذا التاجر.</p>}</div>}
+function MerchantActionDialog({ type, merchant, shipments, eligibleShipmentIds, onClose, onSave, onCreateSettlement, onArchive }: { type:MerchantDialog; merchant:Merchant; shipments:Array<{id:string;financialStatus:string;expectedCollection:number;deliveryFee?:number;discount?:number}>; eligibleShipmentIds:string[]; onClose:()=>void; onSave:(merchant:Merchant)=>Promise<void>; onCreateSettlement:(ids:string[])=>Promise<void>; onArchive:(reason:string)=>Promise<void> }) {
+  const [form,setForm]=useState({ name:merchant.name, legalName:merchant.legalName??'', phone:merchant.phone, email:merchant.email??'', settlementCycle:merchant.settlementCycle, status:merchant.status??'active', accountManagerName:merchant.accountManagerName??'', settlementMethod:merchant.settlementMethod??'bank' });
+  const [selectedIds,setSelectedIds]=useState(eligibleShipmentIds); const [archiveReason,setArchiveReason]=useState('انتهاء التعاقد');
+  const toggle=(id:string)=>setSelectedIds((items)=>items.includes(id)?items.filter((item)=>item!==id):[...items,id]);
+  const selectedShipments=shipments.filter((s)=>selectedIds.includes(s.id)); const gross=selectedShipments.reduce((sum,s)=>sum+s.expectedCollection,0); const estimatedFees=selectedShipments.reduce((sum,s)=>sum+(s.deliveryFee??0)+(s.discount??0),0);
+  return <Modal wide={type==='settlement'} title={type==='edit'?'تعديل بيانات التاجر':type==='settlement'?'إنشاء تسوية من الشحنات المؤهلة':'أرشفة التاجر'} description={`${merchant.name} — ${merchantCode(merchant)}`} onClose={onClose} footer={<><button className="outline-btn" onClick={onClose}>إلغاء</button>{type==='edit'?<button className="btn-primary" onClick={()=>void onSave({...merchant,...form})}>حفظ البيانات</button>:type==='settlement'?<button className="btn-primary" disabled={!selectedIds.length} onClick={()=>void onCreateSettlement(selectedIds)}>إنشاء التسوية ({selectedIds.length.toLocaleString('ar-EG')})</button>:<button className="btn-primary danger-action" disabled={!archiveReason.trim()} onClick={()=>void onArchive(archiveReason)}>تأكيد الأرشفة</button>}</>}>
+  {type==='edit' && <div className="merchant-form-grid"><label className="form-field"><span>الاسم التجاري</span><input className="input-glass" value={form.name} onChange={(e)=>setForm({...form,name:e.target.value})}/></label><label className="form-field"><span>الاسم القانوني</span><input className="input-glass" value={form.legalName} onChange={(e)=>setForm({...form,legalName:e.target.value})}/></label><label className="form-field"><span>الهاتف الرئيسي</span><input className="input-glass" dir="ltr" value={form.phone} onChange={(e)=>setForm({...form,phone:e.target.value})}/></label><label className="form-field"><span>البريد</span><input className="input-glass" dir="ltr" value={form.email} onChange={(e)=>setForm({...form,email:e.target.value})}/></label><label className="form-field"><span>دورة التسوية</span><select className="input-glass" value={form.settlementCycle} onChange={(e)=>setForm({...form,settlementCycle:e.target.value as Merchant['settlementCycle']})}><option value="daily">يومية</option><option value="twiceWeekly">مرتين أسبوعيًا</option><option value="weekly">أسبوعية</option></select></label><label className="form-field"><span>حالة الحساب</span><select className="input-glass" value={form.status} onChange={(e)=>setForm({...form,status:e.target.value as NonNullable<Merchant['status']>})}>{Object.entries(merchantStatusLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label className="form-field"><span>مسؤول الحساب</span><input className="input-glass" value={form.accountManagerName} onChange={(e)=>setForm({...form,accountManagerName:e.target.value})}/></label><label className="form-field"><span>طريقة الدفع</span><select className="input-glass" value={form.settlementMethod} onChange={(e)=>setForm({...form,settlementMethod:e.target.value as Merchant['settlementMethod']})}><option value="bank">تحويل بنكي</option><option value="instapay">Instapay</option><option value="wallet">محفظة</option><option value="cash">نقدي</option></select></label></div>}
+  {type==='settlement' && <div><div className="settlement-detail-grid"><div><span>الشحنات المؤهلة</span><strong>{eligibleShipmentIds.length.toLocaleString('ar-EG')}</strong></div><div><span>المحدد</span><strong>{selectedIds.length.toLocaleString('ar-EG')}</strong></div><div><span>التحصيل المتوقع</span><strong>{formatCurrency(gross)}</strong></div><div><span>رسوم/خصومات تقديرية</span><strong>{formatCurrency(estimatedFees)}</strong></div></div><p className="report-muted">الصافي النهائي لا يُدخل يدويًا؛ يحسبه Settlement Engine من الشحنات والرسوم والضرائب والتعديلات المعتمدة.</p><div className="merchant-shipment-preview">{shipments.filter((s)=>eligibleShipmentIds.includes(s.id)).map((shipment)=><label key={shipment.id} className="merchant-shipment-row"><input type="checkbox" checked={selectedIds.includes(shipment.id)} onChange={()=>toggle(shipment.id)}/><span className="tracking-num">{shipment.id}</span><span>{formatCurrency(shipment.expectedCollection)}</span></label>)}</div></div>}
+  {type==='archive' && <div><p>الأرشفة تحفظ كل الشحنات والتسويات والمحادثات والسجل. لا يمكن أرشفة تاجر لديه شحنات تشغيلية مفتوحة.</p><label className="form-field"><span>سبب الأرشفة</span><textarea className="input-glass" value={archiveReason} onChange={(e)=>setArchiveReason(e.target.value)}/></label></div>}
   </Modal>;
 }
+
+function deriveMerchantPerformance(shipments: Shipment[]) { const completed=shipments.filter((item)=>['delivered','partiallyDelivered','returned','failedToDeliver'].includes(item.status)); const delivered=completed.filter((item)=>['delivered','partiallyDelivered'].includes(item.status)).length; const returned=completed.filter((item)=>item.status==='returned').length; const governorates=new Map<string,number>(); shipments.forEach((item)=>governorates.set(item.governorate,(governorates.get(item.governorate)??0)+1)); const topGovernorate=[...governorates.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]??''; const reasons=new Map<string,number>(); shipments.filter((item)=>item.exceptionReason).forEach((item)=>reasons.set(item.exceptionReason!,(reasons.get(item.exceptionReason!)??0)+1)); const topReturnReason=[...reasons.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]??''; const deliveredRows=shipments.filter((item)=>['delivered','partiallyDelivered'].includes(item.status)); const averageDeliveryHours=deliveredRows.length?Math.round(deliveredRows.reduce((sum,item)=>sum+Math.max(1,(new Date(item.statusChangedAt).getTime()-new Date(item.createdAt).getTime())/3600000),0)/deliveredRows.length):0; return {successRate:completed.length?Math.round(delivered/completed.length*100):0,returnRate:completed.length?Math.round(returned/completed.length*100):0,addressQuality:Math.max(0,100-Math.round(shipments.filter((item)=>item.exceptionReason?.includes('عنوان')).length/Math.max(1,shipments.length)*100)),averageDeliveryHours,topGovernorate,topReturnReason}; }
+function PerformanceLine({label,value,danger=false}:{label:string;value:number;danger?:boolean}){return <div><span>{label}</span><strong>{value.toLocaleString('ar-EG')}٪</strong><i className={danger?'danger':''} style={{width:`${Math.max(0,Math.min(100,value))}%`}}/></div>;}
+function ProfileBox({icon,label,value,detail}:{icon:ReactNode;label:string;value:string;detail:string}){return <div className="merchant-profile-box glass-card"><span>{icon}</span><section><small>{label}</small><strong>{value}</strong><em>{detail}</em></section></div>;}
+function cycleLabelMerchant(value:Merchant['settlementCycle']){return {daily:'تسوية يومية',twiceWeekly:'مرتين أسبوعيًا',weekly:'تسوية أسبوعية'}[value];}

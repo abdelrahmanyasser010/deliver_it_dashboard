@@ -42,6 +42,8 @@ export type ShipmentPriority = 'normal' | 'high' | 'urgent';
 export type PaymentType = 'cashOnDelivery' | 'prepaid';
 export type SettlementStatus = 'unsettled' | 'settled';
 export type DriverStatus = 'active' | 'off';
+export type DriverAccountStatus = 'active' | 'suspended' | 'archived';
+export type DriverOperationalStatus = 'off_shift' | 'available' | 'busy' | 'pickup_task' | 'delivery_task' | 'offline';
 export type DriverAvailability = 'available' | 'busy' | 'break' | 'offline';
 
 export type ShipmentItemDisposition = 'delivered' | 'retry' | 'return';
@@ -172,6 +174,17 @@ export interface Driver {
   vehicleType?: 'motorcycle' | 'car' | 'van';
   vehicleNumber?: string;
   userCode?: string;
+  accountStatus?: DriverAccountStatus;
+  operationalStatus?: DriverOperationalStatus;
+  branchId?: string;
+  branchName?: string;
+  serviceAreas?: string[];
+  taskTypes?: Array<'pickup' | 'delivery' | 'returns'>;
+  maxBatchShipments?: number;
+  maxOpenTasks?: number;
+  onShift?: boolean;
+  lastSeenAt?: string;
+  archivedAt?: string;
 }
 
 export interface MerchantBranch {
@@ -205,6 +218,10 @@ export interface MerchantPerformance {
 export interface Merchant {
   id: string;
   name: string;
+  code?: string;
+  legalName?: string;
+  email?: string;
+  status?: 'pending_onboarding' | 'active' | 'suspended' | 'archived';
   phone: string;
   logoUrl: string;
   shipmentsCount: number;
@@ -218,7 +235,14 @@ export interface Merchant {
   pricingRules?: PricingRule[];
   performance?: MerchantPerformance;
   bankAccountReference?: string;
+  accountManagerName?: string;
+  settlementMethod?: 'bank' | 'wallet' | 'instapay' | 'cash';
+  taxId?: string;
+  registrationNumber?: string;
+  usersCount?: number;
+  documentsCount?: number;
 }
+
 
 export interface DashboardStats {
   totalShipments: number;

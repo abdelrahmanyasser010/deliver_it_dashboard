@@ -22,7 +22,8 @@ import type {
 } from '../domain/logistics/entities';
 import { buildImportedShipment, parseCsv, validateImportRow, type CsvPreview } from '../features/shipments/csvImport';
 import { BulkActionDialog, CsvPreviewDialog, SelectionBar, ShipmentDrawer, ShipmentRow, type BulkAction, type ShipmentAction, type ShipmentColumn } from '../features/shipments/ShipmentPresentation';
-import { downloadCsv } from '../utils/exportCsv';
+import { ShipmentLabelsPreview } from '../features/printing/ShipmentLabelsPreview';
+import { downloadXlsx } from '../utils/exportSpreadsheet';
 import {
   financialStatusConfig,
   formatDateTime,
@@ -61,7 +62,7 @@ interface SavedShipmentView {
   columns: ShipmentColumn[];
 }
 const shipmentColumns: Array<{ id: ShipmentColumn; label: string }> = [
-  { id: 'customer', label: 'العميل' }, { id: 'merchant', label: 'التاجر' }, { id: 'area', label: 'المنطقة' }, { id: 'driver', label: 'المندوب' },
+  { id: 'customer', label: 'المستلم' }, { id: 'merchant', label: 'التاجر' }, { id: 'area', label: 'المنطقة' }, { id: 'driver', label: 'المندوب' },
   { id: 'status', label: 'الحالة' }, { id: 'task', label: 'المطلوب' }, { id: 'collection', label: 'التحصيل' }, { id: 'updated', label: 'آخر تحديث' },
 ];
 const defaultColumns = shipmentColumns.map((item) => item.id);
@@ -89,6 +90,7 @@ export function ShipmentsPage() {
   const [activeAction, setActiveAction] = useState<ShipmentAction | null>(null);
   const [bulkAction, setBulkAction] = useState<BulkAction | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [printTargets, setPrintTargets] = useState<Shipment[]>([]);
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
   const [now] = useState(() => Date.now());
   const [visibleColumns, setVisibleColumns] = useState<ShipmentColumn[]>(readVisibleColumns);
@@ -177,29 +179,28 @@ export function ShipmentsPage() {
 
 
   const handlePrint = (targets: Shipment[]) => {
-    const label = targets.length === 1 ? `بوليصة ${targets[0].id}` : `${formatNumber(targets.length)} بوليصات`;
-    setToast(`تم تجهيز ${label} للطباعة عبر طابعة المتصفح.`);
-    window.print();
+    if (!targets.length) return;
+    setPrintTargets(targets);
   };
 
   const exportFilteredShipments = () => {
-    downloadCsv('الشحنات-المعروضة.csv', filtered.map((shipment) => ({
-      البوليصة: shipment.id,
-      كود_التتبع: shipment.trackingNumber,
-      العميل: shipment.customerName,
-      الهاتف: shipment.customerPhone,
-      المحافظة: shipment.governorate,
-      المدينة: shipment.city,
-      العنوان: shipment.address,
-      التاجر: shipment.merchantName,
-      المندوب: shipment.driverName ?? 'غير معين',
-      الحالة_التشغيلية: statusConfig[shipment.status].label,
-      الإجراء_المطلوب: taskStatusConfig[shipment.taskStatus].label,
-      الحالة_المالية: financialStatusConfig[shipment.financialStatus].label,
-      المبلغ: shipment.total,
-      آخر_تحديث: formatDateTime(shipment.lastUpdatedAt),
-    })));
-    setToast(`تم تصدير ${formatNumber(filtered.length)} شحنة مطابقة للفلاتر الحالية.`);
+    downloadXlsx({ filename: `shipments-${new Date().toISOString().slice(0, 10)}.xlsx`, sheetName: 'الشحنات', rows: filtered.map((shipment) => ({
+      'رقم البوليصة': shipment.id,
+      'كود التتبع': shipment.trackingNumber,
+      'المستلم': shipment.customerName,
+      'الهاتف': shipment.customerPhone,
+      'المحافظة': shipment.governorate,
+      'المدينة': shipment.city,
+      'العنوان': shipment.address,
+      'التاجر': shipment.merchantName,
+      'المندوب': shipment.driverName ?? 'غير معين',
+      'الحالة التشغيلية': statusConfig[shipment.status].label,
+      'الإجراء المطلوب': taskStatusConfig[shipment.taskStatus].label,
+      'الحالة المالية': financialStatusConfig[shipment.financialStatus].label,
+      'المبلغ': shipment.total,
+      'آخر تحديث': new Date(shipment.lastUpdatedAt),
+    })) });
+    setToast(`تم تجهيز ملف Excel حقيقي لـ ${formatNumber(filtered.length)} شحنة مطابقة للفلاتر الحالية.`);
   };
 
   const readShipmentSheet = (file: File) => {
@@ -299,7 +300,6 @@ export function ShipmentsPage() {
     let commandResult;
     if (bulkAction === 'print') handlePrint(checkedShipments);
     else if (bulkAction === 'assign') commandResult = await delivery.execute({ type: 'shipment/assignDriver', shipmentIds: checkedShipments.map((shipment) => shipment.id), driverId: payload.driverId });
-    else if (bulkAction === 'status' && isShipmentStatus(payload.status)) commandResult = await delivery.execute({ type: 'shipment/transition', shipmentIds: checkedShipments.map((shipment) => shipment.id), nextStatus: payload.status, reason: `عملية جماعية: ${statusConfig[payload.status].label}` });
     if (commandResult) setToast(commandResult.message);
     setBulkAction(null);
     setCheckedIds([]);
@@ -319,7 +319,7 @@ export function ShipmentsPage() {
         <div className="heading-actions">
           <button className="outline-btn" onClick={() => setColumnsOpen(true)}><Columns3 size={15} /> الأعمدة</button>
           <button className="outline-btn" onClick={() => setSaveViewOpen(true)}><BookmarkPlus size={15} /> حفظ View</button>
-          <button className="outline-btn" onClick={exportFilteredShipments}><FileSpreadsheet size={15} /> تصدير المعروض</button>
+          <button className="outline-btn" onClick={exportFilteredShipments}><FileSpreadsheet size={15} /> تصدير Excel</button>
           <button className="btn-primary" onClick={() => fileInputRef.current?.click()}><Upload size={15} /> استيراد CSV</button>
           <input ref={fileInputRef} className="visually-hidden" type="file" accept=".csv,text/csv" onChange={(event) => { const file = event.target.files?.[0]; if (file) readShipmentSheet(file); event.currentTarget.value = ''; }} />
         </div>
@@ -328,7 +328,7 @@ export function ShipmentsPage() {
       <section className="shipment-toolbar glass-card">
         <div className="search-field">
           <Search size={17} />
-          <input type="search" placeholder="رقم الشحنة، الهاتف، العميل، العنوان، التاجر أو المندوب" value={query} onChange={(event) => setQuery(event.target.value)} aria-label="البحث في الشحنات" />
+          <input type="search" placeholder="رقم الشحنة، المستلم، الهاتف، العنوان، التاجر أو المندوب" value={query} onChange={(event) => setQuery(event.target.value)} aria-label="البحث في الشحنات" />
           {query && <button className="icon-plain" onClick={() => setQuery('')} aria-label="مسح البحث"><X size={15} /></button>}
         </div>
         <div className="shipment-status-filters">
@@ -366,7 +366,6 @@ export function ShipmentsPage() {
           total={filtered.length}
           totalCod={checkedShipments.reduce((sum, shipment) => sum + shipment.expectedCollection, 0)}
           onAssign={() => setBulkAction('assign')}
-          onStatus={() => setBulkAction('status')}
           onPrint={() => setBulkAction('print')}
           onClear={() => setCheckedIds([])}
         />
@@ -378,7 +377,7 @@ export function ShipmentsPage() {
         <section className="table-container glass-card">
           <div className="table-wrapper">
             <table className="data-table shipments-table">
-              <thead><tr><th><button className="table-check" onClick={toggleAllVisible} aria-label="تحديد كل النتائج الظاهرة">{allVisibleSelected ? <CheckSquare size={17} /> : <Square size={17} />}</button></th><th>رقم الشحنة</th>{visibleColumns.includes('customer') && <th>العميل</th>}{visibleColumns.includes('merchant') && <th>التاجر</th>}{visibleColumns.includes('area') && <th>المنطقة</th>}{visibleColumns.includes('driver') && <th>المندوب</th>}{visibleColumns.includes('status') && <th>الحالة</th>}{visibleColumns.includes('task') && <th>المطلوب</th>}{visibleColumns.includes('collection') && <th>التحصيل</th>}{visibleColumns.includes('updated') && <th>آخر تحديث</th>}<th>إجراءات</th></tr></thead>
+              <thead><tr><th><button className="table-check" onClick={toggleAllVisible} aria-label="تحديد كل النتائج الظاهرة">{allVisibleSelected ? <CheckSquare size={17} /> : <Square size={17} />}</button></th><th>رقم الشحنة</th>{visibleColumns.includes('customer') && <th>المستلم</th>}{visibleColumns.includes('merchant') && <th>التاجر</th>}{visibleColumns.includes('area') && <th>المنطقة</th>}{visibleColumns.includes('driver') && <th>المندوب</th>}{visibleColumns.includes('status') && <th>الحالة</th>}{visibleColumns.includes('task') && <th>المطلوب</th>}{visibleColumns.includes('collection') && <th>التحصيل</th>}{visibleColumns.includes('updated') && <th>آخر تحديث</th>}<th>إجراءات</th></tr></thead>
               <tbody>
                 {filtered.map((shipment) => (
                   <ShipmentRow
@@ -428,6 +427,8 @@ export function ShipmentsPage() {
       {columnsOpen && <Modal title="تخصيص أعمدة الجدول" description="اختر المعلومات التي تظهر في جدول الشحنات. يتم حفظ الاختيار على هذا الجهاز." onClose={() => setColumnsOpen(false)} footer={<><button className="outline-btn" onClick={() => persistColumns(defaultColumns)}>إظهار الكل</button><button className="btn-primary" onClick={() => setColumnsOpen(false)}>تم</button></>}><div className="column-picker">{shipmentColumns.map((column) => <label key={column.id}><input type="checkbox" checked={visibleColumns.includes(column.id)} onChange={() => persistColumns(visibleColumns.includes(column.id) ? visibleColumns.filter((item) => item !== column.id) : [...visibleColumns, column.id])}/><span>{column.label}</span></label>)}</div></Modal>}
       {saveViewOpen && <Modal title="حفظ View جديدة" description="سيتم حفظ البحث والفلاتر والأعمدة الحالية لفتحها لاحقًا بضغطة واحدة." onClose={() => setSaveViewOpen(false)} footer={<><button className="outline-btn" onClick={() => setSaveViewOpen(false)}>إلغاء</button><button className="btn-primary" onClick={saveCurrentView}>حفظ</button></>}><label className="dialog-field"><span>اسم الـView</span><input className="input-glass" autoFocus value={viewName} onChange={(event) => setViewName(event.target.value)} placeholder="مثال: شحنات الجيزة المتأخرة" /></label>{savedViews.length > 0 && <div className="saved-views-manager"><strong>المحفوظ حاليًا</strong>{savedViews.map((view) => <div key={view.id}><button onClick={() => { applySavedView(view.id); setSaveViewOpen(false); }}>{view.name}</button><button className="danger-link" onClick={() => deleteSavedView(view.id)}>حذف</button></div>)}</div>}</Modal>}
 
+
+      {printTargets.length > 0 && <ShipmentLabelsPreview shipments={printTargets} settings={delivery.state?.settings.printing} onClose={() => { setPrintTargets([]); setToast('تم تجهيز البوالص للطباعة.'); }} />}
       {toast && <div className="shipment-toast" role="status"><CheckCircle2 size={16} /><span>{toast}</span><button onClick={() => setToast(null)} aria-label="إغلاق الرسالة"><X size={14} /></button></div>}
     </div>
   );
