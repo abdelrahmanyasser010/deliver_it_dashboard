@@ -53,7 +53,7 @@ export function downloadCsv<T extends object>(filename: string, rows: T[], delim
 
 function buildSheetXml<T extends object>(rows: T[], columns: ExportColumn<T>[], rtl: boolean) {
   const normalizedRows = rows as Array<Record<string, ExportValue>>;
-  const widths = columns.map((column, index) => {
+  const widths = columns.map((column) => {
     const values = normalizedRows.map((row) => String(column.getValue ? column.getValue(row as T) ?? '' : row[String(column.key)] ?? ''));
     const computed = Math.min(55, Math.max(12, column.header.length + 3, ...values.slice(0, 250).map((value) => Math.min(50, value.length + 2))));
     return column.width ?? computed;

@@ -6,7 +6,7 @@ import { useDeliveryData } from '../context/DeliveryDataContext';
 import { useWorkspace } from '../context/WorkspaceContext';
 import type { MerchantSettlementStatus } from '../domain/finance/entities';
 import { downloadXlsx } from '../utils/exportSpreadsheet';
-import { formatCurrency, formatDateTime } from '../utils/helpers';
+import { formatCurrency } from '../utils/helpers';
 import './AdminOperations.css';
 
 const statusLabels: Record<MerchantSettlementStatus, string> = { draft: 'مسودة', underReview: 'تحت المراجعة', approved: 'معتمدة', paid: 'مدفوعة', reconciled: 'مطابقة', disputed: 'عليها اعتراض', cancelled: 'ملغاة' };

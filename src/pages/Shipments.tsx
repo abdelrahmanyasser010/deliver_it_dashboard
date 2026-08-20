@@ -26,7 +26,6 @@ import { ShipmentLabelsPreview } from '../features/printing/ShipmentLabelsPrevie
 import { downloadXlsx } from '../utils/exportSpreadsheet';
 import {
   financialStatusConfig,
-  formatDateTime,
   priorityConfig,
   statusConfig,
   taskStatusConfig,

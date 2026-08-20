@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Activity, AlertTriangle, Archive, Banknote, Clock3, Edit3, Eye, KeyRound, MapPin, MoreHorizontal, Package, Plus, Search, ShieldOff, TrendingUp, Truck, UserCheck, Users, X } from 'lucide-react';
+import { Activity, AlertTriangle, Archive, Banknote, Clock3, Edit3, Eye, KeyRound, MapPin, MoreHorizontal, Package, Plus, Search, ShieldOff, TrendingUp, UserCheck, Users, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useDrivers } from '../application/logistics/useLogisticsData';
 import { Modal, StatusBadge } from '../components/ui/Ui';
