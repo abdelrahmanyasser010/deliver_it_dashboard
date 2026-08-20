@@ -325,10 +325,16 @@ export function ShipmentsPage() {
       </header>
 
       <section className="shipment-toolbar glass-card">
-        <div className="search-field">
-          <Search size={17} />
-          <input type="search" placeholder="رقم الشحنة، المستلم، الهاتف، العنوان، التاجر أو المندوب" value={query} onChange={(event) => setQuery(event.target.value)} aria-label="البحث في الشحنات" />
-          {query && <button className="icon-plain" onClick={() => setQuery('')} aria-label="مسح البحث"><X size={15} /></button>}
+        <div className="search-row">
+          <div className="search-field">
+            <Search size={17} />
+            <input type="search" placeholder="رقم الشحنة، المستلم، الهاتف، العنوان، التاجر أو المندوب" value={query} onChange={(event) => setQuery(event.target.value)} aria-label="البحث في الشحنات" />
+            {query && <button className="icon-plain" onClick={() => setQuery('')} aria-label="مسح البحث"><X size={15} /></button>}
+          </div>
+          <div className="results-count">
+            <strong>{formatNumber(filtered.length)}</strong>
+            <span>من {formatNumber(allShipments.length)} شحنة</span>
+          </div>
         </div>
         <div className="shipment-status-filters">
           {statusOptions.map((option) => <button key={option.value} className={`filter-pill ${statusFilter === option.value ? 'active' : ''}`} onClick={() => setStatusFilter(option.value)}>{option.label}</button>)}
@@ -342,7 +348,6 @@ export function ShipmentsPage() {
         <select className="input-glass saved-view-select" defaultValue="" onChange={(event) => { applySavedView(event.target.value); event.currentTarget.value = ''; }} aria-label="تطبيق View محفوظ"><option value="">Views محفوظة ({formatNumber(savedViews.length)})</option>{savedViews.map((view) => <option key={view.id} value={view.id}>{view.name}</option>)}</select>
         <select className="input-glass" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} aria-label="فلتر الأولوية"><option value="all">كل الأولويات</option><option value="urgent">عاجل</option><option value="high">مهم</option><option value="normal">طبيعي</option></select>
         <button className="outline-btn compact-btn" onClick={clearFilters} disabled={activeFilterCount === 0}><FilterX size={15} /> مسح الفلاتر ({formatNumber(activeFilterCount)})</button>
-        <div className="results-count"><strong>{formatNumber(filtered.length)}</strong><span>من {formatNumber(allShipments.length)} شحنة</span></div>
       </section>
 
       {activeFilterCount > 0 && (

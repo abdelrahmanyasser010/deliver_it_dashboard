@@ -132,30 +132,53 @@
 }
 
 .advanced-filters {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(130px, 1fr)) auto minmax(105px, auto);
+  display: flex;
   align-items: center;
   gap: 0.65rem;
   padding: 0.85rem;
+  flex-wrap: wrap;
 }
 
 .advanced-filters .input-glass {
-  min-width: 0;
-  width: 100%;
+  min-width: 130px;
+  flex: 1 1 130px;
 }
 
 .compact-btn { min-height: 40px; white-space: nowrap; }
 
-.results-count {
+.search-row {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.08rem;
-  padding-inline: 0.5rem;
+  align-items: center;
+  gap: 0.75rem;
 }
 
-.results-count strong { font-size: 1rem; }
-.results-count span { color: var(--text-secondary); font-size: 0.7rem; white-space: nowrap; }
+.search-row .search-field {
+  flex: 1;
+}
+
+.results-count {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding: 0.3rem 0.6rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-sm);
+}
+
+.results-count strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.results-count span {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
 
 .active-filter-chips {
   display: flex;

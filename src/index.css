@@ -99,66 +99,68 @@ body {
 
 /* Interactive Elements */
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  padding: 0.55rem 1.1rem;
-  border-radius: var(--radius-md);
-  font-weight: 700;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: var(--transition-normal);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  box-shadow: 0 4px 15px rgba(79, 70, 229, 0.35);
-  white-space: nowrap;
+  background: linear-gradient(135deg, var(--primary), var(--secondary)) !important;
+  color: white !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  padding: 0.55rem 1.15rem !important;
+  border-radius: var(--radius-md) !important;
+  font-weight: 700 !important;
+  font-size: 0.85rem !important;
+  font-family: inherit !important;
+  cursor: pointer !important;
+  transition: var(--transition-normal) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.5rem !important;
+  box-shadow: 0 4px 15px rgba(79, 70, 229, 0.35) !important;
+  white-space: nowrap !important;
 }
 
 .btn-primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-glow);
-  filter: brightness(1.1);
+  transform: translateY(-1px) !important;
+  box-shadow: var(--shadow-glow) !important;
+  filter: brightness(1.1) !important;
 }
 
 .btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
 }
 
 .outline-btn {
   background: rgba(255, 255, 255, 0.04) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
   color: var(--text-primary) !important;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.55rem 1rem;
-  border-radius: var(--radius-md);
-  font-weight: 600;
-  font-size: 0.84rem;
-  cursor: pointer;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transition: var(--transition-normal);
-  white-space: nowrap;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.5rem !important;
+  padding: 0.52rem 1rem !important;
+  border-radius: var(--radius-md) !important;
+  font-weight: 600 !important;
+  font-size: 0.84rem !important;
+  font-family: inherit !important;
+  cursor: pointer !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  white-space: nowrap !important;
 }
 
 .outline-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08) !important;
   border-color: rgba(14, 165, 233, 0.5) !important;
   color: #38bdf8 !important;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.18);
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.2) !important;
 }
 
 .outline-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
 }
 
 .outline-btn.active {
@@ -174,7 +176,7 @@ body {
   width: 36px;
   height: 36px;
   border-radius: var(--radius-md);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -189,35 +191,38 @@ body {
 }
 
 .btn-icon.sm {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-sm);
 }
 
 /* Inputs */
 .input-glass {
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: var(--text-primary);
-  padding: 0.55rem 0.9rem;
-  border-radius: var(--radius-md);
-  font-size: 0.85rem;
-  width: 100%;
-  transition: var(--transition-normal);
+  background: rgba(0, 0, 0, 0.25) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: var(--text-primary) !important;
+  padding: 0.55rem 0.9rem !important;
+  border-radius: var(--radius-md) !important;
+  font-size: 0.85rem !important;
+  width: 100% !important;
+  transition: var(--transition-normal) !important;
+  font-family: inherit !important;
 }
 
 .input-glass:focus {
-  outline: none;
-  border-color: var(--secondary);
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
-  background: rgba(0, 0, 0, 0.45);
+  outline: none !important;
+  border-color: var(--secondary) !important;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2) !important;
+  background: rgba(0, 0, 0, 0.45) !important;
 }
 
 .input-glass::placeholder {
   color: var(--text-muted);
 }
 
-/* Unified Tabs across whole app */
+/* ==========================================================================
+   Universal Glassmorphic Tabs System (Applied to ALL Tabs in the Dashboard)
+   ========================================================================== */
 .reports-tabs,
 .users-tabs,
 .accounting-tabs,
@@ -225,104 +230,158 @@ body {
 .merchant-profile-tabs,
 .driver-profile-tabs,
 .ops-tabs,
-.custom-tabs {
+.exceptions-tabs,
+.custom-tabs,
+.nav-tabs {
   display: flex !important;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.35rem 0.45rem !important;
-  background: rgba(15, 23, 42, 0.6) !important;
+  align-items: center !important;
+  gap: 0.45rem !important;
+  padding: 0.4rem !important;
+  background: rgba(15, 23, 42, 0.65) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: var(--radius-md);
-  flex-wrap: wrap;
+  border-radius: var(--radius-md) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  flex-wrap: wrap !important;
+  margin-bottom: 0.85rem !important;
 }
 
 .reports-tab,
+.reports-tabs button,
 .users-tabs button,
 .accounting-tabs button,
 .settings-tabs button,
 .merchant-profile-tabs button,
-.driver-profile-tabs button {
+.driver-profile-tabs button,
+.ops-tabs button,
+.ops-tab,
+.exceptions-tabs button,
+.custom-tabs button,
+.nav-tabs button {
   background: transparent !important;
   border: 1px solid transparent !important;
   color: var(--text-secondary) !important;
-  padding: 0.55rem 1.1rem;
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  font-size: 0.84rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  transition: var(--transition-normal);
-  white-space: nowrap;
+  padding: 0.55rem 1.15rem !important;
+  border-radius: var(--radius-sm) !important;
+  font-weight: 600 !important;
+  font-size: 0.85rem !important;
+  font-family: inherit !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.5rem !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  white-space: nowrap !important;
 }
 
 .reports-tab:hover,
+.reports-tabs button:hover,
 .users-tabs button:hover,
 .accounting-tabs button:hover,
 .settings-tabs button:hover,
 .merchant-profile-tabs button:hover,
-.driver-profile-tabs button:hover {
+.driver-profile-tabs button:hover,
+.ops-tabs button:hover,
+.ops-tab:hover,
+.exceptions-tabs button:hover,
+.custom-tabs button:hover,
+.nav-tabs button:hover {
   background: rgba(255, 255, 255, 0.06) !important;
-  color: var(--text-primary) !important;
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 .reports-tab.active,
+.reports-tabs button.active,
 .users-tabs button.active,
 .accounting-tabs button.active,
 .settings-tabs button.active,
 .merchant-profile-tabs button.active,
-.driver-profile-tabs button.active {
+.driver-profile-tabs button.active,
+.ops-tabs button.active,
+.ops-tab.active,
+.exceptions-tabs button.active,
+.custom-tabs button.active,
+.nav-tabs button.active {
   background: linear-gradient(135deg, #4F46E5 0%, #0EA5E9 100%) !important;
   color: #ffffff !important;
-  border-color: rgba(255, 255, 255, 0.2) !important;
-  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.45) !important;
   font-weight: 700 !important;
 }
 
-/* Comprehensive Data Table System */
+/* ==========================================================================
+   Universal Full-Width Data Table System (Applied to ALL Tables)
+   ========================================================================== */
 .table-wrapper {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  scrollbar-gutter: stable;
-  border-radius: var(--radius-md);
-  margin-top: 0.75rem;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overscroll-behavior-inline: contain !important;
+  scrollbar-gutter: stable !important;
+  border-radius: var(--radius-md) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(15, 23, 42, 0.4) !important;
+  margin-top: 0.85rem !important;
 }
 
-.data-table {
+table,
+.data-table,
+.shipments-table,
+.compact-table {
   width: 100% !important;
   min-width: 720px;
-  border-collapse: collapse;
-  text-align: right;
-  font-size: 0.85rem;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  text-align: right !important;
+  font-size: 0.85rem !important;
 }
 
-.data-table thead th {
-  padding: 0.8rem 1rem;
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  background: rgba(15, 23, 42, 0.45);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  white-space: nowrap;
+table thead th,
+.data-table thead th,
+.shipments-table thead th,
+.compact-table thead th {
+  padding: 0.85rem 1.15rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  color: var(--text-secondary) !important;
+  background: rgba(15, 23, 42, 0.75) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  white-space: nowrap !important;
+  letter-spacing: -0.01em !important;
 }
 
-.data-table tbody td {
-  padding: 0.8rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  vertical-align: middle;
-  color: var(--text-primary);
+table tbody td,
+.data-table tbody td,
+.shipments-table tbody td,
+.compact-table tbody td {
+  padding: 0.85rem 1.15rem !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  vertical-align: middle !important;
+  color: var(--text-primary) !important;
+  font-size: 0.84rem !important;
 }
 
-.data-table tbody tr {
-  transition: var(--transition-fast);
+table tbody tr:last-child td,
+.data-table tbody tr:last-child td,
+.shipments-table tbody tr:last-child td,
+.compact-table tbody tr:last-child td {
+  border-bottom: none !important;
 }
 
-.data-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.04);
+table tbody tr,
+.data-table tbody tr,
+.shipments-table tbody tr,
+.compact-table tbody tr {
+  transition: background 0.15s ease !important;
+}
+
+table tbody tr:hover,
+.data-table tbody tr:hover,
+.shipments-table tbody tr:hover,
+.compact-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.045) !important;
 }
 
 .tracking-link {
@@ -337,6 +396,7 @@ body {
 
 .tracking-link:hover {
   text-decoration: underline;
+  color: #38bdf8;
 }
 
 .status-badge,
@@ -346,7 +406,7 @@ body {
 .driver-status-pill {
   display: inline-flex;
   align-items: center;
-  padding: 0.22rem 0.6rem;
+  padding: 0.24rem 0.65rem;
   border-radius: var(--radius-full);
   font-size: 0.72rem;
   font-weight: 700;
@@ -357,13 +417,13 @@ body {
   color: var(--secondary);
   font-weight: 800;
   font-family: monospace;
-  font-size: 0.82rem;
+  font-size: 0.84rem;
 }
 
 .amount {
   color: #10B981;
   font-weight: 800;
-  font-size: 0.88rem;
+  font-size: 0.9rem;
 }
 
 /* Scrollbar */
@@ -412,5 +472,5 @@ body {
 
 @media (max-width: 760px) {
   body { background-attachment: scroll; }
-  .data-table { min-width: 680px; }
+  table, .data-table, .shipments-table, .compact-table { min-width: 680px; }
 }
