@@ -1,18 +1,17 @@
 import { useState } from 'react';
-import { Banknote, Bell, Camera, MapPinned, Printer, Save, Settings2, ShieldCheck, Truck } from 'lucide-react';
+import { Banknote, Bell, Camera, Printer, Save, Settings2, ShieldCheck, Truck } from 'lucide-react';
 import { ErrorState, PageSkeleton } from '../components/AsyncState';
 import { useDeliveryData } from '../context/DeliveryDataContext';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { defaultTenantOperationalSettings, type DeliveryPolicySettings, type DriverLocationPolicySettings, type FeeMode, type NotificationSettings, type PricingPolicySettings, type PrintingSettings, type ProofPolicySettings } from '../domain/settings/entities';
+import { defaultTenantOperationalSettings, type DeliveryPolicySettings, type FeeMode, type NotificationSettings, type PricingPolicySettings, type PrintingSettings, type ProofPolicySettings } from '../domain/settings/entities';
 import { formatDateTime } from '../utils/helpers';
 import './Settings.css';
 
-type SettingsTab = 'delivery' | 'pricing' | 'proof' | 'location' | 'printing' | 'notifications';
+type SettingsTab = 'delivery' | 'pricing' | 'proof' | 'printing' | 'notifications';
 const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: typeof Truck }> = [
   { id: 'delivery', label: 'التوصيل والمحاولات', description: 'التسليم الجزئي واعتماد تحديثات المناديب.', icon: Truck },
   { id: 'pricing', label: 'الرسوم والضرائب', description: 'المرتجع والمحاولات والتحصيل والضريبة.', icon: Banknote },
   { id: 'proof', label: 'إثبات التسليم', description: 'الصورة واسم المستلم والموقع.', icon: Camera },
-  { id: 'location', label: 'موقع المندوب', description: 'معدل التتبع والاحتفاظ بالنقاط.', icon: MapPinned },
   { id: 'printing', label: 'الطباعة والبوليصة', description: 'المقاس والنسخ والبيانات الظاهرة.', icon: Printer },
   { id: 'notifications', label: 'الإشعارات', description: 'إشعارات الشركة والمندوب والتاجر.', icon: Bell },
 ];
@@ -24,7 +23,6 @@ export function SettingsPage() {
   const [delivery, setDelivery] = useState<DeliveryPolicySettings>(() => structuredClone(state?.settings.delivery ?? defaultTenantOperationalSettings.delivery));
   const [pricing, setPricing] = useState<PricingPolicySettings>(() => structuredClone(state?.settings.pricing ?? defaultTenantOperationalSettings.pricing));
   const [proof, setProof] = useState<ProofPolicySettings>(() => structuredClone(state?.settings.proof ?? defaultTenantOperationalSettings.proof));
-  const [location, setLocation] = useState<DriverLocationPolicySettings>(() => structuredClone(state?.settings.location ?? defaultTenantOperationalSettings.location));
   const [printing, setPrinting] = useState<PrintingSettings>(() => structuredClone(state?.settings.printing ?? defaultTenantOperationalSettings.printing));
   const [notifications, setNotifications] = useState<NotificationSettings>(() => structuredClone(state?.settings.notifications ?? defaultTenantOperationalSettings.notifications));
   const [saving, setSaving] = useState(false);
@@ -41,11 +39,9 @@ export function SettingsPage() {
         ? { type: 'settings/updatePricing' as const, policy: pricing }
         : activeTab === 'proof'
           ? { type: 'settings/updateProof' as const, policy: proof }
-          : activeTab === 'location'
-            ? { type: 'settings/updateLocation' as const, policy: location }
-            : activeTab === 'printing'
-              ? { type: 'settings/updatePrinting' as const, policy: printing }
-              : { type: 'settings/updateNotifications' as const, policy: notifications };
+          : activeTab === 'printing'
+            ? { type: 'settings/updatePrinting' as const, policy: printing }
+            : { type: 'settings/updateNotifications' as const, policy: notifications };
     const result = await execute(command);
     showToast(result.message, result.ok ? 'success' : 'danger');
     setSaving(false);
@@ -71,7 +67,6 @@ export function SettingsPage() {
         {activeTab === 'delivery' && <DeliverySettings value={delivery} onChange={setDelivery}/>} 
         {activeTab === 'pricing' && <PricingSettings value={pricing} onChange={setPricing}/>} 
         {activeTab === 'proof' && <ProofSettings value={proof} onChange={setProof}/>} 
-        {activeTab === 'location' && <LocationSettings value={location} onChange={setLocation}/>} 
         {activeTab === 'printing' && <PrintingSettingsPanel value={printing} onChange={setPrinting}/>}
         {activeTab === 'notifications' && <NotificationSettingsPanel value={notifications} onChange={setNotifications}/>}
       </div>
@@ -155,23 +150,6 @@ function ProofSettings({ value, onChange }: { value: ProofPolicySettings; onChan
       <NumberField label="نطاق الوصول للعنوان" value={value.deliveryGeofenceMeters} min={20} suffix="متر" onChange={(deliveryGeofenceMeters) => onChange({ ...value, deliveryGeofenceMeters })}/>
     </div>
     <aside className="settings-note">الموقع يؤكد أن المندوب وصل قرب العنوان، لكنه لا يثبت وحده أن العميل لم يرد. الحالات خارج النطاق أو ذات الدقة الضعيفة تتحول لمراجعة الشركة.</aside>
-  </>;
-}
-
-function LocationSettings({ value, onChange }: { value: DriverLocationPolicySettings; onChange: (value: DriverLocationPolicySettings) => void }) {
-  return <>
-    <SectionHeading title="سياسة تتبع موقع المندوب" description="توازن بين دقة التشغيل والبطارية والخصوصية، ويوقف التتبع بعد انتهاء الوردية."/>
-    <div className="settings-card-grid">
-      <Toggle checked={value.trackingDuringShiftOnly} label="التتبع أثناء الوردية فقط" description="يتوقف تلقائيًا عند إنهاء الوردية." onChange={(trackingDuringShiftOnly) => onChange({ ...value, trackingDuringShiftOnly })}/>
-      <Toggle checked={value.offlineBatchEnabled} label="رفع النقاط بعد عودة الإنترنت" description="يحفظ التطبيق النقاط محليًا ويرسلها Batch دون تكرار." onChange={(offlineBatchEnabled) => onChange({ ...value, offlineBatchEnabled })}/>
-    </div>
-    <div className="settings-number-grid">
-      <NumberField label="بدون مهمة نشطة" value={value.idleIntervalSeconds} min={30} suffix="ثانية" onChange={(idleIntervalSeconds) => onChange({ ...value, idleIntervalSeconds })}/>
-      <NumberField label="أثناء مهمة نشطة" value={value.activeTaskIntervalSeconds} min={15} suffix="ثانية" onChange={(activeTaskIntervalSeconds) => onChange({ ...value, activeTaskIntervalSeconds })}/>
-      <NumberField label="أقصى عمر للقطة الإثبات" value={value.proofSnapshotMaxAgeSeconds} min={10} suffix="ثانية" onChange={(proofSnapshotMaxAgeSeconds) => onChange({ ...value, proofSnapshotMaxAgeSeconds })}/>
-      <NumberField label="الاحتفاظ بالنقاط الخام" value={value.rawLocationRetentionDays} min={1} suffix="يوم" onChange={(rawLocationRetentionDays) => onChange({ ...value, rawLocationRetentionDays })}/>
-    </div>
-    <aside className="settings-note">التاجر يرى حالة الشحنة والوقت المتوقع فقط؛ لا يملك صلاحية رؤية مسار المندوب الكامل أو المواقع التاريخية.</aside>
   </>;
 }
 
