@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Banknote, Bell, Camera, MapPinned, Printer, RotateCcw, Save, Settings2, ShieldCheck, Truck } from 'lucide-react';
+import { Banknote, Bell, Camera, MapPinned, Printer, Save, Settings2, ShieldCheck, Truck } from 'lucide-react';
 import { ErrorState, PageSkeleton } from '../components/AsyncState';
 import { useDeliveryData } from '../context/DeliveryDataContext';
 import { useWorkspace } from '../context/WorkspaceContext';
@@ -18,7 +18,7 @@ const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: t
 ];
 
 export function SettingsPage() {
-  const { state, isLoading, error, refetch, execute, resetDemo } = useDeliveryData();
+  const { state, isLoading, error, refetch, execute } = useDeliveryData();
   const { showToast } = useWorkspace();
   const [activeTab, setActiveTab] = useState<SettingsTab>('delivery');
   const [delivery, setDelivery] = useState<DeliveryPolicySettings>(() => structuredClone(state?.settings.delivery ?? defaultTenantOperationalSettings.delivery));
@@ -51,17 +51,6 @@ export function SettingsPage() {
     setSaving(false);
   };
 
-  const reset = async () => {
-    await resetDemo();
-    setDelivery(structuredClone(defaultTenantOperationalSettings.delivery));
-    setPricing(structuredClone(defaultTenantOperationalSettings.pricing));
-    setProof(structuredClone(defaultTenantOperationalSettings.proof));
-    setLocation(structuredClone(defaultTenantOperationalSettings.location));
-    setPrinting(structuredClone(defaultTenantOperationalSettings.printing));
-    setNotifications(structuredClone(defaultTenantOperationalSettings.notifications));
-    showToast('تمت استعادة الإعدادات والبيانات التجريبية الافتراضية.', 'info');
-  };
-
   return <div className="settings-page">
     <header className="settings-hero glass-card">
       <div>
@@ -70,7 +59,6 @@ export function SettingsPage() {
       </div>
       <div className="settings-hero-actions">
         <button className="btn-primary" disabled={saving} onClick={() => void save()}><Save size={15}/>{saving ? 'جارٍ الحفظ…' : 'حفظ القسم'}</button>
-        <button className="outline-btn" onClick={() => void reset()}><RotateCcw size={15}/> استعادة التجربة</button>
       </div>
     </header>
 
