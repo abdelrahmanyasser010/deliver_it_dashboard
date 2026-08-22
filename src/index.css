@@ -533,3 +533,66 @@ select option {
   color: #ffffff !important;
   padding: 8px 12px !important;
 }
+
+/* Universal Modal Form Layout & Chip Selectors */
+.admin-form-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 1rem !important;
+}
+
+.admin-form-grid .form-field {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.4rem !important;
+}
+
+.admin-form-grid .form-field.full {
+  grid-column: 1 / -1 !important;
+}
+
+.admin-form-grid .form-field span {
+  color: var(--text-secondary) !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+}
+
+.chips-selector-grid {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 0.5rem !important;
+  margin-top: 0.25rem !important;
+}
+
+.chip-toggle {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: var(--text-secondary) !important;
+  padding: 0.5rem 0.95rem !important;
+  border-radius: var(--radius-md) !important;
+  font-size: 0.82rem !important;
+  font-family: inherit !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.chip-toggle:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-primary) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.chip-toggle.active {
+  background: rgba(14, 165, 233, 0.18) !important;
+  border-color: rgba(14, 165, 233, 0.55) !important;
+  color: #38bdf8 !important;
+  font-weight: 700 !important;
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.2) !important;
+}
+
+@media (max-width: 640px) {
+  .admin-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+

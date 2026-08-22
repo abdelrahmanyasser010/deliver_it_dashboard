@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Activity, AlertTriangle, Archive, Banknote, Clock3, Edit3, Eye, KeyRound, MapPin, MoreHorizontal, Package, Plus, Search, ShieldOff, TrendingUp, UserCheck, Users, X } from 'lucide-react';
+import { Activity, AlertTriangle, Archive, Banknote, Clock3, Edit3, Eye, KeyRound, MapPin, MoreHorizontal, Package, Plus, Search, ShieldOff, TrendingUp, UserCheck, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useDrivers } from '../application/logistics/useLogisticsData';
 import { Modal, StatusBadge } from '../components/ui/Ui';
@@ -122,11 +122,134 @@ function DriverFormDialog({ title, form, onChange, onCancel, onSubmit, submitLab
   const update = <K extends keyof DriverFormState>(field: K, value: DriverFormState[K]) => onChange({ ...form, [field]: value });
   const toggleArea = (area:string) => update('serviceAreas', form.serviceAreas.includes(area) ? form.serviceAreas.filter((item)=>item!==area) : [...form.serviceAreas, area]);
   const toggleTask = (task:'pickup'|'delivery'|'returns') => update('taskTypes', form.taskTypes.includes(task) ? form.taskTypes.filter((item)=>item!==task) : [...form.taskTypes,task]);
-  return <DialogShell title={title} onCancel={onCancel}><div className="driver-form-grid"><label className="dialog-field"><span>اسم المندوب</span><input value={form.name} onChange={(e)=>update('name',e.target.value)} placeholder="محمد علي"/></label><label className="dialog-field"><span>رقم الهاتف / تسجيل الدخول</span><input dir="ltr" value={form.phone} onChange={(e)=>update('phone',e.target.value)} placeholder="01000000000"/></label><label className="dialog-field"><span>الفرع الأساسي</span><select value={form.branchName} onChange={(e)=>update('branchName',e.target.value)}>{branches.map((branch)=><option key={branch}>{branch}</option>)}</select></label><label className="dialog-field"><span>نوع المركبة</span><select value={form.vehicleType} onChange={(e)=>update('vehicleType',e.target.value as DriverFormState['vehicleType'])}><option value="motorcycle">موتوسيكل</option><option value="car">سيارة</option><option value="van">فان</option></select></label><label className="dialog-field"><span>الحد الأقصى للمجموعة</span><input type="number" value={form.maxBatchShipments} onChange={(e)=>update('maxBatchShipments',e.target.value)}/></label><label className="dialog-field"><span>الحد الأقصى للمهام المفتوحة</span><input type="number" value={form.maxOpenTasks} onChange={(e)=>update('maxOpenTasks',e.target.value)}/></label><label className="dialog-field full"><span>كود الدخول (اختياري)</span><input dir="ltr" value={form.username} onChange={(e)=>update('username',e.target.value)} placeholder="يولد النظام كودًا عند تركه فارغًا"/></label><div className="dialog-field full"><span>مناطق العمل</span><div className="driver-options-grid">{availableAreas.map((area)=><label key={area}><input type="checkbox" checked={form.serviceAreas.includes(area)} onChange={()=>toggleArea(area)}/>{area}</label>)}</div></div><div className="dialog-field full"><span>أنواع المهام المسموحة</span><div className="driver-options-grid"><label><input type="checkbox" checked={form.taskTypes.includes('pickup')} onChange={()=>toggleTask('pickup')}/> استلام من التجار</label><label><input type="checkbox" checked={form.taskTypes.includes('delivery')} onChange={()=>toggleTask('delivery')}/> توصيل</label><label><input type="checkbox" checked={form.taskTypes.includes('returns')} onChange={()=>toggleTask('returns')}/> مرتجعات</label></div></div></div><div className="dialog-actions"><button className="outline-btn" onClick={onCancel}>إلغاء</button><button className="btn-primary" onClick={onSubmit} disabled={!form.name.trim() || !form.phone.trim() || !form.serviceAreas.length || !form.taskTypes.length}>{submitLabel}</button></div></DialogShell>;
+
+  return <Modal wide title={title} description="تحديد البيانات التشغيلية ونطاق العمل للمندوب" onClose={onCancel} footer={<>
+    <button className="outline-btn" onClick={onCancel}>إلغاء</button>
+    <button className="btn-primary" onClick={onSubmit} disabled={!form.name.trim() || !form.phone.trim() || !form.serviceAreas.length || !form.taskTypes.length}>{submitLabel}</button>
+  </>}>
+    <div className="admin-form-grid">
+      <label className="form-field">
+        <span>اسم المندوب الكامل</span>
+        <input className="input-glass" value={form.name} onChange={(e)=>update('name',e.target.value)} placeholder="مثال: محمد علي"/>
+      </label>
+      <label className="form-field">
+        <span>رقم الهاتف (تسجيل الدخول)</span>
+        <input className="input-glass" dir="ltr" value={form.phone} onChange={(e)=>update('phone',e.target.value)} placeholder="010xxxxxxxx"/>
+      </label>
+      <label className="form-field">
+        <span>نوع المركبة</span>
+        <select className="input-glass" value={form.vehicleType} onChange={(e)=>update('vehicleType',e.target.value as DriverFormState['vehicleType'])}>
+          <option value="motorcycle">موتوسيكل</option>
+          <option value="car">سيارة</option>
+          <option value="van">فان / نقل</option>
+        </select>
+      </label>
+      <label className="form-field">
+        <span>أقصى عدد مهام مفتوحة</span>
+        <input className="input-glass" type="number" min="1" max="100" value={form.maxOpenTasks} onChange={(e)=>update('maxOpenTasks',e.target.value)}/>
+      </label>
+
+      <div className="form-field full">
+        <span>مناطق العمل المخصصة</span>
+        <div className="chips-selector-grid">
+          {availableAreas.map((area)=>(
+            <button
+              type="button"
+              key={area}
+              className={`chip-toggle ${form.serviceAreas.includes(area) ? 'active' : ''}`}
+              onClick={()=>toggleArea(area)}
+            >
+              {area}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="form-field full">
+        <span>أنواع المهام المسموحة</span>
+        <div className="chips-selector-grid">
+          <button type="button" className={`chip-toggle ${form.taskTypes.includes('pickup') ? 'active' : ''}`} onClick={()=>toggleTask('pickup')}>
+            استلام من التجار (Pickup)
+          </button>
+          <button type="button" className={`chip-toggle ${form.taskTypes.includes('delivery') ? 'active' : ''}`} onClick={()=>toggleTask('delivery')}>
+            توصيل للعملاء (Delivery)
+          </button>
+          <button type="button" className={`chip-toggle ${form.taskTypes.includes('returns') ? 'active' : ''}`} onClick={()=>toggleTask('returns')}>
+            استرجاع مرتجعات (Returns)
+          </button>
+        </div>
+      </div>
+    </div>
+  </Modal>;
 }
 
-function ResetAccessDialog({ driver, onCancel, onSubmit }: { driver:Driver; onCancel:()=>void; onSubmit:(invalidate:boolean, force:boolean)=>void }) { const [invalidate,setInvalidate]=useState(true); const [force,setForce]=useState(true); return <DialogShell title="إعادة تعيين الدخول" onCancel={onCancel}><p className="confirm-description">سيتم إرسال رابط/OTP جديد إلى {driver.name} عند ربط خدمة الهوية، بدون كشف كلمة مرور للإدارة.</p><label className="dialog-check"><input type="checkbox" checked={invalidate} onChange={(e)=>setInvalidate(e.target.checked)}/> تسجيل الخروج من جميع الأجهزة</label><label className="dialog-check"><input type="checkbox" checked={force} onChange={(e)=>setForce(e.target.checked)}/> إلزام تغيير كلمة السر بعد التفعيل</label><div className="dialog-actions"><button className="outline-btn" onClick={onCancel}>إلغاء</button><button className="btn-primary" onClick={()=>onSubmit(invalidate,force)}>إرسال إعادة التعيين</button></div></DialogShell>; }
-function SuspendDriverDialog({ driver,onCancel,onSubmit }:{driver:Driver;onCancel:()=>void;onSubmit:(reason:string,handling:string)=>void}) { const [reason,setReason]=useState('مخالفة تشغيلية'); const [handling,setHandling]=useState('finish-current'); return <DialogShell title="إيقاف المندوب" onCancel={onCancel}><div className="suspend-impact"><AlertTriangle size={18}/><div><strong>{driver.name}</strong><p>{driver.activeLoad.toLocaleString('ar-EG')} مهام مفتوحة · {formatCurrency(driver.pendingCash)} عهدة COD · {driver.onShift ? 'وردية مفتوحة' : 'خارج الوردية'}</p></div></div><label className="dialog-field"><span>التعامل مع المهام الحالية</span><select value={handling} onChange={(e)=>setHandling(e.target.value)}><option value="finish-current">يكمل الحالية ويُمنع من مهام جديدة</option><option value="reassign">سحب المهام وإعادة إسنادها</option><option value="immediate">إيقاف فوري للمخاطر الحرجة</option></select></label><label className="dialog-field"><span>سبب الإيقاف</span><textarea value={reason} onChange={(e)=>setReason(e.target.value)}/></label><div className="dialog-actions"><button className="outline-btn" onClick={onCancel}>إلغاء</button><button className="btn-primary danger-action" onClick={()=>onSubmit(reason,handling)} disabled={!reason.trim()}>تأكيد الإيقاف</button></div></DialogShell>; }
-function ArchiveDriverDialog({ driver,onCancel,onSubmit }:{driver:Driver;onCancel:()=>void;onSubmit:(reason:string)=>void}) { const [reason,setReason]=useState('انتهاء التعاقد'); return <DialogShell title="أرشفة المندوب" onCancel={onCancel}><p className="confirm-description">الأرشفة تحفظ الشحنات والتوريدات وGPS وAudit. لن يسمح النظام بالأرشفة إذا توجد مهام أو عهدة مفتوحة.</p><label className="dialog-field"><span>السبب</span><textarea value={reason} onChange={(e)=>setReason(e.target.value)}/></label><div className="dialog-actions"><button className="outline-btn" onClick={onCancel}>إلغاء</button><button className="btn-primary danger-action" onClick={()=>onSubmit(reason)} disabled={!reason.trim()}>أرشفة {driver.name}</button></div></DialogShell>; }
-function ProfileMetric({ icon,label,value,detail }:{icon:React.ReactNode;label:string;value:string;detail:string}) { return <div className="driver-profile-metric glass-card"><span>{icon}</span><div><small>{label}</small><strong>{value}</strong><em>{detail}</em></div></div>; }
-function DialogShell({ title,onCancel,children }:{title:string;onCancel:()=>void;children:React.ReactNode}) { return <div className="dialog-overlay" onClick={onCancel}><div className="driver-dialog glass-panel" onClick={(e)=>e.stopPropagation()}><div className="dialog-header"><h3>{title}</h3><button className="btn-icon sm" onClick={onCancel} aria-label="إغلاق"><X size={14}/></button></div>{children}</div></div>; }
+function ResetAccessDialog({ driver, onCancel, onSubmit }: { driver:Driver; onCancel:()=>void; onSubmit:(invalidate:boolean, force:boolean)=>void }) {
+  const [invalidate,setInvalidate]=useState(true);
+  const [force,setForce]=useState(true);
+  return <Modal title="إعادة تعيين الدخول" description={`إعادة ضبط جلسات وتسجيل الدخول لـ ${driver.name}`} onClose={onCancel} footer={<>
+    <button className="outline-btn" onClick={onCancel}>إلغاء</button>
+    <button className="btn-primary" onClick={()=>onSubmit(invalidate,force)}>إرسال إعادة التعيين</button>
+  </>}>
+    <p className="confirm-description">سيتم إرسال كود تسجيل دخول جديد إلى {driver.name}.</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
+      <label className="setting-toggle">
+        <span><strong>تسجيل الخروج من جميع الأجهزة</strong><small>إلغاء أي جلسة نشطة حاليًا لتطبيق المندوب.</small></span>
+        <input type="checkbox" checked={invalidate} onChange={(e)=>setInvalidate(e.target.checked)}/>
+      </label>
+      <label className="setting-toggle">
+        <span><strong>إلزام تغيير كلمة المرور</strong><small>يُطلب منه تعيين كلمة سر جديدة عند أول فتح.</small></span>
+        <input type="checkbox" checked={force} onChange={(e)=>setForce(e.target.checked)}/>
+      </label>
+    </div>
+  </Modal>;
+}
+
+function SuspendDriverDialog({ driver,onCancel,onSubmit }:{driver:Driver;onCancel:()=>void;onSubmit:(reason:string,handling:string)=>void}) {
+  const [reason,setReason]=useState('مخالفة تشغيلية');
+  const [handling,setHandling]=useState('finish-current');
+  return <Modal title="إيقاف المندوب مؤقتًا" description={driver.name} onClose={onCancel} footer={<>
+    <button className="outline-btn" onClick={onCancel}>إلغاء</button>
+    <button className="btn-primary danger-action" onClick={()=>onSubmit(reason,handling)} disabled={!reason.trim()}>تأكيد الإيقاف</button>
+  </>}>
+    <div className="suspend-impact">
+      <AlertTriangle size={18}/>
+      <div>
+        <strong>{driver.name}</strong>
+        <p>{driver.activeLoad.toLocaleString('ar-EG')} مهام مفتوحة · {formatCurrency(driver.pendingCash)} عهدة COD · {driver.onShift ? 'وردية مفتوحة' : 'خارج الوردية'}</p>
+      </div>
+    </div>
+    <div className="admin-form-grid" style={{ marginTop: '1rem' }}>
+      <label className="form-field full">
+        <span>التعامل مع المهام الحالية</span>
+        <select className="input-glass" value={handling} onChange={(e)=>setHandling(e.target.value)}>
+          <option value="finish-current">يكمل الحالية ويُمنع من مهام جديدة</option>
+          <option value="reassign">سحب المهام وإعادة إسنادها</option>
+          <option value="immediate">إيقاف فوري</option>
+        </select>
+      </label>
+      <label className="form-field full">
+        <span>سبب الإيقاف</span>
+        <textarea className="input-glass" rows={3} value={reason} onChange={(e)=>setReason(e.target.value)} placeholder="أدخل سبب إيقاف الحساب..."/>
+      </label>
+    </div>
+  </Modal>;
+}
+
+function ArchiveDriverDialog({ driver,onCancel,onSubmit }:{driver:Driver;onCancel:()=>void;onSubmit:(reason:string)=>void}) {
+  const [reason,setReason]=useState('انتهاء التعاقد');
+  return <Modal title="أرشفة المندوب" description={driver.name} onClose={onCancel} footer={<>
+    <button className="outline-btn" onClick={onCancel}>إلغاء</button>
+    <button className="btn-primary danger-action" onClick={()=>onSubmit(reason)} disabled={!reason.trim()}>أرشفة {driver.name}</button>
+  </>}>
+    <p className="confirm-description">الأرشفة تحفظ كل بيانات وتاريخ المندوب مع إيقاف الحساب نهائيًا.</p>
+    <label className="form-field full" style={{ marginTop: '1rem' }}>
+      <span>سبب الأرشفة</span>
+      <textarea className="input-glass" rows={3} value={reason} onChange={(e)=>setReason(e.target.value)} placeholder="أدخل سبب الأرشفة..."/>
+    </label>
+  </Modal>;
+}
+
+function ProfileMetric({ icon,label,value,detail }:{icon:React.ReactNode;label:string;value:string;detail:string}) {
+  return <div className="driver-profile-metric glass-card"><span>{icon}</span><div><small>{label}</small><strong>{value}</strong><em>{detail}</em></div></div>;
+}
+
