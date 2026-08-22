@@ -2,7 +2,7 @@ import type { DeliveryGateway, GatewayCommandResponse } from '../../application/
 import type { DeliveryCommand, DeliveryState } from '../../application/delivery/types';
 import { api } from '../api/client';
 import { friendlyApiMessage } from '../api/errors';
-import { asRecord, deliveryToApi, locationToApi, pricingToApi, proofToApi, shipmentFromApi } from '../api/mappers';
+import { asRecord, deliveryToApi, pricingToApi, proofToApi, shipmentFromApi } from '../api/mappers';
 import { mockDeliveryGateway } from './mockDeliveryGateway';
 
 const clientActionId = () => typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -45,8 +45,7 @@ async function execute(command: DeliveryCommand): Promise<GatewayCommandResponse
       case 'settings/updateDelivery': { const cur = asRecord((await api.get('/api/v1/settings/delivery-policy')).data); await api.put('/api/v1/settings/delivery-policy', deliveryToApi(command.policy, cur, Number(cur.version ?? 1))); break; }
       case 'settings/updatePricing': { const cur = asRecord((await api.get('/api/v1/settings/pricing-policy')).data); await api.put('/api/v1/settings/pricing-policy', pricingToApi(command.policy, Number(cur.version ?? 1), String(cur.currency ?? 'EGP'), Number(cur.free_delivery_attempts ?? 3))); break; }
       case 'settings/updateProof': { const cur = asRecord((await api.get('/api/v1/settings/proof-policy')).data); await api.put('/api/v1/settings/proof-policy', proofToApi(command.policy, Number(cur.version ?? 1))); break; }
-      case 'settings/updateLocation': { const cur = asRecord((await api.get('/api/v1/settings/location-policy')).data); await api.put('/api/v1/settings/location-policy', locationToApi(command.policy, Number(cur.version ?? 1))); break; }
-      case 'settings/updatePrinting': case 'settings/updateNotifications': break;
+      case 'settings/updateLocation': case 'settings/updatePrinting': case 'settings/updateNotifications': break;
       case 'chat/send': await api.post(`/api/v1/conversations/${command.roomId}/messages`, { message_type: command.note ? 'internal_note' : 'text', body: command.text, client_action_id: action }); break;
       case 'chat/toggle': { const room = await conversationSummary(command.roomId); const v = Number(room.version ?? 1); const endpoint = String(room.status) === 'closed' ? 'reopen' : 'close'; await api.post(`/api/v1/conversations/${command.roomId}/${endpoint}`, { resource_version: v, client_action_id: action, note: endpoint === 'close' ? 'إغلاق من لوحة التحكم' : 'إعادة فتح من لوحة التحكم' }); break; }
       case 'chat/transfer': { const room = await conversationSummary(command.roomId); await api.post(`/api/v1/conversations/${command.roomId}/transfer`, { assignee_user_id: command.assignedTo, resource_version: Number(room.version ?? 1), client_action_id: action }); break; }
