@@ -67,11 +67,10 @@ export function SettingsPage() {
       <div>
         <p className="page-kicker">سياسات شركة الشحن</p>
         <h2>إعدادات التشغيل والرسوم</h2>
-        <p>الإعدادات هنا تخص الشركة الحالية وتحدد ما يقبله الـBackend وما يظهر للمندوب والتاجر. المندوب يرسل تحديثًا، والشركة تعتمد الحالة الرسمية.</p>
       </div>
       <div className="settings-hero-actions">
-        <button className="outline-btn" onClick={() => void reset()}><RotateCcw size={15}/> استعادة التجربة</button>
         <button className="btn-primary" disabled={saving} onClick={() => void save()}><Save size={15}/>{saving ? 'جارٍ الحفظ…' : 'حفظ القسم'}</button>
+        <button className="outline-btn" onClick={() => void reset()}><RotateCcw size={15}/> استعادة التجربة</button>
       </div>
     </header>
 
