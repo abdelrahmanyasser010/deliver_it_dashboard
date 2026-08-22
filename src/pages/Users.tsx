@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
-import { Eye, Lock, Plus, Shield, ShieldCheck, UserCheck, UserCog, UserX, Users, X } from 'lucide-react';
+import { useState } from 'react';
+import { Eye, Plus, Shield, ShieldCheck, UserCheck, UserCog, UserX, Users, X } from 'lucide-react';
 import { useUsersAndRoles } from '../application/admin/useAdminData';
 import { Modal, StatusBadge } from '../components/ui/Ui';
-import type { AccountStatus, AdminRole, PermissionKey, UserAccount } from '../domain/admin/entities';
+import type { AccountStatus, AdminRole, UserAccount } from '../domain/admin/entities';
 import { accountStatusLabels, roleLabels, statusTone } from '../domain/admin/presentation';
 import './AdminOperations.css';
 

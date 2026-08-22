@@ -1,4 +1,4 @@
-import { Barcode, CheckCircle2, PackageCheck, RotateCcw, ScanLine, TriangleAlert, Undo2, XCircle } from 'lucide-react';
+import { Barcode, CheckCircle2, RotateCcw, ScanLine, TriangleAlert, Undo2, XCircle } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { EmptyState, PageSkeleton } from '../components/AsyncState';
 import { MetricCard, SectionHeader, StatusBadge } from '../components/ui/Ui';

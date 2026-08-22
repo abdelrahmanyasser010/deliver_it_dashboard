@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Banknote, Camera, Printer, Save, Settings2, ShieldCheck, Truck } from 'lucide-react';
+import { Banknote, Camera, Printer, Save, Settings2, Truck } from 'lucide-react';
 import { ErrorState, PageSkeleton } from '../components/AsyncState';
 import { useDeliveryData } from '../context/DeliveryDataContext';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { defaultTenantOperationalSettings, type DeliveryPolicySettings, type FeeMode, type PricingPolicySettings, type PrintingSettings, type ProofPolicySettings } from '../domain/settings/entities';
-import { formatDateTime } from '../utils/helpers';
 import './Settings.css';
 
 type SettingsTab = 'delivery' | 'pricing' | 'proof' | 'printing';

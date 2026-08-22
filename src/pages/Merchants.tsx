@@ -67,8 +67,67 @@ export function MerchantsPage() {
       <button className="ms-card glass-card compact-card merchant-shortcut" onClick={() => navigate('/applications')}><ClipboardCheck size={18} style={{ color:'#F59E0B' }}/><div><p className="ms-label">طلبات انضمام</p><p className="ms-value">مراجعة</p></div></button>
     </div>
 
-    <section className="merchants-management glass-card"><div className="management-toolbar"><div><h3>إدارة التجار</h3><p>ملف Merchant 360° موحد: الشحنات، الفروع، التسعير، المستحقات، المستخدمون والمستندات.</p></div><div className="toolbar-actions"><div className="management-search"><Search size={16}/><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="اسم التاجر، الكود، الهاتف أو البريد..."/></div><select className="input-glass" value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value)}><option value="all">كل الحالات</option>{Object.entries(merchantStatusLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div></div>
-      <div className="table-wrapper"><table className="data-table compact-table"><thead><tr><th>الكود</th><th>التاجر</th><th>الحالة</th><th>الهاتف</th><th>الشحنات</th><th>قيمة الشحنات</th><th>مستحقات</th><th>دورة التسوية</th><th>إجراءات</th></tr></thead><tbody>{filteredMerchants.map((merchant) => <tr key={merchant.id}><td className="tracking-num">{merchantCode(merchant)}</td><td><button className="tracking-link" onClick={()=>openProfile(merchant)}>{merchant.name}</button><small className="muted-cell">{merchant.email ?? merchant.legalName ?? ''}</small></td><td><StatusBadge label={merchantStatusLabels[merchant.status ?? 'active']} tone={merchantStatusTone(merchant.status ?? 'active')}/></td><td dir="ltr">{merchant.phone}</td><td><button className="tracking-link" onClick={()=>openProfile(merchant,'shipments')}>{merchant.shipmentsCount.toLocaleString('ar-EG')}</button></td><td className="amount">{formatCurrency(merchant.totalOrderValue)}</td><td><button className="tracking-link merchant-debt" onClick={()=>openProfile(merchant,'financial')}>{formatCurrency(merchant.pendingSettlement)}</button></td><td>{cycleLabelMerchant(merchant.settlementCycle)}</td><td><div className="merchant-actions-v2"><button className="outline-btn compact-btn" onClick={()=>openProfile(merchant)}><Eye size={14}/> فتح</button><div className="merchant-more-wrap"><button className="btn-icon sm" onClick={()=>setMenuMerchantId(menuMerchantId===merchant.id?null:merchant.id)} aria-label={`المزيد لـ ${merchant.name}`}><MoreHorizontal size={15}/></button>{menuMerchantId===merchant.id && <div className="merchant-row-menu glass-panel"><button onClick={()=>{setDialog({type:'edit',merchantId:merchant.id});setMenuMerchantId(null);}}><Edit3 size={14}/> تعديل البيانات</button><button onClick={()=>openProfile(merchant,'shipments')}><Package size={14}/> الشحنات</button><button onClick={()=>openProfile(merchant,'financial')}><Banknote size={14}/> المستحقات والتسويات</button><button onClick={()=>openConversation(merchant)}><MessageCircle size={14}/> فتح المحادثة</button><button onClick={()=>{setDialog({type:'archive',merchantId:merchant.id});setMenuMerchantId(null);}}><Archive size={14}/> أرشفة</button></div>}</div></div></td></tr>)}</tbody></table></div>
+    <section className="merchants-management glass-card">
+      <div className="management-toolbar">
+        <div>
+          <h3>إدارة التجار</h3>
+          <p>ملف موحد للتجار: الشحنات، الفروع، التسعير، والمستحقات المالية.</p>
+        </div>
+        <div className="toolbar-filters">
+          <div className="management-search">
+            <Search size={16}/>
+            <input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="اسم التاجر، الكود، الهاتف..."/>
+          </div>
+          <select className="input-glass select-filter" value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value)}>
+            <option value="all">كل الحالات</option>
+            {Object.entries(merchantStatusLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="table-wrapper">
+        <table className="data-table compact-table">
+          <thead>
+            <tr>
+              <th>الكود</th>
+              <th>التاجر</th>
+              <th>الحالة</th>
+              <th>الهاتف</th>
+              <th>الشحنات</th>
+              <th>قيمة الشحنات</th>
+              <th>مستحقات</th>
+              <th>دورة التسوية</th>
+              <th>إجراءات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredMerchants.map((merchant) => <tr key={merchant.id}>
+              <td className="tracking-num">{merchantCode(merchant)}</td>
+              <td><button className="tracking-link" onClick={()=>openProfile(merchant)} style={{ fontWeight: 700 }}>{merchant.name}</button></td>
+              <td><StatusBadge label={merchantStatusLabels[merchant.status ?? 'active']} tone={merchantStatusTone(merchant.status ?? 'active')}/></td>
+              <td dir="ltr">{merchant.phone}</td>
+              <td><button className="tracking-link" onClick={()=>openProfile(merchant,'shipments')}>{merchant.shipmentsCount.toLocaleString('ar-EG')}</button></td>
+              <td className="amount">{formatCurrency(merchant.totalOrderValue)}</td>
+              <td><button className="tracking-link merchant-debt" onClick={()=>openProfile(merchant,'financial')}>{formatCurrency(merchant.pendingSettlement)}</button></td>
+              <td>{cycleLabelMerchant(merchant.settlementCycle)}</td>
+              <td>
+                <div className="merchant-actions-v2">
+                  <button className="btn-icon sm" onClick={()=>openProfile(merchant)} title="عرض التفاصيل" aria-label={`عرض ${merchant.name}`}><Eye size={15}/></button>
+                  <div className="merchant-more-wrap">
+                    <button className="btn-icon sm" onClick={()=>setMenuMerchantId(menuMerchantId===merchant.id?null:merchant.id)} title="خيارات إضافية" aria-label={`المزيد لـ ${merchant.name}`}><MoreHorizontal size={15}/></button>
+                    {menuMerchantId===merchant.id && <div className="merchant-row-menu glass-panel">
+                      <button onClick={()=>{setDialog({type:'edit',merchantId:merchant.id});setMenuMerchantId(null);}}><Edit3 size={14}/> تعديل البيانات</button>
+                      <button onClick={()=>openProfile(merchant,'shipments')}><Package size={14}/> الشحنات</button>
+                      <button onClick={()=>openProfile(merchant,'financial')}><Banknote size={14}/> المستحقات والتسويات</button>
+                      <button onClick={()=>openConversation(merchant)}><MessageCircle size={14}/> فتح المحادثة</button>
+                      <button onClick={()=>{setDialog({type:'archive',merchantId:merchant.id});setMenuMerchantId(null);}}><Archive size={14}/> أرشفة</button>
+                    </div>}
+                  </div>
+                </div>
+              </td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
     </section>
 
     {profileMerchant && <MerchantProfile merchant={profileMerchant} shipments={merchantShipments(profileMerchant.id)} settlements={(state?.settlements ?? []).filter((item)=>item.merchantId===profileMerchant.id)} tab={profileTab} onTab={setProfileTab} onClose={closeProfile} onOpenShipments={()=>navigate(`/shipments?merchant=${encodeURIComponent(profileMerchant.name)}`)} onOpenChat={()=>openConversation(profileMerchant)} onCreateSettlement={()=>setDialog({type:'settlement',merchantId:profileMerchant.id})}/>} 
