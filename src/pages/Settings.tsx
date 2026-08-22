@@ -154,14 +154,12 @@ function PricingSettings({ value, onChange }: { value: PricingPolicySettings; on
 
 function ProofSettings({ value, onChange }: { value: ProofPolicySettings; onChange: (value: ProofPolicySettings) => void }) {
   return <>
-    <SectionHeading title="سياسة إثبات التسليم" description="النسخة الحالية تعتمد الصورة واسم المستلم ولقطة GPS، مع تجهيز OTP والتوقيع للمستقبل."/>
+    <SectionHeading title="سياسة إثبات التسليم" description="إثبات التسليم الرسمي يعتمد الصورة واسم المستلم ولقطة GPS."/>
     <div className="settings-card-grid">
       <Toggle checked={value.photoRequired} label="الصورة إلزامية" description="يجب رفع صورة جديدة عند تأكيد التسليم." onChange={(photoRequired) => onChange({ ...value, photoRequired })}/>
       <Toggle checked={value.photoFromCameraOnly} label="التصوير بالكاميرا فقط" description="منع اختيار صورة قديمة من المعرض في تطبيق المندوب." onChange={(photoFromCameraOnly) => onChange({ ...value, photoFromCameraOnly })}/>
       <Toggle checked={value.recipientNameRequired} label="اسم المستلم إلزامي" description="تسجيل اسم الشخص الذي استلم فعليًا." onChange={(recipientNameRequired) => onChange({ ...value, recipientNameRequired })}/>
       <Toggle checked={value.gpsRequired} label="الموقع إلزامي" description="تسجيل لقطة موقع عند التسليم أو فشل التواصل." onChange={(gpsRequired) => onChange({ ...value, gpsRequired })}/>
-      <Toggle checked={value.otpSupported} label="دعم OTP مستقبلًا" description="تجهيز السياسة والعقد دون تفعيله في النسخة الحالية." onChange={(otpSupported) => onChange({ ...value, otpSupported })}/>
-      <Toggle checked={value.signatureSupported} label="دعم التوقيع مستقبلًا" description="تجهيز نموذج الإثبات للتوقيع الإلكتروني لاحقًا." onChange={(signatureSupported) => onChange({ ...value, signatureSupported })}/>
     </div>
     <div className="settings-number-grid">
       <NumberField label="الحد الأدنى للصور" value={value.minimumPhotoCount} min={0} max={5} suffix="صورة" onChange={(minimumPhotoCount) => onChange({ ...value, minimumPhotoCount })}/>
