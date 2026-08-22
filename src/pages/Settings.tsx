@@ -70,7 +70,6 @@ export function SettingsPage() {
         <p>الإعدادات هنا تخص الشركة الحالية وتحدد ما يقبله الـBackend وما يظهر للمندوب والتاجر. المندوب يرسل تحديثًا، والشركة تعتمد الحالة الرسمية.</p>
       </div>
       <div className="settings-hero-actions">
-        <div className="settings-audit"><ShieldCheck size={17}/><span>آخر تعديل: {formatDateTime(state.settings.updatedAt)}<small>{state.settings.updatedBy}</small></span></div>
         <button className="outline-btn" onClick={() => void reset()}><RotateCcw size={15}/> استعادة التجربة</button>
         <button className="btn-primary" disabled={saving} onClick={() => void save()}><Save size={15}/>{saving ? 'جارٍ الحفظ…' : 'حفظ القسم'}</button>
       </div>
