@@ -1,19 +1,18 @@
 import { useState } from 'react';
-import { Banknote, Bell, Camera, Printer, Save, Settings2, ShieldCheck, Truck } from 'lucide-react';
+import { Banknote, Camera, Printer, Save, Settings2, ShieldCheck, Truck } from 'lucide-react';
 import { ErrorState, PageSkeleton } from '../components/AsyncState';
 import { useDeliveryData } from '../context/DeliveryDataContext';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { defaultTenantOperationalSettings, type DeliveryPolicySettings, type FeeMode, type NotificationSettings, type PricingPolicySettings, type PrintingSettings, type ProofPolicySettings } from '../domain/settings/entities';
+import { defaultTenantOperationalSettings, type DeliveryPolicySettings, type FeeMode, type PricingPolicySettings, type PrintingSettings, type ProofPolicySettings } from '../domain/settings/entities';
 import { formatDateTime } from '../utils/helpers';
 import './Settings.css';
 
-type SettingsTab = 'delivery' | 'pricing' | 'proof' | 'printing' | 'notifications';
+type SettingsTab = 'delivery' | 'pricing' | 'proof' | 'printing';
 const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: typeof Truck }> = [
   { id: 'delivery', label: 'التوصيل والمحاولات', description: 'التسليم الجزئي واعتماد تحديثات المناديب.', icon: Truck },
   { id: 'pricing', label: 'الرسوم والضرائب', description: 'المرتجع والمحاولات والتحصيل والضريبة.', icon: Banknote },
   { id: 'proof', label: 'إثبات التسليم', description: 'الصورة واسم المستلم والموقع.', icon: Camera },
   { id: 'printing', label: 'الطباعة والبوليصة', description: 'المقاس والنسخ والبيانات الظاهرة.', icon: Printer },
-  { id: 'notifications', label: 'الإشعارات', description: 'إشعارات الشركة والمندوب والتاجر.', icon: Bell },
 ];
 
 export function SettingsPage() {
@@ -24,7 +23,6 @@ export function SettingsPage() {
   const [pricing, setPricing] = useState<PricingPolicySettings>(() => structuredClone(state?.settings.pricing ?? defaultTenantOperationalSettings.pricing));
   const [proof, setProof] = useState<ProofPolicySettings>(() => structuredClone(state?.settings.proof ?? defaultTenantOperationalSettings.proof));
   const [printing, setPrinting] = useState<PrintingSettings>(() => structuredClone(state?.settings.printing ?? defaultTenantOperationalSettings.printing));
-  const [notifications, setNotifications] = useState<NotificationSettings>(() => structuredClone(state?.settings.notifications ?? defaultTenantOperationalSettings.notifications));
   const [saving, setSaving] = useState(false);
 
 
@@ -39,9 +37,7 @@ export function SettingsPage() {
         ? { type: 'settings/updatePricing' as const, policy: pricing }
         : activeTab === 'proof'
           ? { type: 'settings/updateProof' as const, policy: proof }
-          : activeTab === 'printing'
-            ? { type: 'settings/updatePrinting' as const, policy: printing }
-            : { type: 'settings/updateNotifications' as const, policy: notifications };
+          : { type: 'settings/updatePrinting' as const, policy: printing };
     const result = await execute(command);
     showToast(result.message, result.ok ? 'success' : 'danger');
     setSaving(false);
@@ -68,7 +64,6 @@ export function SettingsPage() {
         {activeTab === 'pricing' && <PricingSettings value={pricing} onChange={setPricing}/>} 
         {activeTab === 'proof' && <ProofSettings value={proof} onChange={setProof}/>} 
         {activeTab === 'printing' && <PrintingSettingsPanel value={printing} onChange={setPrinting}/>}
-        {activeTab === 'notifications' && <NotificationSettingsPanel value={notifications} onChange={setNotifications}/>}
       </div>
     </section>
   </div>;
@@ -164,21 +159,6 @@ function PrintingSettingsPanel({ value, onChange }: { value: PrintingSettings; o
     <div className="settings-card-grid">
       <Toggle checked={value.showCod} label="إظهار COD" description="إظهار المبلغ المطلوب تحصيله على البوليصة." onChange={(showCod) => onChange({ ...value, showCod })}/>
       <Toggle checked={value.showContents} label="إظهار محتويات الشحنة" description="يعرض وصف الأصناف عندما تسمح سياسة الشركة بذلك." onChange={(showContents) => onChange({ ...value, showContents })}/>
-    </div>
-    <aside className="settings-note">باركود البوليصة الحالي CODE128. الطباعة الحرارية وA4 تستخدمان مكوّن البوليصة نفسه ولا تطبعان واجهة لوحة التحكم.</aside>
-  </>;
-}
-
-function NotificationSettingsPanel({ value, onChange }: { value: NotificationSettings; onChange: (value: NotificationSettings) => void }) {
-  return <>
-    <SectionHeading title="سياسة الإشعارات" description="تفرق بين تنبيهات موظفي الشركة وإشعارات تطبيق المندوب والتاجر. الحالة الرسمية لا تتغير بسبب إشعار أو رسالة شات."/>
-    <div className="settings-card-grid">
-      <Toggle checked={value.inAppEnabled} label="إشعارات داخل النظام" description="مركز إشعارات موظفي الشركة والتطبيقات." onChange={(inAppEnabled) => onChange({ ...value, inAppEnabled })}/>
-      <Toggle checked={value.pushDriverEnabled} label="Push للمندوب" description="المهام الجديدة وطلبات التوضيح والتغييرات التشغيلية." onChange={(pushDriverEnabled) => onChange({ ...value, pushDriverEnabled })}/>
-      <Toggle checked={value.pushMerchantEnabled} label="Push للتاجر" description="الحالات الرسمية المعتمدة والتسويات والمرتجعات." onChange={(pushMerchantEnabled) => onChange({ ...value, pushMerchantEnabled })}/>
-      <Toggle checked={value.slaDelayEnabled} label="تنبيهات التأخير وSLA" description="تظهر للموظف قبل إرسال أي تنبيه خارجي مجمع." onChange={(slaDelayEnabled) => onChange({ ...value, slaDelayEnabled })}/>
-      <Toggle checked={value.notifyMerchantOnApprovedStatus} label="إخطار التاجر بعد الاعتماد" description="لا يرسل تحديث المندوب نفسه؛ يرسل فقط بعد إصدار الشركة للحالة الرسمية." onChange={(notifyMerchantOnApprovedStatus) => onChange({ ...value, notifyMerchantOnApprovedStatus })}/>
-      <Toggle checked={value.notifyDriverOnClarification} label="إخطار المندوب بطلب التوضيح" description="يرسل للمندوب عندما تعيد الشركة تقريرًا للمراجعة." onChange={(notifyDriverOnClarification) => onChange({ ...value, notifyDriverOnClarification })}/>
     </div>
   </>;
 }
