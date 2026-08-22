@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Activity, AlertTriangle, Archive, Banknote, Clock3, Edit3, Eye, KeyRound, MapPin, MoreHorizontal, Package, Plus, Search, ShieldOff, TrendingUp, UserCheck, Users } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { Activity, AlertTriangle, Archive, Banknote, Clock3, Edit3, Eye, KeyRound, MapPin, MessageCircle, MoreHorizontal, Package, Plus, Search, ShieldOff, TrendingUp, UserCheck, Users } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDrivers } from '../application/logistics/useLogisticsData';
 import { Modal, StatusBadge } from '../components/ui/Ui';
 import { useDeliveryData } from '../context/DeliveryDataContext';
@@ -18,6 +18,7 @@ const operationalLabels = { off_shift: 'خارج الوردية', available: 'م
 const accountLabels = { active: 'فعال', suspended: 'موقوف', archived: 'مؤرشف' } as const;
 
 export function DriversPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { drivers, summary } = useDrivers();
   const { state, execute } = useDeliveryData();
@@ -27,10 +28,12 @@ export function DriversPage() {
   const [shiftFilter, setShiftFilter] = useState('all');
   const [areaFilter, setAreaFilter] = useState('all');
   const [dialog, setDialog] = useState<DriverDialog>(null);
+  const [menuDriverId, setMenuDriverId] = useState<string | null>(null);
   const [form, setForm] = useState<DriverFormState>(emptyForm);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const profileId = searchParams.get('driver');
   const profile = drivers.find((driver) => driver.id === profileId) ?? null;
+  const [profileTab, setProfileTab] = useState<'summary' | 'tasks' | 'finance' | 'access'>('summary');
 
   const filteredDrivers = useMemo(() => drivers.filter((driver) => {
     const value = query.trim().toLocaleLowerCase('ar-EG');
@@ -68,8 +71,28 @@ export function DriversPage() {
     const result = await run({ type: 'driver/upsert', driver: buildDriver(existing) }); if (result.ok) closeDialog();
   };
 
-  const openProfile = (driver: Driver) => { const next = new URLSearchParams(searchParams); next.set('driver', driver.id); setSearchParams(next, { replace: true }); };
-  const closeProfile = () => { const next = new URLSearchParams(searchParams); next.delete('driver'); setSearchParams(next, { replace: true }); };
+  const openProfile = (driver: Driver, tab: 'summary' | 'tasks' | 'finance' | 'access' = 'summary') => {
+    setProfileTab(tab);
+    const next = new URLSearchParams(searchParams);
+    next.set('driver', driver.id);
+    setSearchParams(next, { replace: true });
+    setMenuDriverId(null);
+  };
+  const closeProfile = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('driver');
+    setSearchParams(next, { replace: true });
+  };
+
+  const openConversation = (driver: Driver) => {
+    const room = state?.chatRooms.find((item) => item.category === 'driver' && item.name === driver.name);
+    if (room) navigate(`/chat?room=${room.id}`);
+    else {
+      navigate('/chat');
+      showToast(`لا توجد محادثة نشطة مع المندوب ${driver.name}.`, 'info');
+    }
+    setMenuDriverId(null);
+  };
 
   return <div className="drivers-page compact-page">
     <div className="drivers-summary compact-summary">
@@ -93,12 +116,24 @@ export function DriversPage() {
       <div className="table-wrapper"><table className="data-table compact-table"><thead><tr><th>الكود</th><th>المندوب</th><th>الحساب</th><th>التشغيل</th><th>المناطق</th><th>الحمولة</th><th>تم اليوم</th><th>عهدة COD</th><th>إجراءات</th></tr></thead><tbody>{filteredDrivers.map((driver) => { const account = driver.accountStatus ?? (driver.status === 'active' ? 'active' : 'suspended'); const operational = driver.operationalStatus ?? (driver.availability === 'available' ? 'available' : driver.availability === 'busy' ? 'busy' : 'offline'); return <tr key={driver.id}><td className="tracking-num">{driver.id}</td><td><button className="tracking-link" onClick={() => openProfile(driver)}>{driver.name}</button><small className="muted-cell" dir="ltr">{driver.phone}</small></td><td><StatusBadge label={accountLabels[account]} tone={account === 'active' ? 'success' : account === 'suspended' ? 'danger' : 'neutral'}/></td><td><StatusBadge label={driver.onShift ? operationalLabels[operational] : 'خارج الوردية'} tone={driver.onShift && operational === 'available' ? 'success' : operational === 'offline' ? 'neutral' : 'warning'}/></td><td>{(driver.serviceAreas ?? [driver.zone]).slice(0,2).join('، ')}{(driver.serviceAreas?.length ?? 0) > 2 ? '…' : ''}</td><td>{driver.activeLoad.toLocaleString('ar-EG')} / {(driver.maxOpenTasks ?? driver.capacity).toLocaleString('ar-EG')}</td><td>{driver.deliveredToday.toLocaleString('ar-EG')}</td><td><button className="tracking-link amount" onClick={() => openProfile(driver)}>{formatCurrency(driver.pendingCash)}</button></td><td>
                 <div className="driver-row-actions">
                   <button className="btn-icon sm" onClick={() => openProfile(driver)} title="عرض التفاصيل" aria-label={`عرض ${driver.name}`}><Eye size={15}/></button>
-                  <button className="btn-icon sm" onClick={() => openEdit(driver)} title="تعديل المندوب" aria-label={`تعديل ${driver.name}`}><MoreHorizontal size={15}/></button>
+                  <div className="merchant-more-wrap">
+                    <button className="btn-icon sm" onClick={() => setMenuDriverId(menuDriverId === driver.id ? null : driver.id)} title="خيارات إضافية" aria-label={`المزيد لـ ${driver.name}`}><MoreHorizontal size={15}/></button>
+                    {menuDriverId === driver.id && (
+                      <div className="merchant-row-menu glass-panel">
+                        <button onClick={() => { openEdit(driver); setMenuDriverId(null); }}><Edit3 size={14}/> تعديل البيانات</button>
+                        <button onClick={() => openProfile(driver, 'tasks')}><Package size={14}/> المهام والشحنات</button>
+                        <button onClick={() => openProfile(driver, 'finance')}><Banknote size={14}/> عهدة COD والتوريدات</button>
+                        <button onClick={() => openConversation(driver)}><MessageCircle size={14}/> فتح المحادثة</button>
+                        <button onClick={() => { setDialog({ type: 'suspend', driver }); setMenuDriverId(null); }}><ShieldOff size={14}/> إيقاف المندوب</button>
+                        <button onClick={() => { setDialog({ type: 'archive', driver }); setMenuDriverId(null); }}><Archive size={14}/> أرشفة</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </td></tr>; })}</tbody></table></div>
     </section>
 
-    {profile && <DriverProfile driver={profile} shipments={(state?.shipments ?? []).filter((shipment) => shipment.driverId === profile.id)} onClose={closeProfile} onEdit={() => { closeProfile(); openEdit(profile); }} onReset={() => setDialog({ type: 'reset', driver: profile })} onSuspend={() => setDialog({ type: 'suspend', driver: profile })} onArchive={() => setDialog({ type: 'archive', driver: profile })}/>} 
+    {profile && <DriverProfile driver={profile} initialTab={profileTab} shipments={(state?.shipments ?? []).filter((shipment) => shipment.driverId === profile.id)} onClose={closeProfile} onEdit={() => { closeProfile(); openEdit(profile); }} onReset={() => setDialog({ type: 'reset', driver: profile })} onSuspend={() => setDialog({ type: 'suspend', driver: profile })} onArchive={() => setDialog({ type: 'archive', driver: profile })}/>} 
     {dialog?.type === 'create' && <DriverFormDialog title="إضافة مندوب جديد" form={form} onChange={setForm} onCancel={closeDialog} onSubmit={() => void saveDriver()} submitLabel="إضافة المندوب"/>}
     {dialog?.type === 'edit' && <DriverFormDialog title={`تعديل ${dialog.driver.name}`} form={form} onChange={setForm} onCancel={closeDialog} onSubmit={() => void saveDriver(dialog.driver)} submitLabel="حفظ التعديل"/>}
     {dialog?.type === 'reset' && <ResetAccessDialog driver={dialog.driver} onCancel={closeDialog} onSubmit={async (invalidateSessions, forcePasswordChange) => { const result = await run({ type: 'driver/resetAccess', driverId: dialog.driver.id, invalidateSessions, forcePasswordChange }); if (result.ok) closeDialog(); }}/>} 
@@ -107,8 +142,8 @@ export function DriversPage() {
   </div>;
 }
 
-function DriverProfile({ driver, shipments, onClose, onEdit, onReset, onSuspend, onArchive }: { driver: Driver; shipments: Array<{ id:string; status:string; expectedCollection:number; collectedCash:number; remittedCash:number }>; onClose:()=>void; onEdit:()=>void; onReset:()=>void; onSuspend:()=>void; onArchive:()=>void }) {
-  const [tab,setTab] = useState<'summary'|'tasks'|'finance'|'access'>('summary');
+function DriverProfile({ driver, shipments, initialTab = 'summary', onClose, onEdit, onReset, onSuspend, onArchive }: { driver: Driver; shipments: Array<{ id:string; status:string; expectedCollection:number; collectedCash:number; remittedCash:number }>; initialTab?: 'summary'|'tasks'|'finance'|'access'; onClose:()=>void; onEdit:()=>void; onReset:()=>void; onSuspend:()=>void; onArchive:()=>void }) {
+  const [tab,setTab] = useState<'summary'|'tasks'|'finance'|'access'>(initialTab);
   const account = driver.accountStatus ?? (driver.status === 'active' ? 'active' : 'suspended');
   const operational = driver.operationalStatus ?? (driver.availability === 'available' ? 'available' : driver.availability === 'busy' ? 'busy' : 'offline');
   const loadRatio = (driver.maxOpenTasks ?? driver.capacity) ? Math.round(driver.activeLoad / (driver.maxOpenTasks ?? driver.capacity) * 100) : 0;
