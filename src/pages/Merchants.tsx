@@ -71,7 +71,6 @@ export function MerchantsPage() {
       <div className="management-toolbar">
         <div>
           <h3>إدارة التجار</h3>
-          <p>ملف موحد للتجار: الشحنات، الفروع، التسعير، والمستحقات المالية.</p>
         </div>
         <div className="toolbar-filters">
           <div className="management-search">
