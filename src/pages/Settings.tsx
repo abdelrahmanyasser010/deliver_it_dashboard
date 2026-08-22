@@ -13,7 +13,7 @@ const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: t
   { id: 'pricing', label: 'الرسوم والضرائب', description: 'المرتجع والمحاولات والتحصيل والضريبة.', icon: Banknote },
   { id: 'proof', label: 'إثبات التسليم', description: 'الصورة واسم المستلم والموقع.', icon: Camera },
   { id: 'location', label: 'موقع المندوب', description: 'معدل التتبع والاحتفاظ بالنقاط.', icon: MapPinned },
-  { id: 'printing', label: 'الطباعة والبوالص', description: 'المقاس والنسخ والبيانات الظاهرة.', icon: Printer },
+  { id: 'printing', label: 'الطباعة والبوليصة', description: 'المقاس والنسخ والبيانات الظاهرة.', icon: Printer },
   { id: 'notifications', label: 'الإشعارات', description: 'إشعارات الشركة والمندوب والتاجر.', icon: Bell },
 ];
 
@@ -190,7 +190,7 @@ function LocationSettings({ value, onChange }: { value: DriverLocationPolicySett
 
 function PrintingSettingsPanel({ value, onChange }: { value: PrintingSettings; onChange: (value: PrintingSettings) => void }) {
   return <>
-    <SectionHeading title="إعدادات الطباعة والبوالص" description="تحدد المعاينة الافتراضية فقط؛ المستخدم يظل قادرًا على تغيير المقاس والنسخ قبل الطباعة."/>
+    <SectionHeading title="إعدادات الطباعة والبوليصة" description="تحدد المعاينة الافتراضية فقط؛ المستخدم يظل قادرًا على تغيير المقاس والنسخ قبل الطباعة."/>
     <div className="settings-number-grid">
       <label className="setting-field"><span>المقاس الافتراضي</span><select value={value.defaultLabelFormat} onChange={(event) => onChange({ ...value, defaultLabelFormat: event.target.value as PrintingSettings['defaultLabelFormat'] })}><option value="thermal">حراري 10 × 15 سم</option><option value="a4">A4 — أربع بوالص</option></select></label>
       <NumberField label="عدد النسخ الافتراضي" value={value.defaultCopies} min={1} max={5} suffix="نسخة" onChange={(defaultCopies) => onChange({ ...value, defaultCopies })}/>
