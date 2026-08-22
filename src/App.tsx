@@ -30,7 +30,7 @@ const AuditLogPage = lazyNamed(() => import('./pages/AuditLog'), 'AuditLogPage')
 const SettingsPage = lazyNamed(() => import('./pages/Settings'), 'SettingsPage');
 
 const PAGE_TITLES: Record<string, string> = {
-  '/': 'الرئيسية', '/shipments': 'إدارة الشحنات', '/operations': 'مركز العمليات', '/exceptions': 'مركز الاستثناءات', '/barcode': 'استلام بالباركود', '/reports': 'التقارير والإحصائيات', '/accounting': 'حسابات العملاء والمناديب', '/drivers': 'إدارة المناديب', '/merchants': 'إدارة التجار', '/chat': 'الشات', '/applications': 'طلبات التجار', '/settlements': 'التسويات والتحصيلات', '/users': 'المستخدمون والصلاحيات', '/audit-log': 'سجل العمليات', '/settings': 'إعدادات الشركة',
+  '/': 'الرئيسية', '/shipments': 'إدارة الشحنات', '/operations': 'مركز العمليات', '/exceptions': 'مركز المتابعة', '/barcode': 'استلام بالباركود', '/reports': 'التقارير والإحصائيات', '/accounting': 'حسابات العملاء والمناديب', '/drivers': 'إدارة المناديب', '/merchants': 'إدارة التجار', '/chat': 'الشات', '/applications': 'طلبات التجار', '/settlements': 'التسويات والتحصيلات', '/users': 'المستخدمون والصلاحيات', '/audit-log': 'سجل العمليات', '/settings': 'إعدادات الشركة',
 };
 
 function ProtectedPage({ path, children }: { path: string; children: React.ReactNode }) {

@@ -22,7 +22,7 @@ const navSections: NavSection[] = [
   { title: 'التشغيل', items: [
     { id: 'overview', label: 'الرئيسية', icon: <LayoutDashboard size={20}/>, roles: allRoles },
     { id: 'operations', label: 'مركز العمليات', icon: <Route size={20}/>, badgeKey: 'operations', roles: ['management', 'operations'] },
-    { id: 'exceptions', label: 'مركز الاستثناءات', icon: <AlertTriangle size={20}/>, badgeKey: 'exceptions', roles: ['management', 'operations', 'support', 'accounting'] },
+    { id: 'exceptions', label: 'مركز المتابعة', icon: <AlertTriangle size={20}/>, badgeKey: 'exceptions', roles: ['management', 'operations', 'support', 'accounting'] },
     { id: 'barcode', label: 'الاستلام بالباركود', icon: <Barcode size={20}/>, roles: ['management', 'operations'] },
     { id: 'shipments', label: 'الشحنات', icon: <Package size={20}/>, badgeKey: 'shipments', roles: allRoles },
     { id: 'chat', label: 'الشات', icon: <MessageCircle size={20}/>, roles: ['management', 'operations', 'support'] },

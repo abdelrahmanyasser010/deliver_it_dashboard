@@ -58,7 +58,7 @@ export function OperationsCenterPage() {
 
   return <div className="operations-center">
     <section className="ops-command-bar glass-card">
-      <div><p className="page-kicker">مساحة العمل اليومية</p><h2>مركز العمليات</h2><p>كل إجراء يحدث مصدر البيانات الموحد ويظهر مباشرة في الشحنات والرئيسية والاستثناءات والتقارير.</p></div>
+      <div><p className="page-kicker">مساحة العمل اليومية</p><h2>مركز العمليات</h2><p>كل إجراء يحدث مصدر البيانات الموحد ويظهر مباشرة في الشحنات والرئيسية والمتابعة والتقارير.</p></div>
       <div className="ops-command-metrics">
         <button className="metric-pill warning" onClick={() => selectTab('deliveryAssignments')}>بلا مندوب <strong>{number(counts.deliveryAssignments)}</strong></button>
         <button className="metric-pill info" onClick={() => selectTab('driverUpdates')}>تحديثات تنتظر قرارًا <strong>{number(counts.driverUpdates)}</strong></button>

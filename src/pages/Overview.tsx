@@ -112,29 +112,36 @@ export function OverviewPage() {
 
   return (
     <div className="overview-page">
-      <header className="overview-heading">
-        <div>
-          <p className="overview-kicker">لوحة {workspaceRoleLabels[role]}</p>
-          <h2>{role === 'accounting' ? 'ابدأ بالمطابقة والتسويات' : role === 'support' ? 'ابدأ بالحالات التي تحتاج تواصلًا' : 'ابدأ بما يحتاج تدخلًا'}</h2>
-          <p>{todayLabel} — الأرقام مستخرجة من نفس بيانات التشغيل التجريبية.</p>
+      <header className="overview-compact-header">
+        <div className="header-content">
+          <div className="header-titles">
+            <div className="breadcrumb-line">
+              <span className="overview-kicker">لوحة {workspaceRoleLabels[role]}</span>
+              <span className="separator">/</span>
+              <span>{todayLabel}</span>
+            </div>
+            <div className="title-action-row">
+              <h2>{role === 'accounting' ? 'ابدأ بالمطابقة والتسويات' : role === 'support' ? 'ابدأ بالحالات التي تحتاج تواصلًا' : 'يحتاج تدخلك الآن'}</h2>
+              <button className="text-link" onClick={() => navigate(role === 'accounting' ? '/accounting' : role === 'support' ? '/exceptions?category=customer' : '/operations')}>{role === 'accounting' ? 'فتح المحاسبة' : role === 'support' ? 'فتح حالات التواصل' : 'فتح مركز العمليات'}</button>
+            </div>
+            <p>المهام العاجلة مرتبة حسب أثرها. الأرقام مستخرجة من بيانات تشغيل تجريبية.</p>
+          </div>
+          <button className="outline-btn sm refresh-btn" onClick={refetch}><RefreshCcw size={14} /> تحديث</button>
         </div>
-        <button className="outline-btn" onClick={refetch}><RefreshCcw size={15} /> تحديث البيانات</button>
       </header>
 
-      <section className="attention-section" aria-labelledby="attention-title">
-        <div className="section-heading-row">
-          <div>
-            <h3 id="attention-title">يحتاج تدخلك الآن</h3>
-            <p>مرتبة حسب أثرها على التشغيل والتحصيل.</p>
-          </div>
-          <button className="text-link" onClick={() => navigate(role === 'accounting' ? '/accounting' : role === 'support' ? '/exceptions?category=customer' : '/operations')}>{role === 'accounting' ? 'فتح المحاسبة' : role === 'support' ? 'فتح حالات التواصل' : 'فتح مركز العمليات'}</button>
-        </div>
+      <section className="attention-section" aria-label="المهام العاجلة">
         <div className="attention-grid">
           {actionCards.map((card) => (
             <button key={card.label} className={`attention-card glass-card ${card.tone}`} onClick={() => navigate(card.path)}>
-              <span className="attention-icon">{card.icon}</span>
-              <span className="attention-copy"><strong>{card.label}</strong><small>{card.detail}</small></span>
-              <b>{formatNumber(card.value)}</b>
+              <div className="attention-header-row">
+                <span className="attention-icon">{card.icon}</span>
+                <strong className="attention-title">{card.label}</strong>
+              </div>
+              <div className="attention-body">
+                <b>{formatNumber(card.value)}</b>
+                <small>{card.detail}</small>
+              </div>
             </button>
           ))}
         </div>
@@ -146,16 +153,20 @@ export function OverviewPage() {
           const positive = card.inverse ? change <= 0 : change >= 0;
           return (
             <article key={card.label} className="overview-stat-card glass-card">
-              <div className="overview-stat-icon">{card.icon}</div>
-              <div className="overview-stat-copy">
-                <span>{card.label}</span>
+              <div className="stat-header">
+                <span className="stat-label">{card.label}</span>
+                <div className="stat-icon-sm">{card.icon}</div>
+              </div>
+              <div className="stat-body">
                 <strong>{formatNumber(card.value)}</strong>
+              </div>
+              <div className="stat-footer">
+                <span className={`stat-trend ${change === 0 ? 'neutral' : positive ? 'positive' : 'negative'}`}>
+                  {change >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                  {formatChange(card.value, card.previous)}
+                </span>
                 <small>{card.description}</small>
               </div>
-              <span className={`comparison-badge ${positive ? 'positive' : 'negative'}`}>
-                {change >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-                {formatChange(card.value, card.previous)}
-              </span>
             </article>
           );
         })}

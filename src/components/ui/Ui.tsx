@@ -27,6 +27,12 @@ export function FilterChip({ label, onRemove }: { label: string; onRemove?: () =
 function useAccessibleLayer(onClose: () => void) {
   const containerRef = useRef<HTMLElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
@@ -39,7 +45,7 @@ function useAccessibleLayer(onClose: () => void) {
     const onKeyDown = (event: KeyboardEvent) => {
       const container = containerRef.current;
       if (!container) return;
-      if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
+      if (event.key === 'Escape') { event.preventDefault(); onCloseRef.current(); return; }
       if (event.key !== 'Tab') return;
       const focusable = [...container.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter((element) => !element.hasAttribute('hidden'));
       if (!focusable.length) { event.preventDefault(); container.focus(); return; }
@@ -55,7 +61,7 @@ function useAccessibleLayer(onClose: () => void) {
       document.body.style.overflow = previousOverflow;
       previousFocusRef.current?.focus();
     };
-  }, [onClose]);
+  }, []);
   return containerRef;
 }
 
