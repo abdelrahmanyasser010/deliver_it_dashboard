@@ -2,7 +2,7 @@ import type { DeliveryGateway, GatewayCommandResponse } from '../../application/
 import type { DeliveryCommand, DeliveryState } from '../../application/delivery/types';
 import { api } from '../api/client';
 import { ApiClientError, friendlyApiMessage } from '../api/errors';
-import { asRecord, auditFromApi, conversationFromApi, dispatchFromApi, driverFromApi, driverUpdateFromApi, intakeFromApi, ledgerFromApi, locationToApi, merchantFromApi, messageFromApi, notificationToApi, pickupFromApi, pricingToApi, printingToApi, proofToApi, returnFromApi, settlementFromApi, settingsFromApi, shipmentFromApi, deliveryToApi } from '../api/mappers';
+import { asRecord, auditFromApi, conversationFromApi, dispatchFromApi, driverFromApi, driverUpdateFromApi, intakeFromApi, ledgerFromApi, merchantFromApi, messageFromApi, notificationToApi, pickupFromApi, pricingToApi, printingToApi, proofToApi, returnFromApi, settlementFromApi, settingsFromApi, shipmentFromApi, deliveryToApi } from '../api/mappers';
 
 const PAGE_SIZE = 100;
 
@@ -206,7 +206,7 @@ async function execute(command: DeliveryCommand): Promise<GatewayCommandResponse
       case 'settings/updateDelivery': { const cur = asRecord((await api.get('/api/v1/settings/delivery-policy')).data); await put('/api/v1/settings/delivery-policy', deliveryToApi(command.policy, cur, Number(cur.version ?? 1))); break; }
       case 'settings/updatePricing': { const cur = asRecord((await api.get('/api/v1/settings/pricing-policy')).data); await put('/api/v1/settings/pricing-policy', pricingToApi(command.policy, Number(cur.version ?? 1), String(cur.currency ?? 'EGP'), Number(cur.free_delivery_attempts ?? 3))); break; }
       case 'settings/updateProof': { const cur = asRecord((await api.get('/api/v1/settings/proof-policy')).data); await put('/api/v1/settings/proof-policy', proofToApi(command.policy, Number(cur.version ?? 1))); break; }
-      case 'settings/updateLocation': { const cur = asRecord((await api.get('/api/v1/settings/location-policy')).data); await put('/api/v1/settings/location-policy', locationToApi(command.policy, Number(cur.version ?? 1))); break; }
+      case 'settings/updateLocation': { break; }
       case 'settings/updatePrinting': { const cur = asRecord((await api.get('/api/v1/settings/printing-policy')).data); await put('/api/v1/settings/printing-policy', printingToApi(command.policy, cur, Number(cur.version ?? 1))); break; }
       case 'settings/updateNotifications': { const cur = asRecord((await api.get('/api/v1/settings/notification-policy')).data); await put('/api/v1/settings/notification-policy', notificationToApi(command.policy, cur, Number(cur.version ?? 1))); break; }
       case 'chat/send': { const fileIds = command.attachments?.map((file) => file.id).filter(Boolean) ?? []; await post(`/api/v1/conversations/${command.roomId}/messages`, { message_type: command.note ? 'internal_note' : fileIds.length && !command.text.trim() ? 'file' : 'text', body: command.text.trim() || null, file_ids: fileIds, client_action_id: action }); break; }

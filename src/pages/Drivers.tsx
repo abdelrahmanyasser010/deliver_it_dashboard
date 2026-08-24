@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, AlertTriangle, Archive, Banknote, Clock3, Edit3, Eye, KeyRound, MapPin, MessageCircle, MoreHorizontal, Package, Plus, Search, ShieldOff, TrendingUp, UserCheck, Users } from 'lucide-react';
+import { Activity, AlertTriangle, Archive, Banknote, Clock3, Edit3, Eye, KeyRound, MapPin, MessageCircle, MoreHorizontal, Package, Plus, Search, ShieldOff, TrendingUp, UserCheck, Users, Wallet } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDrivers } from '../application/logistics/useLogisticsData';
 import { Modal, StatusBadge } from '../components/ui/Ui';
@@ -249,7 +249,7 @@ export function DriversPage() {
               </td></tr>; })}</tbody></table></div>
     </section>
 
-    {profile && <DriverProfile driver={profile} initialTab={profileTab} areaNames={areaNames(profile)} branchName={profile.branchId ? (branchNameById.get(profile.branchId) ?? profile.branchName) : profile.branchName} shipments={(state?.shipments ?? []).filter((shipment) => shipment.driverId === profile.id)} onClose={closeProfile} onEdit={canUpdateDriver && profile.accountStatus !== 'archived' ? () => { closeProfile(); openEdit(profile); } : undefined} onReset={canResetDriverAccess && profile.accountStatus !== 'archived' ? () => setDialog({ type: 'reset', driver: profile }) : undefined} onSuspend={canSuspendDriver && profile.accountStatus === 'active' ? () => setDialog({ type: 'suspend', driver: profile }) : undefined} onReactivate={canSuspendDriver && (profile.accountStatus === 'suspended' || profile.accountStatus === 'restricted') ? () => setDialog({ type: 'reactivate', driver: profile }) : undefined} onArchive={canArchiveDriver && profile.accountStatus !== 'archived' ? () => setDialog({ type: 'archive', driver: profile }) : undefined}/>} 
+    {profile && <DriverProfile driver={profile} initialTab={profileTab} areaNames={areaNames(profile)} branchName={profile.branchId ? (branchNameById.get(profile.branchId) ?? profile.branchName) : profile.branchName} shipments={(state?.shipments ?? []).filter((shipment) => shipment.driverId === profile.id)} onClose={closeProfile} onEdit={canUpdateDriver && profile.accountStatus !== 'archived' ? () => { closeProfile(); openEdit(profile); } : undefined} onRemit={() => { closeProfile(); navigate('/accounting'); }} onReset={canResetDriverAccess && profile.accountStatus !== 'archived' ? () => setDialog({ type: 'reset', driver: profile }) : undefined} onSuspend={canSuspendDriver && profile.accountStatus === 'active' ? () => setDialog({ type: 'suspend', driver: profile }) : undefined} onReactivate={canSuspendDriver && (profile.accountStatus === 'suspended' || profile.accountStatus === 'restricted') ? () => setDialog({ type: 'reactivate', driver: profile }) : undefined} onArchive={canArchiveDriver && profile.accountStatus !== 'archived' ? () => setDialog({ type: 'archive', driver: profile }) : undefined}/>} 
     {dialog?.type === 'create' && <DriverFormDialog title="إضافة مندوب جديد" form={form} branches={branchOptions} zones={zones} canSelectBranch={canReadBranches} onChange={setForm} onCancel={closeDialog} onSubmit={() => void saveDriver()} submitLabel="إضافة المندوب"/>}
     {dialog?.type === 'edit' && <DriverFormDialog title={`تعديل ${dialog.driver.name}`} form={form} branches={branchOptions} zones={zones} canSelectBranch={canReadBranches} onChange={setForm} onCancel={closeDialog} onSubmit={() => void saveDriver(dialog.driver)} submitLabel="حفظ التعديل"/>}
     {dialog?.type === 'reset' && <ResetAccessDialog driver={dialog.driver} onCancel={closeDialog} onSubmit={async (invalidateSessions, forcePasswordChange) => { const result = await run({ type: 'driver/resetAccess', driverId: dialog.driver.id, invalidateSessions, forcePasswordChange }); if (result.ok) closeDialog(); }}/>} 
@@ -259,7 +259,7 @@ export function DriversPage() {
   </div>;
 }
 
-function DriverProfile({ driver, shipments, areaNames, branchName, initialTab = 'summary', onClose, onEdit, onReset, onSuspend, onReactivate, onArchive }: {
+function DriverProfile({ driver, shipments, areaNames, branchName, initialTab = 'summary', onClose, onEdit, onRemit, onReset, onSuspend, onReactivate, onArchive }: {
   driver: Driver;
   shipments: Array<{ id:string; status:string; expectedCollection:number; collectedCash:number; remittedCash:number }>;
   areaNames: string[];
@@ -267,6 +267,7 @@ function DriverProfile({ driver, shipments, areaNames, branchName, initialTab = 
   initialTab?: 'summary'|'tasks'|'finance'|'access';
   onClose:()=>void;
   onEdit?:()=>void;
+  onRemit?:()=>void;
   onReset?:()=>void;
   onSuspend?:()=>void;
   onReactivate?:()=>void;
@@ -299,7 +300,7 @@ function DriverProfile({ driver, shipments, areaNames, branchName, initialTab = 
     <div className="merchant-profile-tabs">
       <button className={tab==='summary'?'active':''} onClick={()=>setTab('summary')}>الملخص</button>
       <button className={tab==='tasks'?'active':''} onClick={()=>setTab('tasks')}>المهام ({openTasks.length.toLocaleString('ar-EG')})</button>
-      <button className={tab==='finance'?'active':''} onClick={()=>setTab('finance')}>العهدة</button>
+      <button className={tab==='finance'?'active':''} onClick={()=>setTab('finance')}>العهدة والتوريد</button>
       <button className={tab==='access'?'active':''} onClick={()=>setTab('access')}>الوصول</button>
     </div>
     {tab==='summary' && <>
@@ -315,7 +316,16 @@ function DriverProfile({ driver, shipments, areaNames, branchName, initialTab = 
       </div>
     </>}
     {tab==='tasks' && <div className="table-wrapper"><table className="data-table"><thead><tr><th>الشحنة</th><th>الحالة</th><th>التحصيل المتوقع</th></tr></thead><tbody>{openTasks.length ? openTasks.map((item)=><tr key={item.id}><td className="tracking-num">{item.id}</td><td>{item.status}</td><td>{formatCurrency(item.expectedCollection)}</td></tr>) : <tr><td colSpan={3}>لا توجد مهام مفتوحة.</td></tr>}</tbody></table></div>}
-    {tab==='finance' && <div><div className="contact-phone-box"><span>إجمالي عهدة COD الحالية</span><strong>{formatCurrency(driver.pendingCash)}</strong></div><div className="table-wrapper"><table className="data-table"><thead><tr><th>الشحنة</th><th>المحصل</th><th>المورد</th><th>المتبقي</th></tr></thead><tbody>{codRows.map((item)=><tr key={item.id}><td className="tracking-num">{item.id}</td><td>{formatCurrency(item.collectedCash)}</td><td>{formatCurrency(item.remittedCash)}</td><td>{formatCurrency(item.collectedCash-item.remittedCash)}</td></tr>)}</tbody></table></div></div>}
+    {tab==='finance' && <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="contact-phone-box" style={{ margin: 0 }}>
+          <span>إجمالي عهدة COD الحالية مع المندوب</span>
+          <strong style={{ color: '#10B981', fontSize: '1.1rem' }}>{formatCurrency(driver.pendingCash)}</strong>
+        </div>
+        {onRemit && <button className="btn-primary" onClick={onRemit}><Wallet size={15}/> تقفيل وتوريد عهدة المندوب</button>}
+      </div>
+      <div className="table-wrapper"><table className="data-table"><thead><tr><th>الشحنة</th><th>المحصل</th><th>المورد</th><th>المتبقي</th></tr></thead><tbody>{codRows.length ? codRows.map((item)=><tr key={item.id}><td className="tracking-num">{item.id}</td><td>{formatCurrency(item.collectedCash)}</td><td>{formatCurrency(item.remittedCash)}</td><td className="amount" style={{ color: '#F59E0B', fontWeight: 700 }}>{formatCurrency(item.collectedCash-item.remittedCash)}</td></tr>) : <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>لا توجد عهدة كاش معلقة لهذا المندوب.</td></tr>}</tbody></table></div>
+    </div>}
     {tab==='access' && <div className="driver-access-actions"><p>معرف الدخول: <strong dir="ltr">{driver.userCode ?? driver.phone}</strong></p><p>الإدارة لا تنشئ أو ترى كلمة مرور المندوب. إعادة التعيين تتم عبر خدمة الهوية.</p><div className="toolbar-actions">{onReset && <button className="outline-btn" onClick={onReset}><KeyRound size={15}/> إعادة تعيين الدخول</button>}{onSuspend && <button className="outline-btn" onClick={onSuspend}><ShieldOff size={15}/> إيقاف المندوب</button>}{onReactivate && <button className="outline-btn" onClick={onReactivate}><UserCheck size={15}/> إعادة تفعيل المندوب</button>}{onArchive && <button className="outline-btn danger-link" onClick={onArchive}><Archive size={15}/> أرشفة</button>}</div></div>}
   </Modal>;
 }
