@@ -64,7 +64,7 @@ export function SettingsPage() {
   return (
     <div className="settings-page">
       <div className="settings-layout">
-        {/* Left Side (in RTL: Right Side) - Navigation Tabs */}
+        {/* Right Side (in RTL) - Navigation Tabs */}
         <aside className="settings-tabs-sidebar" aria-label="أقسام الإعدادات">
           <div className="settings-tabs-header">
             <Settings2 size={20} className="settings-header-icon" />
@@ -93,7 +93,7 @@ export function SettingsPage() {
           </div>
         </aside>
 
-        {/* Right Side (in RTL: Left Side) - Content Area */}
+        {/* Left Side (in RTL) - Content Area */}
         <main className="settings-content-wrapper">
           <div className="settings-panel-card">
             {/* Top Toolbar with Save button inside the active panel */}
@@ -408,7 +408,7 @@ function WeightAndPickupSettings({
             onChange={(val) => onChange({ ...value, pickupFreeThreshold: val })}
           />
           <NumberField
-            label="رسوم الاستلام للدفعات الصغيرة (أقل من الحد الأدنى)"
+            label="رسوم الاستلام للدفعات الصغيرة (أقل من الحد)"
             value={pickupFee}
             min={0}
             max={500}
