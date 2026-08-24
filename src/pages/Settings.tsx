@@ -40,19 +40,30 @@ export function SettingsPage() {
   };
 
   return <div className="settings-page">
-    <header className="settings-hero glass-card">
-      <div>
-        <p className="page-kicker">سياسات شركة الشحن</p>
+    <div className="settings-header-banner glass-card">
+      <div className="settings-header-title">
+        <div className="settings-badge">سياسات وإعدادات الشركة</div>
         <h2>إعدادات التشغيل والتسعير والسياسات</h2>
+        <p>التحكم في أسعار المحافظات، الأوزان الإضافية، شروط الاستلام والتحصيل، وإثبات التسليم.</p>
       </div>
-      <div className="settings-hero-actions">
-        <button className="btn-primary" disabled={saving} onClick={() => void save()}><Save size={15}/>{saving ? 'جارٍ الحفظ…' : 'حفظ التغييرات'}</button>
+      <div className="settings-header-actions">
+        <button className="btn-primary" disabled={saving} onClick={() => void save()}>
+          <Save size={16}/> {saving ? 'جارٍ الحفظ…' : 'حفظ التغييرات'}
+        </button>
       </div>
-    </header>
+    </div>
 
-    <section className="settings-layout">
+    <div className="settings-layout">
       <nav className="settings-tabs glass-card" aria-label="أقسام الإعدادات">
-        {tabs.map(({ id, label, description, icon: Icon }) => <button key={id} className={activeTab === id ? 'active' : ''} onClick={() => setActiveTab(id)}><Icon size={18}/><span><strong>{label}</strong><small>{description}</small></span></button>)}
+        {tabs.map(({ id, label, description, icon: Icon }) => (
+          <button key={id} className={`settings-tab-btn ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id)}>
+            <div className="tab-icon-wrap"><Icon size={18}/></div>
+            <div className="tab-text-wrap">
+              <strong>{label}</strong>
+              <small>{description}</small>
+            </div>
+          </button>
+        ))}
       </nav>
 
       <div className="settings-content glass-card">
@@ -62,7 +73,7 @@ export function SettingsPage() {
         {activeTab === 'proof' && <ProofSettings value={proof} onChange={setProof}/>} 
         {activeTab === 'printing' && <PrintingSettingsPanel value={printing} onChange={setPrinting}/>}
       </div>
-    </section>
+    </div>
   </div>;
 }
 
