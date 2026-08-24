@@ -1,14 +1,13 @@
 import { useState } from 'react';
-import { Banknote, Camera, Printer, Save, Settings2, Truck } from 'lucide-react';
+import { Banknote, Camera, Printer, Save, Settings2 } from 'lucide-react';
 import { ErrorState, PageSkeleton } from '../components/AsyncState';
 import { useDeliveryData } from '../context/DeliveryDataContext';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { defaultTenantOperationalSettings, type DeliveryPolicySettings, type FeeMode, type PricingPolicySettings, type PrintingSettings, type ProofPolicySettings } from '../domain/settings/entities';
+import { defaultTenantOperationalSettings, type FeeMode, type PricingPolicySettings, type PrintingSettings, type ProofPolicySettings } from '../domain/settings/entities';
 import './Settings.css';
 
-type SettingsTab = 'delivery' | 'pricing' | 'proof' | 'printing';
-const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: typeof Truck }> = [
-  { id: 'delivery', label: 'التوصيل والمحاولات', description: 'التسليم الجزئي واعتماد تحديثات المناديب.', icon: Truck },
+type SettingsTab = 'pricing' | 'proof' | 'printing';
+const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: typeof Banknote }> = [
   { id: 'pricing', label: 'الرسوم والضرائب', description: 'المرتجع والمحاولات والتحصيل والضريبة.', icon: Banknote },
   { id: 'proof', label: 'إثبات التسليم', description: 'الصورة واسم المستلم والموقع.', icon: Camera },
   { id: 'printing', label: 'الطباعة والبوليصة', description: 'المقاس والنسخ والبيانات الظاهرة.', icon: Printer },
@@ -17,8 +16,7 @@ const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: t
 export function SettingsPage() {
   const { state, isLoading, error, refetch, execute } = useDeliveryData();
   const { showToast } = useWorkspace();
-  const [activeTab, setActiveTab] = useState<SettingsTab>('delivery');
-  const [delivery, setDelivery] = useState<DeliveryPolicySettings>(() => structuredClone(state?.settings.delivery ?? defaultTenantOperationalSettings.delivery));
+  const [activeTab, setActiveTab] = useState<SettingsTab>('pricing');
   const [pricing, setPricing] = useState<PricingPolicySettings>(() => structuredClone(state?.settings.pricing ?? defaultTenantOperationalSettings.pricing));
   const [proof, setProof] = useState<ProofPolicySettings>(() => structuredClone(state?.settings.proof ?? defaultTenantOperationalSettings.proof));
   const [printing, setPrinting] = useState<PrintingSettings>(() => structuredClone(state?.settings.printing ?? defaultTenantOperationalSettings.printing));
@@ -30,13 +28,11 @@ export function SettingsPage() {
 
   const save = async () => {
     setSaving(true);
-    const command = activeTab === 'delivery'
-      ? { type: 'settings/updateDelivery' as const, policy: delivery }
-      : activeTab === 'pricing'
-        ? { type: 'settings/updatePricing' as const, policy: pricing }
-        : activeTab === 'proof'
-          ? { type: 'settings/updateProof' as const, policy: proof }
-          : { type: 'settings/updatePrinting' as const, policy: printing };
+    const command = activeTab === 'pricing'
+      ? { type: 'settings/updatePricing' as const, policy: pricing }
+      : activeTab === 'proof'
+        ? { type: 'settings/updateProof' as const, policy: proof }
+        : { type: 'settings/updatePrinting' as const, policy: printing };
     const result = await execute(command);
     showToast(result.message, result.ok ? 'success' : 'danger');
     setSaving(false);
@@ -59,7 +55,6 @@ export function SettingsPage() {
       </nav>
 
       <div className="settings-content glass-card">
-        {activeTab === 'delivery' && <DeliverySettings value={delivery} onChange={setDelivery}/>} 
         {activeTab === 'pricing' && <PricingSettings value={pricing} onChange={setPricing}/>} 
         {activeTab === 'proof' && <ProofSettings value={proof} onChange={setProof}/>} 
         {activeTab === 'printing' && <PrintingSettingsPanel value={printing} onChange={setPrinting}/>}
@@ -78,23 +73,6 @@ function Toggle({ checked, label, description, onChange }: { checked: boolean; l
 
 function NumberField({ label, value, onChange, suffix, min = 0, max }: { label: string; value: number; onChange: (value: number) => void; suffix?: string; min?: number; max?: number }) {
   return <label className="setting-field"><span>{label}</span><div><input type="number" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))}/>{suffix && <em>{suffix}</em>}</div></label>;
-}
-
-function DeliverySettings({ value, onChange }: { value: DeliveryPolicySettings; onChange: (value: DeliveryPolicySettings) => void }) {
-  return <>
-    <SectionHeading title="سياسة التوصيل والمحاولات" description="التاجر لا يغيّر الحالة التشغيلية، وتحديث المندوب لا يصبح رسميًا إلا بعد قواعد الشركة واعتمادها."/>
-    <div className="settings-card-grid">
-      <Toggle checked={value.partialDeliveryEnabled} label="السماح بالتسليم الجزئي" description="المندوب يحدد الكميات المسلمة والمتبقية، والنظام يقسم البوليصة بعد اعتماد الشركة." onChange={(partialDeliveryEnabled) => onChange({ ...value, partialDeliveryEnabled })}/>
-      <Toggle checked={value.requireCompanyApprovalForDriverUpdates} label="اعتماد الشركة إلزامي" description="لا يظهر تحديث المندوب للتاجر قبل اعتماد موظف الشركة أو قواعد الاعتماد التلقائي." onChange={(requireCompanyApprovalForDriverUpdates) => onChange({ ...value, requireCompanyApprovalForDriverUpdates })}/>
-      <Toggle checked={value.allowExtraAttempts} label="السماح بمحاولات إضافية" description="بعد انتهاء المجاني يمكن إنشاء محاولة محسوبة حسب سياسة الرسوم." onChange={(allowExtraAttempts) => onChange({ ...value, allowExtraAttempts })}/>
-      <Toggle checked={value.countInternalFailureAsAttempt} label="احتساب أخطاء الشركة كمحاولة" description="يفضل إيقافها حتى لا يتحمل التاجر خطأ داخليًا في التشغيل." onChange={(countInternalFailureAsAttempt) => onChange({ ...value, countInternalFailureAsAttempt })}/>
-    </div>
-    <div className="settings-number-grid">
-      <NumberField label="عدد المحاولات المجانية" value={value.freeAttempts} min={0} max={10} suffix="محاولة" onChange={(freeAttempts) => onChange({ ...value, freeAttempts })}/>
-      <NumberField label="الحد الأقصى للمحاولات" value={value.maxAttempts} min={value.freeAttempts} max={15} suffix="محاولة" onChange={(maxAttempts) => onChange({ ...value, maxAttempts })}/>
-    </div>
-    <aside className="settings-note">رسوم الشحن الأساسية تظل على البوليصة الأصلية مرة واحدة حتى عند التسليم الجزئي. البوليصات الفرعية تحمل فقط قيمة المنتجات أو دورة المرتجع.</aside>
-  </>;
 }
 
 function FeeEditor({ title, mode, value, onMode, onValue }: { title: string; mode: FeeMode; value: number; onMode: (mode: FeeMode) => void; onValue: (value: number) => void }) {

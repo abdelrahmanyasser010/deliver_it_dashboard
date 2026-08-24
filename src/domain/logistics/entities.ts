@@ -42,7 +42,7 @@ export type ShipmentPriority = 'normal' | 'high' | 'urgent';
 export type PaymentType = 'cashOnDelivery' | 'prepaid';
 export type SettlementStatus = 'unsettled' | 'settled';
 export type DriverStatus = 'active' | 'off';
-export type DriverAccountStatus = 'active' | 'suspended' | 'archived';
+export type DriverAccountStatus = 'active' | 'restricted' | 'suspended' | 'archived';
 export type DriverOperationalStatus = 'off_shift' | 'available' | 'busy' | 'pickup_task' | 'delivery_task' | 'offline';
 export type DriverAvailability = 'available' | 'busy' | 'break' | 'offline';
 
@@ -161,6 +161,7 @@ export interface Driver {
   name: string;
   phone: string;
   zone: string;
+  zoneId?: string;
   shipmentsCount: number;
   pendingCash: number;
   deliveredToday: number;
@@ -178,13 +179,14 @@ export interface Driver {
   operationalStatus?: DriverOperationalStatus;
   branchId?: string;
   branchName?: string;
-  serviceAreas?: string[];
+  serviceAreaIds?: string[];
   taskTypes?: Array<'pickup' | 'delivery' | 'returns'>;
   maxBatchShipments?: number;
   maxOpenTasks?: number;
   onShift?: boolean;
   lastSeenAt?: string;
   archivedAt?: string;
+  version?: number;
 }
 
 export interface MerchantBranch {
@@ -241,6 +243,7 @@ export interface Merchant {
   registrationNumber?: string;
   usersCount?: number;
   documentsCount?: number;
+  version?: number;
 }
 
 

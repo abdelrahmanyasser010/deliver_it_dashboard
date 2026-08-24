@@ -124,7 +124,7 @@ export function OverviewPage() {
               <h2>{role === 'accounting' ? 'ابدأ بالمطابقة والتسويات' : role === 'support' ? 'ابدأ بالحالات التي تحتاج تواصلًا' : 'يحتاج تدخلك الآن'}</h2>
               <button className="text-link" onClick={() => navigate(role === 'accounting' ? '/accounting' : role === 'support' ? '/exceptions?category=customer' : '/operations')}>{role === 'accounting' ? 'فتح المحاسبة' : role === 'support' ? 'فتح حالات التواصل' : 'فتح مركز العمليات'}</button>
             </div>
-            <p>المهام العاجلة مرتبة حسب أثرها. الأرقام مستخرجة من بيانات تشغيل تجريبية.</p>
+            <p>المهام العاجلة مرتبة حسب أثرها. الأرقام مستخرجة من بيانات التشغيل الحالية على الخادم.</p>
           </div>
           <button className="outline-btn sm refresh-btn" onClick={refetch}><RefreshCcw size={14} /> تحديث</button>
         </div>

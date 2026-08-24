@@ -5,10 +5,14 @@ export interface UserContextResource {
   name: string;
   email?: string | null;
   phone?: string | null;
+  role?: string | null;
   status: string;
+  identity_status?: string | null;
   resource_version?: number;
-  tenant?: { id: string; name: string } | null;
+  tenant?: { id: string; name?: string | null; slug?: string | null; timezone?: string | null; currency?: string | null } | null;
   membership?: { id: string; branch_id?: string | null; merchant_id?: string | null; driver_id?: string | null; status: string } | null;
+  merchant_id?: string | null;
+  driver_id?: string | null;
   roles: string[];
   permissions: string[];
 }
@@ -20,9 +24,14 @@ export interface DashboardSession {
   cachedAt: string;
 }
 
+function purgeLegacyPersistentSession() {
+  try { localStorage.removeItem(SESSION_STORAGE_KEY); } catch { /* storage can be unavailable */ }
+}
+
 export function readSession(): DashboardSession | null {
+  purgeLegacyPersistentSession();
   try {
-    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as DashboardSession;
     if (!parsed.token || !parsed.user?.id) return null;
@@ -31,11 +40,13 @@ export function readSession(): DashboardSession | null {
 }
 
 export function saveSession(session: DashboardSession) {
-  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+  purgeLegacyPersistentSession();
+  sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
 }
 
 export function clearSession() {
-  localStorage.removeItem(SESSION_STORAGE_KEY);
+  purgeLegacyPersistentSession();
+  try { sessionStorage.removeItem(SESSION_STORAGE_KEY); } catch { /* storage can be unavailable */ }
   for (let index = localStorage.length - 1; index >= 0; index -= 1) {
     const key = localStorage.key(index);
     if (key?.startsWith(API_CACHE_PREFIX)) localStorage.removeItem(key);

@@ -1,43 +1,27 @@
 # Deliver It Dashboard
 
-لوحة تحكم React + TypeScript + Vite لشركة شحن متعددة الشركات، تعمل حاليًا عبر Mock Gateway موحد وقابلة للاستبدال لاحقًا بـAPI Gateway.
+Production-oriented React/Vite dashboard connected to the Deliver It Laravel API.
 
-## التشغيل المحلي
+## Local setup
 
 ```bash
+cp .env.example .env.local
 npm ci
-npm run dev
+npm run build
+npm run test:run
 ```
 
-## فحوص الجودة
+Set `VITE_API_BASE_URL` to the API origin. Production must use HTTPS and a real tenant/API origin.
+
+## Production verification
 
 ```bash
+python3 scripts/verify_dashboard_production.py
+npm ci
+npm run build
 npm run lint
 npm run test:run
-npm run build
 ```
 
-## أهم المسارات
-
-- `/operations`: اعتماد تحديثات المناديب وإدارة دورة المرتجعات.
-- `/shipments`: الشحنات، تقسيمات البوليصة، العناصر وإثبات التسليم.
-- `/settings`: إعدادات التوصيل والرسوم والضرائب والإثبات وموقع المندوب.
-- `/reports`: مؤشرات التسليم الجزئي والتشغيل.
-
-## الوثائق
-
-- `docs/FRONTEND_FREEZE_AR.md`
-- `docs/BACKEND_HANDOFF_READINESS_AR.md`
-- `docs/POLICY_WORKFLOWS_UPDATE_AR.md`
-
-## نقطة استبدال الـBackend
-
-```text
-src/infrastructure/delivery/gateway.ts
-```
-
-استبدل `mockDeliveryGateway` بـ`apiDeliveryGateway` مع الحفاظ على العقد الموجود في:
-
-```text
-src/application/delivery/contracts.ts
-```
+The contract snapshot used for integration is `contracts/openapi.yaml`.
+No mock gateway or demo data source is used by the runtime application.

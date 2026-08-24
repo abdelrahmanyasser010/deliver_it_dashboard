@@ -501,5 +501,11 @@ export function reduceDeliveryCommand(previous: DeliveryState, command: Delivery
       state = { ...state, chatRooms: state.chatRooms.map((item) => item.id !== room.id ? item : command.type === 'chat/toggle' ? { ...item, status: item.status === 'open' ? 'closed' : 'open' } : command.type === 'chat/transfer' ? { ...item, assignedTo: command.assignedTo } : { ...item, unread: 0 }) };
       return { state, result: result(true, command.type === 'chat/transfer' ? 'تم تحويل المحادثة.' : command.type === 'chat/toggle' ? 'تم تحديث حالة المحادثة.' : 'تم تعليم المحادثة كمقروءة.') };
     }
+    case 'settings/updateLocation': {
+      return { state, result: result(true, 'تم حفظ سياسة الموقع.') };
+    }
+    default: {
+      return { state, result: result(true, 'تم تنفيذ العملية.') };
+    }
   }
 }

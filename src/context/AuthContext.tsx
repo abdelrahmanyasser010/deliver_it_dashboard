@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api } from '../infrastructure/api/client';
-import { friendlyApiMessage, isNetworkLikeError } from '../infrastructure/api/errors';
+import { friendlyApiMessage } from '../infrastructure/api/errors';
 import { APP_VERSION, getOrCreateDeviceId } from '../infrastructure/api/config';
 import { clearSession, readSession, saveSession, SESSION_EXPIRED_EVENT, type DashboardSession, type UserContextResource } from '../infrastructure/api/session';
 import { getLocale } from '../i18n';
@@ -65,12 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       return true;
     } catch (err) {
-      if (isNetworkLikeError(err) && current.user?.id) {
-        setSession(current);
-        setIsOfflineSession(true);
-        setError(friendlyApiMessage(err));
-        return true;
-      }
+      // Production is fail-closed: a cached identity is never enough to open the
+      // dashboard when the server cannot validate the current token/tenant.
       persist(null);
       setIsOfflineSession(false);
       setError(friendlyApiMessage(err));

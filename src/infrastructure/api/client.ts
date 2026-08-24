@@ -63,9 +63,13 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const method = (options.method ?? 'GET').toUpperCase();
   const token = sessionToken();
   const requestId = randomId('web-');
-  const idempotencyKey = options.idempotencyKey ?? (!['GET', 'HEAD', 'OPTIONS'].includes(method) ? randomId('cmd-') : undefined);
+  // Never invent idempotency for arbitrary writes. Login/OTP/reset and other
+  // non-idempotent commands must not be replayed automatically. Callers opt in
+  // with a stable key only for endpoints whose contract declares idempotency.
+  const idempotencyKey = options.idempotencyKey;
   const maxRetries = options.retries ?? API_MAX_RETRIES;
-  const canRetry = ['GET', 'HEAD', 'OPTIONS'].includes(method) || Boolean(idempotencyKey);
+  const safeMethod = ['GET', 'HEAD', 'OPTIONS'].includes(method);
+  const canRetry = safeMethod || Boolean(idempotencyKey);
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {

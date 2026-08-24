@@ -7,6 +7,8 @@ import type { Shipment } from '../domain/logistics/entities';
 import { useDeliveryData } from '../context/DeliveryDataContext';
 import { downloadXlsx } from '../utils/exportSpreadsheet';
 import { formatCurrency } from '../utils/helpers';
+import { api } from '../infrastructure/api/client';
+import { friendlyApiMessage } from '../infrastructure/api/errors';
 import './Reports.css';
 
 const reportTabs: { id: ReportTab; label: string; icon: React.ReactNode }[] = [
@@ -44,6 +46,7 @@ export function ReportsPage() {
   const [driverDetailsId, setDriverDetailsId] = useState<string | null>(null);
   const [governorateDetails, setGovernorateDetails] = useState<string | null>(null);
   const [delayNotifyOpen, setDelayNotifyOpen] = useState(false);
+  const [delayNotifyBusy, setDelayNotifyBusy] = useState(false);
   const [now] = useState(() => Date.now());
 
   const report = useMemo(() => {
@@ -97,6 +100,38 @@ export function ReportsPage() {
     return { start, end, current, totals, previousTotals, successRate, previousSuccessRate, trend, statuses, driverPerformance, governorates, delays };
   }, [state, period, customStart, customEnd, now]);
 
+  const sendDelayNotifications = async () => {
+    if (!report.delays.length || delayNotifyBusy) return;
+    setDelayNotifyBusy(true);
+    try {
+      const shipmentIds = report.delays.map(({ shipment }) => shipment.id);
+      const previewAction = `web-delay-preview-${crypto.randomUUID()}`;
+      const preview = await api.post<{ id: string; status: string; items?: Array<{ status?: string }> }>('/api/v1/notification-batches/preview', {
+        shipment_ids: shipmentIds,
+        audiences: ['driver', 'merchant'],
+        channels: ['in_app', 'push'],
+        event_type: 'shipment_delay',
+        title: 'تنبيه تأخير شحنة',
+        body: 'توجد شحنة متأخرة عن موعد التسليم المتوقع. يرجى مراجعة تفاصيلها في التطبيق.',
+        client_action_id: previewAction,
+      }, { idempotencyKey: previewAction, retries: 1 });
+      const sendAction = `web-delay-send-${crypto.randomUUID()}`;
+      const sent = await api.post<{ status: string; result_summary?: { accepted?: number; failed?: number; skipped?: number } }>(`/api/v1/notification-batches/${preview.data.id}/send`, {
+        severity: 'warning',
+        client_action_id: sendAction,
+      }, { idempotencyKey: sendAction, retries: 1 });
+      const summary = sent.data.result_summary;
+      setActionMessage(summary
+        ? `تم إرسال دفعة التنبيهات: ${fmt(summary.accepted ?? 0)} مقبول، ${fmt(summary.skipped ?? 0)} متجاوز، ${fmt(summary.failed ?? 0)} فشل.`
+        : 'تم تسليم دفعة تنبيهات التأخير للخادم بنجاح.');
+      setDelayNotifyOpen(false);
+    } catch (error) {
+      setActionMessage(friendlyApiMessage(error));
+    } finally {
+      setDelayNotifyBusy(false);
+    }
+  };
+
   const withDates = (path: string) => `${path}${path.includes('?') ? '&' : '?'}from=${report.start.toISOString().slice(0,10)}&to=${report.end.toISOString().slice(0,10)}`;
   const exportActiveReport = () => {
     const dateSuffix = `${report.start.toISOString().slice(0, 10)}_${report.end.toISOString().slice(0, 10)}`;
@@ -132,7 +167,7 @@ export function ReportsPage() {
 
     {selectedGovernorateDetails && <Modal wide title={`تفاصيل محافظة ${selectedGovernorateDetails.governorate}`} description={`${report.start.toLocaleDateString('ar-EG')} — ${report.end.toLocaleDateString('ar-EG')}`} onClose={() => setGovernorateDetails(null)} footer={<><button className="outline-btn" onClick={() => setGovernorateDetails(null)}>إغلاق</button><button className="btn-primary" onClick={() => navigate(withDates(`/shipments?governorate=${encodeURIComponent(selectedGovernorateDetails.governorate)}`))}><Eye size={15}/> فتح الشحنات بنفس الفلاتر</button></>}><div className="report-kpi-grid"><Kpi label="إجمالي الشحنات" value={fmt(selectedGovernorateDetails.total)} icon={<BarChart3 size={18}/>} gradient="linear-gradient(135deg,#4F46E5,#7C3AED)"/><Kpi label="تم التسليم" value={fmt(selectedGovernorateDetails.delivered)} icon={<PackageCheck size={18}/>} gradient="linear-gradient(135deg,#10B981,#059669)"/><Kpi label="متأخر" value={fmt(selectedGovernorateDetails.delayed)} icon={<Bell size={18}/>} gradient="linear-gradient(135deg,#F59E0B,#D97706)"/><Kpi label="متوسط زمن التسليم" value={`${fmt(selectedGovernorateDetails.avgDeliveryHours)} ساعة`} icon={<Map size={18}/>} gradient="linear-gradient(135deg,#0EA5E9,#0284C7)"/></div><p className="report-muted">في الطريق: {fmt(selectedGovernorateDetails.inTransit)} · مرتجع: {fmt(selectedGovernorateDetails.returned)}. الـDrill-down يحافظ على نفس الفترة الزمنية ويحول إلى قائمة الشحنات المفلترة.</p></Modal>}
 
-    {delayNotifyOpen && <Modal wide title="مراجعة تنبيهات التأخير" description={`سيتم تجهيز ${fmt(report.delays.length)} تنبيهًا. لا يتم الإرسال بدون مراجعة المستلمين والقناة.`} onClose={() => setDelayNotifyOpen(false)} footer={<><button className="outline-btn" onClick={() => setDelayNotifyOpen(false)}>إلغاء</button><button className="btn-primary" onClick={() => { setActionMessage(`تمت محاكاة إرسال ${fmt(report.delays.length)} تنبيه تأخير بعد المراجعة. في الإنتاج سيعيد الـBackend حالة كل قناة ومستلم.`); setDelayNotifyOpen(false); }}><Bell size={15}/> إرسال بعد المراجعة</button></>}><div className="delay-list">{report.delays.slice(0, 12).map(({ shipment, lateByHours }) => <div className="delay-row" key={`notify-${shipment.id}`}><div className="funnel-row-top"><strong>{shipment.id}</strong><span className="tone-badge medium">{fmt(lateByHours)} ساعة</span></div><p className="report-muted">المندوب: {shipment.driverName ?? 'غير معين'} → Push/In-app عند وجود جهاز مسجل · التاجر: {shipment.merchantName} → In-app حسب سياسة التنبيه.</p><button className="outline-btn" onClick={() => navigate(`/shipments?shipment=${shipment.id}`)}><Eye size={14}/> فتح تفاصيل الشحنة</button></div>)}</div><p className="report-muted">لا تُرسل تنبيهات للمستلم النهائي تلقائيًا في هذا التدفق، ولا تعتبر رسالة الشات تحديثًا رسميًا لحالة الشحنة.</p></Modal>}
+    {delayNotifyOpen && <Modal wide title="مراجعة تنبيهات التأخير" description={`سيتم تجهيز ${fmt(report.delays.length)} حالة على الخادم، ثم حل حسابات المندوب والتاجر وقنواتهم طبقًا لسياسة التنبيهات.`} onClose={() => { if (!delayNotifyBusy) setDelayNotifyOpen(false); }} footer={<><button className="outline-btn" disabled={delayNotifyBusy} onClick={() => setDelayNotifyOpen(false)}>إلغاء</button><button className="btn-primary" disabled={delayNotifyBusy} onClick={() => void sendDelayNotifications()}><Bell size={15}/> {delayNotifyBusy ? 'جارٍ الإرسال...' : 'إرسال بعد المراجعة'}</button></>}><div className="delay-list">{report.delays.slice(0, 12).map(({ shipment, lateByHours }) => <div className="delay-row" key={`notify-${shipment.id}`}><div className="funnel-row-top"><strong>{shipment.id}</strong><span className="tone-badge medium">{fmt(lateByHours)} ساعة</span></div><p className="report-muted">المندوب: {shipment.driverName ?? 'غير معين'} · التاجر: {shipment.merchantName}. الخادم يحدد المستلمين الفعليين ويستبعد الحسابات غير المرتبطة قبل الإرسال.</p><button className="outline-btn" onClick={() => navigate(`/shipments?shipment=${shipment.id}`)}><Eye size={14}/> فتح تفاصيل الشحنة</button></div>)}</div><p className="report-muted">القنوات: In-app وPush حسب إعدادات الشركة وتوفر جهاز مسجل. لا تُرسل رسائل للمستلم النهائي في هذا التدفق.</p></Modal>}
   </div>;
 }
 

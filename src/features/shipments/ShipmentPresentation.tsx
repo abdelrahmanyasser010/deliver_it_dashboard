@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { AlertCircle, Banknote, CheckSquare, Clock3, Eye, Printer, RefreshCcw, Square, Truck, X } from 'lucide-react';
+import { AlertCircle, Banknote, CheckSquare, Eye, Printer, Square, Truck, X } from 'lucide-react';
 import { Drawer, Modal } from '../../components/ui/Ui';
-import type { Shipment, ShipmentStatus } from '../../domain/logistics/entities';
+import type { Shipment } from '../../domain/logistics/entities';
 import { getCsvValue, type CsvPreview } from './csvImport';
 import {
   calculateShipmentFinancials,
@@ -9,14 +9,13 @@ import {
   formatAge,
   formatCurrency,
   formatDateTime,
-  nextShipmentStatuses,
   paymentTypeLabels,
   priorityConfig,
   statusConfig,
   taskStatusConfig,
 } from '../../utils/helpers';
 
-export type ShipmentAction = 'assign' | 'status' | 'attempt' | 'settlement';
+export type ShipmentAction = 'assign' | 'settlement';
 export type BulkAction = 'assign' | 'print';
 export type ShipmentColumn = 'customer' | 'merchant' | 'area' | 'driver' | 'status' | 'task' | 'collection' | 'updated';
 
@@ -83,7 +82,7 @@ export function ShipmentDrawer({ shipment, relatedShipments, attempts, activeAct
 
           <section className="detail-section"><h4>سجل الحركة</h4><Timeline shipment={shipment} attempts={attempts} /></section>
           <section className="detail-section"><h4>التفاصيل المالية</h4><div className="financial-grid"><DetailRow label="إجمالي المنتجات" value={formatCurrency(financials.itemsSubtotal)} /><DetailRow label="رسوم الشحن" value={formatCurrency(financials.deliveryFee)} /><DetailRow label="المطلوب تحصيله" value={formatCurrency(financials.expectedCollection)} bold /><DetailRow label="المحصل فعليًا" value={formatCurrency(financials.collectedCash)} /><DetailRow label="تم توريده" value={formatCurrency(financials.remittedCash)} /><DetailRow label="فرق التحصيل" value={formatCurrency(financials.cashVariance)} danger={financials.cashVariance !== 0} /></div></section>
-          <section className="detail-section"><h4>الإجراءات المتاحة</h4><div className="shipment-ops-grid"><button className="outline-btn" onClick={() => onAction('assign')}><Truck size={16} /> تعيين مندوب</button><button className="outline-btn" onClick={() => onAction('status')} disabled={nextShipmentStatuses[shipment.status].length === 0}><RefreshCcw size={16} /> إجراء تشغيلي</button><button className="outline-btn" onClick={() => onAction('attempt')}><Clock3 size={16} /> تسجيل محاولة يدويًا</button><button className="outline-btn" onClick={() => onAction('settlement')} disabled={shipment.collectedCash === 0}><Banknote size={16} /> طلب تسوية</button></div></section>
+          <section className="detail-section"><h4>الإجراءات المتاحة</h4><div className="shipment-ops-grid"><button className="outline-btn" onClick={() => onAction('assign')}><Truck size={16} /> تعيين مندوب</button><button className="outline-btn" onClick={() => onAction('settlement')} disabled={shipment.collectedCash === 0}><Banknote size={16} /> طلب تسوية</button></div><p className="drawer-policy-note">تحديثات الحالة ومحاولات التسليم تأتي من دورة التشغيل الرسمية وتطبيق المندوب، ولا يتم إنشاؤها يدويًا من لوحة الإدارة.</p></section>
         </div>
 
         {activeAction && <ShipmentActionDialog action={activeAction} shipment={shipment} drivers={drivers} onCancel={onCancelAction} onSubmit={onSubmitAction} />}
@@ -92,21 +91,15 @@ export function ShipmentDrawer({ shipment, relatedShipments, attempts, activeAct
 }
 
 function ShipmentActionDialog({ action, shipment, drivers, onCancel, onSubmit }: { action: ShipmentAction; shipment: Shipment; drivers: Array<{ id: string; name: string }>; onCancel: () => void; onSubmit: (payload: Record<string, string>) => void }) {
-  const availableStatuses = nextShipmentStatuses[shipment.status];
   const [driverId, setDriverId] = useState(shipment.driverId ?? drivers[0]?.id ?? '');
-  const [status, setStatus] = useState<ShipmentStatus>(availableStatuses[0] ?? shipment.status);
-  const [note, setNote] = useState('');
-  const title = { assign: 'تعيين مندوب', status: 'اختيار إجراء تشغيلي مسموح', attempt: 'تسجيل محاولة يدويًا', settlement: 'إرسال إلى التسوية' }[action];
-
+  const title = action === 'assign' ? 'تعيين مندوب' : 'إرسال إلى التسوية';
   return (
     <div className="drawer-action-panel" role="dialog" aria-modal="true" aria-label={title}>
       <div className="drawer-header compact"><div><h3>{title}</h3><p className="drawer-id">{shipment.id}</p></div><button className="btn-icon sm" onClick={onCancel} aria-label="إغلاق"><X size={14} /></button></div>
       <div className="shipment-action-body">
         {action === 'assign' && <label className="form-field"><span>المندوب</span><select className="input-glass" value={driverId} onChange={(event) => setDriverId(event.target.value)}>{drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</select></label>}
-        {action === 'status' && <label className="form-field"><span>الحالة الجديدة</span><select className="input-glass" value={status} onChange={(event) => setStatus(event.target.value as ShipmentStatus)}>{availableStatuses.map((st) => <option key={st} value={st}>{statusConfig[st]?.label ?? st}</option>)}</select></label>}
-        {action === 'attempt' && <label className="form-field"><span>سبب التسجيل اليدوي ونتيجة المحاولة</span><textarea className="input-glass" value={note} onChange={(event) => setNote(event.target.value)} placeholder="مثال: تم تسجيل المحاولة يدويًا بعد اتصال المندوب؛ المستلم لا يرد" /></label>}
-        {action === 'settlement' && <div className="dialog-summary"><Banknote size={18} /><div><strong>{formatCurrency(shipment.collectedCash)}</strong><p>سيتم نقل الشحنة إلى حالة «داخل تسوية» وربطها بالتاجر.</p></div></div>}
-        <div className="dialog-actions"><button className="outline-btn" onClick={onCancel}>إلغاء</button><button className="btn-primary" onClick={() => onSubmit({ driverId, status, note })} disabled={action === 'assign' && !driverId}>حفظ العملية</button></div>
+        {action === 'settlement' && <div className="dialog-summary"><Banknote size={18} /><div><strong>{formatCurrency(shipment.collectedCash)}</strong><p>سيتم إنشاء طلب تسوية رسمي على الخادم وربطه بالتاجر.</p></div></div>}
+        <div className="dialog-actions"><button className="outline-btn" onClick={onCancel}>إلغاء</button><button className="btn-primary" onClick={() => onSubmit({ driverId })} disabled={action === 'assign' && !driverId}>تنفيذ</button></div>
       </div>
     </div>
   );

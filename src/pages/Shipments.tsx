@@ -20,10 +20,14 @@ import type {
   Shipment,
   ShipmentStatus,
 } from '../domain/logistics/entities';
-import { buildImportedShipment, parseCsv, validateImportRow, type CsvPreview } from '../features/shipments/csvImport';
+import { buildServerImportFile, parseCsv, serverImportColumnMapping, validateImportRow, type CsvPreview } from '../features/shipments/csvImport';
 import { BulkActionDialog, CsvPreviewDialog, SelectionBar, ShipmentDrawer, ShipmentRow, type BulkAction, type ShipmentAction, type ShipmentColumn } from '../features/shipments/ShipmentPresentation';
 import { ShipmentLabelsPreview } from '../features/printing/ShipmentLabelsPreview';
 import { downloadXlsx } from '../utils/exportSpreadsheet';
+import { uploadApiFile } from '../infrastructure/api/files';
+import { api } from '../infrastructure/api/client';
+import { asRecord } from '../infrastructure/api/mappers';
+import { friendlyApiMessage } from '../infrastructure/api/errors';
 import {
   financialStatusConfig,
   priorityConfig,
@@ -91,6 +95,7 @@ export function ShipmentsPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [printTargets, setPrintTargets] = useState<Shipment[]>([]);
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
   const [now] = useState(() => Date.now());
   const [visibleColumns, setVisibleColumns] = useState<ShipmentColumn[]>(readVisibleColumns);
   const [savedViews, setSavedViews] = useState<SavedShipmentView[]>(readSavedViews);
@@ -215,12 +220,42 @@ export function ShipmentsPage() {
   };
 
   const confirmImport = async () => {
-    if (!csvPreview) return;
+    if (!csvPreview || importBusy) return;
     const validRows = csvPreview.rows.filter((row) => row.errors.length === 0 && !row.duplicate);
-    const nextShipments = validRows.map((row, index) => buildImportedShipment(row.data, allShipments.length + index));
-    const commandResult = await delivery.execute({ type: 'shipment/import', shipments: nextShipments });
-    setCsvPreview(null);
-    setToast(commandResult.message);
+    if (!validRows.length) { setToast('لا توجد صفوف صالحة للإرسال إلى الخادم.'); return; }
+    setImportBusy(true);
+    try {
+      const normalized = buildServerImportFile(csvPreview);
+      const uploaded = await uploadApiFile(normalized, 'shipment_import');
+      const action = `web-shipment-import-${crypto.randomUUID()}`;
+      const created = await api.post<unknown>('/api/v1/shipment-imports', {
+        file_id: uploaded.id,
+        column_mapping: serverImportColumnMapping,
+        duplicate_strategy: 'reject',
+        validate_only: false,
+        client_action_id: action,
+      }, { idempotencyKey: action, retries: 1 });
+      const importId = String(asRecord(created.data).id ?? '');
+      setCsvPreview(null);
+      setToast(`تم رفع ${formatNumber(validRows.length)} صفًا وبدأت المعالجة على الخادم.`);
+
+      if (importId) {
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1000));
+          const status = asRecord((await api.get<unknown>(`/api/v1/shipment-imports/${importId}`, { retries: 1 })).data);
+          if (status.status === 'completed') {
+            await delivery.refetch();
+            setToast(`اكتمل الاستيراد: ${formatNumber(Number(status.accepted_rows ?? 0))} مقبول، ${formatNumber(Number(status.rejected_rows ?? 0))} مرفوض.`);
+            break;
+          }
+          if (status.status === 'failed') { setToast('فشلت معالجة ملف الاستيراد على الخادم. راجع سجل الاستيراد وملف الأخطاء.'); break; }
+        }
+      }
+    } catch (cause) {
+      setToast(friendlyApiMessage(cause));
+    } finally {
+      setImportBusy(false);
+    }
   };
 
   const toggleAllVisible = () => {
@@ -253,12 +288,6 @@ export function ShipmentsPage() {
     let commandResult;
     if (activeAction === 'assign') {
       commandResult = await delivery.execute({ type: 'shipment/assignDriver', shipmentIds: [selected.id], driverId: payload.driverId });
-    } else if (activeAction === 'status' && isShipmentStatus(payload.status)) {
-      commandResult = await delivery.execute({ type: 'shipment/transition', shipmentIds: [selected.id], nextStatus: payload.status, reason: payload.note.trim() || `تحديث الحالة إلى ${statusConfig[payload.status].label}` });
-    } else if (activeAction === 'attempt') {
-      const note = payload.note.trim();
-      if (!note) { setToast('اكتب سبب أو نتيجة محاولة التسليم أولًا.'); return; }
-      commandResult = await delivery.execute({ type: 'shipment/addAttempt', shipmentId: selected.id, note });
     } else if (activeAction === 'settlement') {
       commandResult = await delivery.execute({ type: 'shipment/requestSettlement', shipmentIds: [selected.id] });
     }
@@ -319,7 +348,7 @@ export function ShipmentsPage() {
           <button className="outline-btn" onClick={() => setColumnsOpen(true)}><Columns3 size={15} /> الأعمدة</button>
           <button className="outline-btn" onClick={() => setSaveViewOpen(true)}><BookmarkPlus size={15} /> حفظ View</button>
           <button className="outline-btn" onClick={exportFilteredShipments}><FileSpreadsheet size={15} /> تصدير Excel</button>
-          <button className="btn-primary" onClick={() => fileInputRef.current?.click()}><Upload size={15} /> استيراد CSV</button>
+          <button className="btn-primary" disabled={importBusy} onClick={() => fileInputRef.current?.click()}><Upload size={15} />{importBusy ? 'جارٍ الاستيراد…' : 'استيراد CSV'}</button>
           <input ref={fileInputRef} className="visually-hidden" type="file" accept=".csv,text/csv" onChange={(event) => { const file = event.target.files?.[0]; if (file) readShipmentSheet(file); event.currentTarget.value = ''; }} />
         </div>
       </header>

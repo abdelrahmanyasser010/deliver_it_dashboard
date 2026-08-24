@@ -7,6 +7,7 @@ import {
 import { useLogisticsDashboard } from '../application/logistics/useLogisticsData';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { useWorkspace, workspaceRoleLabels, type WorkspaceRole } from '../context/WorkspaceContext';
+import { useAuth } from '../context/AuthContext';
 import './Sidebar.css';
 
 interface NavItem {
@@ -44,13 +45,14 @@ const formatNumber = (value: number) => value.toLocaleString('ar-EG');
 interface SidebarProps { activePage: string; collapsed: boolean; onNavigate: (page: string) => void; onToggleCollapsed: () => void; }
 export function Sidebar({ activePage, collapsed, onNavigate, onToggleCollapsed }: SidebarProps) {
   const { stats } = useLogisticsDashboard();
-  const { role, showToast } = useWorkspace();
+  const { role } = useWorkspace();
+  const { logout } = useAuth();
   const navBadges = {
     operations: stats ? stats.unassignedShipments + stats.pendingApprovals + stats.pendingReturns : 0,
     shipments: stats?.delayedShipments ?? 0,
     exceptions: stats ? stats.delayedShipments + stats.unassignedShipments + stats.pendingReturns + stats.cashDiscrepancies : 0,
   };
-  const handleLogout = () => { localStorage.removeItem('deliver-it-session'); sessionStorage.removeItem('deliver-it-session'); onNavigate('overview'); showToast('تم تنفيذ محاكاة تسجيل الخروج.', 'info'); };
+  const handleLogout = async () => { await logout(); onNavigate('overview'); };
 
   return <aside className={`sidebar glass-panel ${collapsed ? 'collapsed' : ''}`}>
     <div className="sidebar-logo"><div className="logo-icon"><TruckIcon size={22} color="white"/></div>{!collapsed && <div className="logo-text"><span className="logo-name">Deliver It</span><span className="logo-sub">{workspaceRoleLabels[role]}</span></div>}<button className="collapse-btn btn-icon" onClick={onToggleCollapsed} title={collapsed ? 'توسيع القائمة' : 'تصغير القائمة'} aria-label={collapsed ? 'توسيع القائمة' : 'تصغير القائمة'}>{collapsed ? <ChevronLeft size={16}/> : <ChevronRight size={16}/>}</button></div>
@@ -63,10 +65,12 @@ interface HeaderProps { title: string; onNavigate?: (page: string) => void; }
 export function Header({ title }: HeaderProps) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const { role, setRole, notifications, markNotificationRead, markAllRead } = useWorkspace();
+  const { role, notifications, markNotificationRead, markAllRead } = useWorkspace();
+  const { user } = useAuth();
   const activeNotifications = notifications.filter((item) => !item.resolved);
   const unread = activeNotifications.filter((item) => !item.read).length;
   const openNotification = (id: string, path: string) => { markNotificationRead(id); setOpen(false); navigate(path); };
+  const initials = (user?.name || 'م').trim().slice(0, 1);
 
-  return <header className="topbar glass-panel"><div className="topbar-title-wrap"><h1 className="topbar-title">{title}</h1><span>{workspaceRoleLabels[role]}</span></div><GlobalSearch/><div className="topbar-actions"><label className="role-switcher"><span>عرض كـ</span><select value={role} onChange={(event) => { setRole(event.target.value as WorkspaceRole); navigate('/'); }}>{(Object.keys(workspaceRoleLabels) as WorkspaceRole[]).map((item) => <option key={item} value={item}>{workspaceRoleLabels[item]}</option>)}</select></label><div className="notification-wrap"><button className="btn-icon notification-btn" title="الإشعارات" aria-label="فتح الإشعارات" onClick={() => setOpen((value) => !value)} aria-expanded={open}><Bell size={18}/>{unread > 0 && <span className="notification-count">{formatNumber(unread)}</span>}</button>{open && <div className="notifications-popover glass-panel"><div className="notifications-head"><div><strong>الإشعارات والمهام</strong><span>{formatNumber(activeNotifications.length)} مفتوحة</span></div><button onClick={markAllRead}>تحديد الكل كمقروء</button></div><div className="notifications-list">{activeNotifications.map((notification) => <article key={notification.id} className={`notification-item ${notification.read ? '' : 'unread'}`}><button className="notification-open" onClick={() => openNotification(notification.id, notification.path)}><span className={`notification-mark ${notification.priority}`}/><span className="notification-copy"><strong>{notification.title}</strong><small>{notification.detail}</small><em>{notification.time}</em></span></button><button className="notification-resolve" onClick={() => openNotification(notification.id, notification.path)}>معالجة</button></article>)}</div></div>}</div><div className="user-avatar">م</div></div></header>;
+  return <header className="topbar glass-panel"><div className="topbar-title-wrap"><h1 className="topbar-title">{title}</h1><span>{workspaceRoleLabels[role]}</span></div><GlobalSearch/><div className="topbar-actions"><div className="notification-wrap"><button className="btn-icon notification-btn" title="الإشعارات" aria-label="فتح الإشعارات" onClick={() => setOpen((value) => !value)} aria-expanded={open}><Bell size={18}/>{unread > 0 && <span className="notification-count">{formatNumber(unread)}</span>}</button>{open && <div className="notifications-popover glass-panel"><div className="notifications-head"><div><strong>الإشعارات والمهام</strong><span>{formatNumber(activeNotifications.length)} مفتوحة</span></div><button onClick={markAllRead}>تحديد الكل كمقروء</button></div><div className="notifications-list">{activeNotifications.length ? activeNotifications.map((notification) => <article key={notification.id} className={`notification-item ${notification.read ? '' : 'unread'}`}><button className="notification-open" onClick={() => openNotification(notification.id, notification.path)}><span className={`notification-mark ${notification.priority}`}/><span className="notification-copy"><strong>{notification.title}</strong><small>{notification.detail}</small><em>{notification.time}</em></span></button><button className="notification-resolve" onClick={() => openNotification(notification.id, notification.path)}>معالجة</button></article>) : <div className="notification-empty">لا توجد مهام جديدة.</div>}</div></div>}</div><div className="topbar-user" title={user?.name ?? ''}><div className="user-avatar">{initials}</div><div className="topbar-user-copy"><strong>{user?.name ?? 'مستخدم'}</strong><span>{user?.email ?? user?.phone ?? ''}</span></div></div></div></header>;
 }

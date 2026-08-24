@@ -1,5 +1,4 @@
 import type { DeliveryGateway } from '../../application/delivery/contracts';
-import { mockDeliveryGateway } from './mockDeliveryGateway';
+import { apiDeliveryGateway } from './apiDeliveryGateway';
 
-// Replace this binding with apiDeliveryGateway when the backend is ready.
-export const deliveryGateway: DeliveryGateway = mockDeliveryGateway;
+export const deliveryGateway: DeliveryGateway = apiDeliveryGateway;

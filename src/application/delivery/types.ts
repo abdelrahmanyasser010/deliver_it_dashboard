@@ -44,6 +44,7 @@ export interface ChatRoomRecord {
   unread: number;
   linkedShipmentId?: string;
   assignedTo: string;
+  assignedUserId?: string;
   status: 'open' | 'closed';
   pinned?: boolean;
   messages: ChatMessageRecord[];
@@ -98,6 +99,8 @@ export type DeliveryCommand =
   | { type: 'barcode/close'; batchId: string; actor?: string }
   | { type: 'exception/resolve'; shipmentId: string; resolution: string; driverId?: string; actor?: string }
   | { type: 'driver/upsert'; driver: Driver; actor?: string }
+  | { type: 'driver/suspend'; driverId: string; reason: string; policy: 'complete_current_tasks' | 'withdraw_and_reassign' | 'immediate_stop'; actor?: string }
+  | { type: 'driver/reactivate'; driverId: string; reason?: string; actor?: string }
   | { type: 'driver/archive'; driverId: string; reason: string; actor?: string }
   | { type: 'driver/resetAccess'; driverId: string; invalidateSessions: boolean; forcePasswordChange: boolean; actor?: string }
   | { type: 'merchant/upsert'; merchant: Merchant; actor?: string }
