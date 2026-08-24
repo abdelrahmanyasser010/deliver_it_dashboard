@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertCircle, Banknote, CheckSquare, Eye, Printer, Square, Truck, X } from 'lucide-react';
+import { AlertCircle, Banknote, CheckSquare, Eye, PenLine, Printer, Square, Truck, X } from 'lucide-react';
 import { Drawer, Modal } from '../../components/ui/Ui';
 import type { Shipment } from '../../domain/logistics/entities';
 import { getCsvValue, type CsvPreview } from './csvImport';
@@ -15,7 +15,7 @@ import {
   taskStatusConfig,
 } from '../../utils/helpers';
 
-export type ShipmentAction = 'assign' | 'settlement';
+export type ShipmentAction = 'assign' | 'settlement' | 'editFee';
 export type BulkAction = 'assign' | 'print';
 export type ShipmentColumn = 'customer' | 'merchant' | 'area' | 'driver' | 'status' | 'task' | 'collection' | 'updated';
 
@@ -81,8 +81,32 @@ export function ShipmentDrawer({ shipment, relatedShipments, attempts, activeAct
           {shipment.merchantVisibleStatus && <section className="detail-section"><h4>الحالة الظاهرة للتاجر</h4><div className="merchant-visible-state"><strong>{shipment.merchantVisibleStatus}</strong><small>هذه هي الصياغة الرسمية التي أصدرتها شركة الشحن، وليست تحديث المندوب الخام.</small></div></section>}
 
           <section className="detail-section"><h4>سجل الحركة</h4><Timeline shipment={shipment} attempts={attempts} /></section>
-          <section className="detail-section"><h4>التفاصيل المالية</h4><div className="financial-grid"><DetailRow label="إجمالي المنتجات" value={formatCurrency(financials.itemsSubtotal)} /><DetailRow label="رسوم الشحن" value={formatCurrency(financials.deliveryFee)} /><DetailRow label="المطلوب تحصيله" value={formatCurrency(financials.expectedCollection)} bold /><DetailRow label="المحصل فعليًا" value={formatCurrency(financials.collectedCash)} /><DetailRow label="تم توريده" value={formatCurrency(financials.remittedCash)} /><DetailRow label="فرق التحصيل" value={formatCurrency(financials.cashVariance)} danger={financials.cashVariance !== 0} /></div></section>
-          <section className="detail-section"><h4>الإجراءات المتاحة</h4><div className="shipment-ops-grid"><button className="outline-btn" onClick={() => onAction('assign')}><Truck size={16} /> تعيين مندوب</button><button className="outline-btn" onClick={() => onAction('settlement')} disabled={shipment.collectedCash === 0}><Banknote size={16} /> طلب تسوية</button></div><p className="drawer-policy-note">تحديثات الحالة ومحاولات التسليم تأتي من دورة التشغيل الرسمية وتطبيق المندوب، ولا يتم إنشاؤها يدويًا من لوحة الإدارة.</p></section>
+          <section className="detail-section">
+            <h4>التفاصيل المالية</h4>
+            {shipment.feeOverrideReason && (
+              <div style={{ marginBottom: '0.75rem', padding: '0.6rem 0.85rem', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', borderRadius: '8px', fontSize: '0.82rem', color: '#EAB308' }}>
+                <strong>💡 سبب وملاحظة تعديل رسوم الشحن:</strong> {shipment.feeOverrideReason}
+                {shipment.originalDeliveryFee !== undefined && <span style={{ marginRight: '0.4rem', color: 'var(--text-muted)' }}>(السعر قبل التعديل: {formatCurrency(shipment.originalDeliveryFee)})</span>}
+              </div>
+            )}
+            <div className="financial-grid">
+              <DetailRow label="إجمالي المنتجات" value={formatCurrency(financials.itemsSubtotal)} />
+              <DetailRow label="رسوم الشحن" value={formatCurrency(financials.deliveryFee)} />
+              <DetailRow label="المطلوب تحصيله" value={formatCurrency(financials.expectedCollection)} bold />
+              <DetailRow label="المحصل فعليًا" value={formatCurrency(financials.collectedCash)} />
+              <DetailRow label="تم توريده" value={formatCurrency(financials.remittedCash)} />
+              <DetailRow label="فرق التحصيل" value={formatCurrency(financials.cashVariance)} danger={financials.cashVariance !== 0} />
+            </div>
+          </section>
+          <section className="detail-section">
+            <h4>الإجراءات المتاحة</h4>
+            <div className="shipment-ops-grid">
+              <button className="outline-btn" onClick={() => onAction('assign')}><Truck size={16} /> تعيين مندوب</button>
+              <button className="outline-btn" onClick={() => onAction('editFee')}><PenLine size={16} /> تعديل رسوم الشحن والسبب</button>
+              <button className="outline-btn" onClick={() => onAction('settlement')} disabled={shipment.collectedCash === 0}><Banknote size={16} /> طلب تسوية</button>
+            </div>
+            <p className="drawer-policy-note">تحديثات الحالة ومحاولات التسليم تأتي من دورة التشغيل الرسمية وتطبيق المندوب، ولا يتم إنشاؤها يدويًا من لوحة الإدارة.</p>
+          </section>
         </div>
 
         {activeAction && <ShipmentActionDialog action={activeAction} shipment={shipment} drivers={drivers} onCancel={onCancelAction} onSubmit={onSubmitAction} />}
@@ -92,14 +116,68 @@ export function ShipmentDrawer({ shipment, relatedShipments, attempts, activeAct
 
 function ShipmentActionDialog({ action, shipment, drivers, onCancel, onSubmit }: { action: ShipmentAction; shipment: Shipment; drivers: Array<{ id: string; name: string }>; onCancel: () => void; onSubmit: (payload: Record<string, string>) => void }) {
   const [driverId, setDriverId] = useState(shipment.driverId ?? drivers[0]?.id ?? '');
-  const title = action === 'assign' ? 'تعيين مندوب' : 'إرسال إلى التسوية';
+  const [newFee, setNewFee] = useState<number>(shipment.deliveryFee);
+  const [presetReason, setPresetReason] = useState('طرد كبير الحجم (أبعاد كرتونة ضخمة)');
+  const [customReason, setCustomReason] = useState('');
+
+  const title = action === 'assign' ? 'تعيين مندوب' : action === 'editFee' ? 'تعديل رسوم الشحن وسبب التعديل' : 'إرسال إلى التسوية';
+
+  const handleSubmit = () => {
+    if (action === 'assign') {
+      onSubmit({ driverId });
+    } else if (action === 'editFee') {
+      const reasonText = presetReason === 'other' ? customReason.trim() : (customReason.trim() ? `${presetReason} — ${customReason.trim()}` : presetReason);
+      onSubmit({ deliveryFee: String(newFee), reason: reasonText || 'تعديل رسوم الشحن' });
+    } else {
+      onSubmit({});
+    }
+  };
+
   return (
     <div className="drawer-action-panel" role="dialog" aria-modal="true" aria-label={title}>
       <div className="drawer-header compact"><div><h3>{title}</h3><p className="drawer-id">{shipment.id}</p></div><button className="btn-icon sm" onClick={onCancel} aria-label="إغلاق"><X size={14} /></button></div>
       <div className="shipment-action-body">
         {action === 'assign' && <label className="form-field"><span>المندوب</span><select className="input-glass" value={driverId} onChange={(event) => setDriverId(event.target.value)}>{drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</select></label>}
+        {action === 'editFee' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <label className="form-field">
+              <span>سعر الشحن الجديد (ج.م)</span>
+              <input
+                type="number"
+                min="0"
+                className="input-glass"
+                value={newFee}
+                onChange={(e) => setNewFee(Number(e.target.value))}
+              />
+            </label>
+            <label className="form-field">
+              <span>سبب التعديل</span>
+              <select
+                className="input-glass"
+                value={presetReason}
+                onChange={(e) => setPresetReason(e.target.value)}
+              >
+                <option value="طرد كبير الحجم (أبعاد كرتونة ضخمة)">طرد كبير الحجم (أبعاد كرتونة ضخمة)</option>
+                <option value="وزن زائد عن الوزن المسموح">وزن زائد عن الوزن المسموح</option>
+                <option value="تعديل وجهة التسليم لمحافظة أخرى">تعديل وجهة التسليم لمحافظة أخرى</option>
+                <option value="خصم تعاقدي خاص للتاجر">خصم تعاقدي خاص للتاجر</option>
+                <option value="other">سبب آخر (كتابة مخصصة)...</option>
+              </select>
+            </label>
+            <label className="form-field">
+              <span>ملاحظة إضافية تظهر للتاجر في حسابه والبوليصة</span>
+              <input
+                type="text"
+                className="input-glass"
+                placeholder="اكتب توضيحًا للتاجر إن وجد..."
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+              />
+            </label>
+          </div>
+        )}
         {action === 'settlement' && <div className="dialog-summary"><Banknote size={18} /><div><strong>{formatCurrency(shipment.collectedCash)}</strong><p>سيتم إنشاء طلب تسوية رسمي على الخادم وربطه بالتاجر.</p></div></div>}
-        <div className="dialog-actions"><button className="outline-btn" onClick={onCancel}>إلغاء</button><button className="btn-primary" onClick={() => onSubmit({ driverId })} disabled={action === 'assign' && !driverId}>تنفيذ</button></div>
+        <div className="dialog-actions"><button className="outline-btn" onClick={onCancel}>إلغاء</button><button className="btn-primary" onClick={handleSubmit} disabled={action === 'assign' && !driverId}>حفظ واعتماد</button></div>
       </div>
     </div>
   );

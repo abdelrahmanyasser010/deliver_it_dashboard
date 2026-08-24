@@ -248,6 +248,26 @@ export function reduceDeliveryCommand(previous: DeliveryState, command: Delivery
       state = audit(state, command, 'shipment', shipment.id, command.note);
       return { state, result: result(true, 'تم تسجيل محاولة التسليم.') };
     }
+    case 'shipment/overrideFee': {
+      const shipment = state.shipments.find((item) => item.id === command.shipmentId);
+      if (!shipment) return { state, result: result(false, 'الشحنة غير موجودة.') };
+      const oldFee = shipment.deliveryFee;
+      const newFee = Math.max(0, command.deliveryFee);
+      state = updateShipment(state, shipment.id, (current) => ({
+        ...current,
+        deliveryFee: newFee,
+        originalDeliveryFee: current.originalDeliveryFee ?? oldFee,
+        feeOverrideReason: command.reason,
+        expectedCollection: current.paymentType === 'cashOnDelivery' ? (current.total + newFee - current.discount) : current.expectedCollection,
+        lastUpdatedAt: nowIso(),
+        events: [
+          ...(current.events ?? []),
+          shipmentEvent(current.id, 'financial', 'تعديل رسوم الشحن', `تم تعديل رسوم الشحن من ${oldFee} إلى ${newFee} ج.م — السبب: ${command.reason}`, actor)
+        ],
+      }));
+      state = refreshDerivedPeople(audit(state, command, 'shipment', shipment.id, `تعديل رسوم الشحن إلى ${newFee} ج.م: ${command.reason}`));
+      return { state, result: result(true, 'تم تعديل رسوم الشحن وحفظ سبب التعديل.') };
+    }
     case 'shipment/import': {
       const existing = new Set(state.shipments.flatMap((shipment) => [shipment.id, shipment.trackingNumber]));
       const added = command.shipments.filter((shipment) => !existing.has(shipment.id) && !existing.has(shipment.trackingNumber));

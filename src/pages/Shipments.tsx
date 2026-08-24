@@ -288,6 +288,13 @@ export function ShipmentsPage() {
     let commandResult;
     if (activeAction === 'assign') {
       commandResult = await delivery.execute({ type: 'shipment/assignDriver', shipmentIds: [selected.id], driverId: payload.driverId });
+    } else if (activeAction === 'editFee') {
+      commandResult = await delivery.execute({
+        type: 'shipment/overrideFee',
+        shipmentId: selected.id,
+        deliveryFee: Number(payload.deliveryFee),
+        reason: payload.reason || 'تعديل رسوم الشحن',
+      });
     } else if (activeAction === 'settlement') {
       commandResult = await delivery.execute({ type: 'shipment/requestSettlement', shipmentIds: [selected.id] });
     }

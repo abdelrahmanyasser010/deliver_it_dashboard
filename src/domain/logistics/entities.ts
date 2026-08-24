@@ -139,6 +139,9 @@ export interface Shipment {
   childShipmentIds?: string[];
   deliveryProof?: DeliveryProof;
   merchantVisibleStatus?: string;
+  weightKg?: number;
+  feeOverrideReason?: string;
+  originalDeliveryFee?: number;
   pricingSnapshot?: {
     shippingFee: number;
     returnFeeMode: 'disabled' | 'fixed' | 'percentage';

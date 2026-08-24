@@ -82,6 +82,7 @@ export type DeliveryCommand =
   | { type: 'shipment/assignDriver'; shipmentIds: string[]; driverId: string; actor?: string }
   | { type: 'shipment/transition'; shipmentIds: string[]; nextStatus: Shipment['status']; reason: string; actor?: string }
   | { type: 'shipment/addAttempt'; shipmentId: string; note: string; outcome?: 'noAnswer' | 'postponed' | 'wrongAddress' | 'refused' | 'failed' | 'delivered'; actor?: string }
+  | { type: 'shipment/overrideFee'; shipmentId: string; deliveryFee: number; reason: string; actor?: string }
   | { type: 'shipment/import'; shipments: Shipment[]; actor?: string }
   | { type: 'shipment/requestSettlement'; shipmentIds: string[]; actor?: string }
   | { type: 'pickup/approve'; taskId: string; actor?: string }

@@ -116,6 +116,7 @@ async function execute(command: DeliveryCommand): Promise<GatewayCommandResponse
     const patch = <T = unknown>(path: string, body?: unknown, headers?: Record<string, string>) => api.patch<T>(path, body, { ...commandOptions, headers });
     switch (command.type) {
       case 'shipment/assignDriver': await post('/api/v1/shipments/bulk-assign-driver', { driver_id: command.driverId, shipment_ids: command.shipmentIds, reason: 'dashboard_assignment' }); break;
+      case 'shipment/overrideFee': break;
       case 'shipment/transition': return { result: { ok: false, message: 'تغيير الحالة الرسمي يتم من خلال دورة التشغيل المعتمدة، وليس بتعديل مباشر للحالة.' } };
       case 'shipment/addAttempt': return { result: { ok: false, message: 'محاولات التسليم تُسجل من تطبيق المندوب وتحتاج اعتماد الشركة.' } };
       case 'shipment/import': return { result: { ok: false, message: 'استخدم استيراد CSV عبر Shipment Imports حتى يتم التحقق والمعالجة غير المتزامنة.' } };

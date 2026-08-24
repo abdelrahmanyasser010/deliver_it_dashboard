@@ -9,6 +9,14 @@ export interface DeliveryPolicySettings {
   requireCompanyApprovalForDriverUpdates: boolean;
 }
 
+export interface GovernorateRate {
+  id: string;
+  governorate: string;
+  deliveryFee: number;
+  returnFee: number;
+  estimatedDays: number;
+}
+
 export interface PricingPolicySettings {
   returnFeeMode: FeeMode;
   returnFeeValue: number;
@@ -25,7 +33,25 @@ export interface PricingPolicySettings {
   taxableReturnFee: boolean;
   taxableExtraAttemptFee: boolean;
   taxableCollectionFee: boolean;
+  baseWeightKg: number;
+  extraWeightKgFee: number;
+  pickupFreeThreshold: number;
+  pickupFeeUnderThreshold: number;
+  driverPickupReward: number;
+  governorateRates: GovernorateRate[];
 }
+
+export const defaultGovernorateRates: GovernorateRate[] = [
+  { id: 'gov-cairo', governorate: 'القاهرة', deliveryFee: 45, returnFee: 25, estimatedDays: 1 },
+  { id: 'gov-giza', governorate: 'الجيزة', deliveryFee: 45, returnFee: 25, estimatedDays: 1 },
+  { id: 'gov-alex', governorate: 'الإسكندرية', deliveryFee: 60, returnFee: 30, estimatedDays: 2 },
+  { id: 'gov-qalyubia', governorate: 'القليوبية', deliveryFee: 50, returnFee: 25, estimatedDays: 1 },
+  { id: 'gov-delta', governorate: 'الدلتا (المنوفية، الغربية، الشرقية، الدقهلية، البحيرة، كفر الشيخ)', deliveryFee: 65, returnFee: 35, estimatedDays: 2 },
+  { id: 'gov-canal', governorate: 'مدن القناة (السويس، الإسماعيلية، بورسعيد)', deliveryFee: 70, returnFee: 35, estimatedDays: 2 },
+  { id: 'gov-upper', governorate: 'شمال الصعيد (الفيوم، بني سويف، المنيا)', deliveryFee: 75, returnFee: 40, estimatedDays: 2 },
+  { id: 'gov-deep-upper', governorate: 'جنوب الصعيد (أسيوط، سوهاج، قنا، الأقصر، أسوان)', deliveryFee: 90, returnFee: 45, estimatedDays: 3 },
+  { id: 'gov-remote', governorate: 'المناطق النائية والحدودية (البحر الأحمر، الوادي الجديد، مطروح، سيناء)', deliveryFee: 110, returnFee: 55, estimatedDays: 4 },
+];
 
 export interface ProofPolicySettings {
   recipientNameRequired: boolean;
@@ -104,6 +130,12 @@ export const defaultTenantOperationalSettings: TenantOperationalSettings = {
     taxableReturnFee: true,
     taxableExtraAttemptFee: true,
     taxableCollectionFee: true,
+    baseWeightKg: 3,
+    extraWeightKgFee: 10,
+    pickupFreeThreshold: 5,
+    pickupFeeUnderThreshold: 30,
+    driverPickupReward: 20,
+    governorateRates: defaultGovernorateRates,
   },
   proof: {
     recipientNameRequired: true,

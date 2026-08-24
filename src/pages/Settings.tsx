@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { Banknote, Camera, Printer, Save, Settings2 } from 'lucide-react';
+import { Banknote, Camera, MapPin, Plus, Printer, RotateCcw, Save, Scale, Settings2, Trash2 } from 'lucide-react';
 import { ErrorState, PageSkeleton } from '../components/AsyncState';
 import { useDeliveryData } from '../context/DeliveryDataContext';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { defaultTenantOperationalSettings, type FeeMode, type PricingPolicySettings, type PrintingSettings, type ProofPolicySettings } from '../domain/settings/entities';
+import { defaultGovernorateRates, defaultTenantOperationalSettings, type FeeMode, type GovernorateRate, type PricingPolicySettings, type PrintingSettings, type ProofPolicySettings } from '../domain/settings/entities';
 import './Settings.css';
 
-type SettingsTab = 'pricing' | 'proof' | 'printing';
+type SettingsTab = 'rates' | 'weight_pickup' | 'pricing' | 'proof' | 'printing';
 const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: typeof Banknote }> = [
+  { id: 'rates', label: 'أسعار المحافظات والمدن', description: 'جدول أسعار الشحن والمرتجع لكل نطاق جغرافي.', icon: MapPin },
+  { id: 'weight_pickup', label: 'الأوزان واستلام الشحنات (Pickup)', description: 'الكيلو الزائد، شروط البيك أب المجاني، وأجر المندوب.', icon: Scale },
   { id: 'pricing', label: 'الرسوم والضرائب', description: 'المرتجع والمحاولات والتحصيل والضريبة.', icon: Banknote },
   { id: 'proof', label: 'إثبات التسليم', description: 'الصورة واسم المستلم والموقع.', icon: Camera },
   { id: 'printing', label: 'الطباعة والبوليصة', description: 'المقاس والنسخ والبيانات الظاهرة.', icon: Printer },
@@ -16,19 +18,18 @@ const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: t
 export function SettingsPage() {
   const { state, isLoading, error, refetch, execute } = useDeliveryData();
   const { showToast } = useWorkspace();
-  const [activeTab, setActiveTab] = useState<SettingsTab>('pricing');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('rates');
   const [pricing, setPricing] = useState<PricingPolicySettings>(() => structuredClone(state?.settings.pricing ?? defaultTenantOperationalSettings.pricing));
   const [proof, setProof] = useState<ProofPolicySettings>(() => structuredClone(state?.settings.proof ?? defaultTenantOperationalSettings.proof));
   const [printing, setPrinting] = useState<PrintingSettings>(() => structuredClone(state?.settings.printing ?? defaultTenantOperationalSettings.printing));
   const [saving, setSaving] = useState(false);
-
 
   if (isLoading) return <PageSkeleton rows={5} />;
   if (error || !state) return <ErrorState message={error ?? 'تعذر تحميل إعدادات الشركة.'} onRetry={refetch} />;
 
   const save = async () => {
     setSaving(true);
-    const command = activeTab === 'pricing'
+    const command = ['rates', 'weight_pickup', 'pricing'].includes(activeTab)
       ? { type: 'settings/updatePricing' as const, policy: pricing }
       : activeTab === 'proof'
         ? { type: 'settings/updateProof' as const, policy: proof }
@@ -42,10 +43,10 @@ export function SettingsPage() {
     <header className="settings-hero glass-card">
       <div>
         <p className="page-kicker">سياسات شركة الشحن</p>
-        <h2>إعدادات التشغيل والرسوم</h2>
+        <h2>إعدادات التشغيل والتسعير والسياسات</h2>
       </div>
       <div className="settings-hero-actions">
-        <button className="btn-primary" disabled={saving} onClick={() => void save()}><Save size={15}/>{saving ? 'جارٍ الحفظ…' : 'حفظ القسم'}</button>
+        <button className="btn-primary" disabled={saving} onClick={() => void save()}><Save size={15}/>{saving ? 'جارٍ الحفظ…' : 'حفظ التغييرات'}</button>
       </div>
     </header>
 
@@ -55,6 +56,8 @@ export function SettingsPage() {
       </nav>
 
       <div className="settings-content glass-card">
+        {activeTab === 'rates' && <GovernorateRatesSettings value={pricing} onChange={setPricing}/>}
+        {activeTab === 'weight_pickup' && <WeightAndPickupSettings value={pricing} onChange={setPricing}/>}
         {activeTab === 'pricing' && <PricingSettings value={pricing} onChange={setPricing}/>} 
         {activeTab === 'proof' && <ProofSettings value={proof} onChange={setProof}/>} 
         {activeTab === 'printing' && <PrintingSettingsPanel value={printing} onChange={setPrinting}/>}
@@ -79,9 +82,192 @@ function FeeEditor({ title, mode, value, onMode, onValue }: { title: string; mod
   return <div className="fee-editor"><strong>{title}</strong><div className="fee-editor-row"><select value={mode} onChange={(event) => onMode(event.target.value as FeeMode)}><option value="disabled">بدون رسوم</option><option value="fixed">مبلغ ثابت</option><option value="percentage">نسبة مئوية</option></select><div><input type="number" min="0" value={value} disabled={mode === 'disabled'} onChange={(event) => onValue(Number(event.target.value))}/><span>{mode === 'percentage' ? '٪' : 'ج.م'}</span></div></div></div>;
 }
 
+function GovernorateRatesSettings({ value, onChange }: { value: PricingPolicySettings; onChange: (value: PricingPolicySettings) => void }) {
+  const rates = value.governorateRates?.length ? value.governorateRates : defaultGovernorateRates;
+
+  const updateRate = (id: string, field: keyof GovernorateRate, val: string | number) => {
+    const next = rates.map((r) => r.id === id ? { ...r, [field]: val } : r);
+    onChange({ ...value, governorateRates: next });
+  };
+
+  const addRate = () => {
+    const newRate: GovernorateRate = {
+      id: `gov-custom-${Date.now()}`,
+      governorate: 'نطاق جديد',
+      deliveryFee: 50,
+      returnFee: 25,
+      estimatedDays: 1,
+    };
+    onChange({ ...value, governorateRates: [...rates, newRate] });
+  };
+
+  const removeRate = (id: string) => {
+    onChange({ ...value, governorateRates: rates.filter((r) => r.id !== id) });
+  };
+
+  const resetToDefaults = () => {
+    onChange({ ...value, governorateRates: defaultGovernorateRates });
+  };
+
+  return <>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+      <SectionHeading
+        title="جدول أسعار المحافظات والنطاقات الجغرافية"
+        description="الأسعار العامة المعتمدة لشركة الشحن؛ تطبق افتراضيًا على الشحنات ما لم يُخصص للتاجر عقد أسعار خاص."
+      />
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <button className="outline-btn" onClick={resetToDefaults} title="استعادة الأسعار الافتراضية"><RotateCcw size={14}/> استعادة الافتراضي</button>
+        <button className="btn-primary" onClick={addRate}><Plus size={14}/> إضافة نطاق جديد</button>
+      </div>
+    </div>
+
+    <div className="table-wrapper">
+      <table className="data-table compact-table">
+        <thead>
+          <tr>
+            <th>المحافظة / النطاق الجغرافي</th>
+            <th style={{ width: '130px' }}>سعر الشحن (ج.م)</th>
+            <th style={{ width: '130px' }}>رسوم المرتجع (ج.م)</th>
+            <th style={{ width: '130px' }}>المدة المتوقعة (أيام)</th>
+            <th style={{ width: '60px', textAlign: 'center' }}>إجراء</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rates.map((rate) => (
+            <tr key={rate.id}>
+              <td>
+                <input
+                  className="input-glass"
+                  style={{ width: '100%', padding: '0.4rem 0.6rem' }}
+                  value={rate.governorate}
+                  onChange={(e) => updateRate(rate.id, 'governorate', e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  className="input-glass"
+                  style={{ width: '100%', padding: '0.4rem 0.6rem' }}
+                  type="number"
+                  min="0"
+                  value={rate.deliveryFee}
+                  onChange={(e) => updateRate(rate.id, 'deliveryFee', Number(e.target.value))}
+                />
+              </td>
+              <td>
+                <input
+                  className="input-glass"
+                  style={{ width: '100%', padding: '0.4rem 0.6rem' }}
+                  type="number"
+                  min="0"
+                  value={rate.returnFee}
+                  onChange={(e) => updateRate(rate.id, 'returnFee', Number(e.target.value))}
+                />
+              </td>
+              <td>
+                <input
+                  className="input-glass"
+                  style={{ width: '100%', padding: '0.4rem 0.6rem' }}
+                  type="number"
+                  min="1"
+                  max="14"
+                  value={rate.estimatedDays}
+                  onChange={(e) => updateRate(rate.id, 'estimatedDays', Number(e.target.value))}
+                />
+              </td>
+              <td style={{ textAlign: 'center' }}>
+                <button
+                  className="btn-icon sm danger-link"
+                  onClick={() => removeRate(rate.id)}
+                  title="حذف هذا النطاق"
+                >
+                  <Trash2 size={14}/>
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <aside className="settings-note">أي تعديل في هذه القائمة يطبّق على الشحنات المستقبلية، ولا يغيّر أسعار الشحنات أو التسويات المحسوبة مسبقًا.</aside>
+  </>;
+}
+
+function WeightAndPickupSettings({ value, onChange }: { value: PricingPolicySettings; onChange: (value: PricingPolicySettings) => void }) {
+  const baseWeight = value.baseWeightKg ?? 3;
+  const extraKgFee = value.extraWeightKgFee ?? 10;
+  const freeThreshold = value.pickupFreeThreshold ?? 5;
+  const pickupFee = value.pickupFeeUnderThreshold ?? 30;
+  const driverReward = value.driverPickupReward ?? 20;
+
+  return <>
+    <SectionHeading
+      title="سياسة الأوزان واستلام الشحنات (Pickup)"
+      description="تحديد شروط الوزن المسموح، تسعير الكيلو الإضافي، وشروط استلام الشحنات المجانية ومكافأة المندوب."
+    />
+
+    <h4 style={{ margin: '1.2rem 0 0.5rem', fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+      ⚖️ سياسة الأوزان والكيلو الزائد (Weight Policy)
+    </h4>
+    <div className="settings-number-grid">
+      <NumberField
+        label="الوزن الأساسي المسموح (شامل في سعر الشحن)"
+        value={baseWeight}
+        min={1}
+        max={50}
+        suffix="كجم"
+        onChange={(val) => onChange({ ...value, baseWeightKg: val })}
+      />
+      <NumberField
+        label="سعر الكيلو الزائد فوق الوزن المسموح"
+        value={extraKgFee}
+        min={0}
+        max={200}
+        suffix="ج.م / كجم"
+        onChange={(val) => onChange({ ...value, extraWeightKgFee: val })}
+      />
+    </div>
+    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+      💡 <strong>مثال:</strong> شحنة وزنها 5 كجم سيتم احتساب أول {baseWeight} كجم بالسعر الأساسي، ويضاف (2 كجم × {extraKgFee} ج.م = {2 * extraKgFee} ج.م) تكلفة وزن إضافي.
+    </p>
+
+    <h4 style={{ margin: '1.2rem 0 0.5rem', fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+      🛵 سياسة الاستلام من التاجر (Pickup Policy)
+    </h4>
+    <div className="settings-number-grid">
+      <NumberField
+        label="الحد الأدنى لعدد الشحنات للبيك أب المجاني"
+        value={freeThreshold}
+        min={1}
+        max={100}
+        suffix="شحنة"
+        onChange={(val) => onChange({ ...value, pickupFreeThreshold: val })}
+      />
+      <NumberField
+        label="رسوم الاستلام للدفعات الصغيرة (أقل من الحد الأدنى)"
+        value={pickupFee}
+        min={0}
+        max={500}
+        suffix="ج.م"
+        onChange={(val) => onChange({ ...value, pickupFeeUnderThreshold: val })}
+      />
+      <NumberField
+        label="أجر / عمولة مندوب الاستلام عن المشوار"
+        value={driverReward}
+        min={0}
+        max={500}
+        suffix="ج.م"
+        onChange={(val) => onChange({ ...value, driverPickupReward: val })}
+      />
+    </div>
+    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+      💡 <strong>آلية العمل:</strong> إذا سلّم التاجر {freeThreshold} شحنات فأكثر فالاستلام مجاني تماماً؛ وإذا سلّم أقل يُخصم {pickupFee} ج.م رسوم بيك أب. ويتقاضى المندوب {driverReward} ج.م عن المشوار في الحالتين.
+    </p>
+  </>;
+}
+
 function PricingSettings({ value, onChange }: { value: PricingPolicySettings; onChange: (value: PricingPolicySettings) => void }) {
   return <>
-    <SectionHeading title="سياسة الرسوم والضرائب" description="القيم الافتراضية بلا رسوم إضافية وبلا ضريبة، ويمكن للشركة تفعيلها من هنا لاحقًا."/>
+    <SectionHeading title="سياسة الرسوم والضرائب الإضافية" description="القيم الافتراضية بلا رسوم إضافية وبلا ضريبة، ويمكن للشركة تفعيلها من هنا لاحقًا."/>
     <div className="fee-grid">
       <FeeEditor title="رسوم المرتجع" mode={value.returnFeeMode} value={value.returnFeeValue} onMode={(returnFeeMode) => onChange({ ...value, returnFeeMode })} onValue={(returnFeeValue) => onChange({ ...value, returnFeeValue })}/>
       <FeeEditor title="رسوم المحاولة الإضافية" mode={value.extraAttemptFeeMode} value={value.extraAttemptFeeValue} onMode={(extraAttemptFeeMode) => onChange({ ...value, extraAttemptFeeMode })} onValue={(extraAttemptFeeValue) => onChange({ ...value, extraAttemptFeeValue })}/>
@@ -125,7 +311,6 @@ function ProofSettings({ value, onChange }: { value: ProofPolicySettings; onChan
   </>;
 }
 
-
 function PrintingSettingsPanel({ value, onChange }: { value: PrintingSettings; onChange: (value: PrintingSettings) => void }) {
   return <>
     <SectionHeading title="إعدادات الطباعة والبوليصة" description="تحدد المعاينة الافتراضية فقط؛ المستخدم يظل قادرًا على تغيير المقاس والنسخ قبل الطباعة."/>
@@ -139,3 +324,4 @@ function PrintingSettingsPanel({ value, onChange }: { value: PrintingSettings; o
     </div>
   </>;
 }
+
