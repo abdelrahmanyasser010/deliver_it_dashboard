@@ -179,14 +179,16 @@
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: 120;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0.875rem 1.5rem;
   border-radius: 0 !important;
   border: none;
-  border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+  background: #0B101E !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
   margin-bottom: 0;
 }
 
