@@ -12,7 +12,15 @@ import type { Driver } from '../domain/logistics/entities';
 import { formatAge, formatCurrency, formatDateTime } from '../utils/helpers';
 import './Drivers.css';
 
-type DriverDialog = { type: 'create' } | { type: 'edit'; driver: Driver } | { type: 'reset'; driver: Driver } | { type: 'suspend'; driver: Driver } | { type: 'reactivate'; driver: Driver } | { type: 'archive'; driver: Driver } | null;
+type DriverDialog =
+  | { type: 'create' }
+  | { type: 'edit'; driver: Driver }
+  | { type: 'reset'; driver: Driver }
+  | { type: 'suspend'; driver: Driver }
+  | { type: 'reactivate'; driver: Driver }
+  | { type: 'archive'; driver: Driver }
+  | { type: 'remit'; driver: Driver }
+  | null;
 type SuspendPolicy = 'complete_current_tasks' | 'withdraw_and_reassign' | 'immediate_stop';
 interface DriverFormState {
   name: string;
@@ -249,13 +257,47 @@ export function DriversPage() {
               </td></tr>; })}</tbody></table></div>
     </section>
 
-    {profile && <DriverProfile driver={profile} initialTab={profileTab} areaNames={areaNames(profile)} branchName={profile.branchId ? (branchNameById.get(profile.branchId) ?? profile.branchName) : profile.branchName} shipments={(state?.shipments ?? []).filter((shipment) => shipment.driverId === profile.id)} onClose={closeProfile} onEdit={canUpdateDriver && profile.accountStatus !== 'archived' ? () => { closeProfile(); openEdit(profile); } : undefined} onRemit={() => { closeProfile(); navigate('/accounting'); }} onReset={canResetDriverAccess && profile.accountStatus !== 'archived' ? () => setDialog({ type: 'reset', driver: profile }) : undefined} onSuspend={canSuspendDriver && profile.accountStatus === 'active' ? () => setDialog({ type: 'suspend', driver: profile }) : undefined} onReactivate={canSuspendDriver && (profile.accountStatus === 'suspended' || profile.accountStatus === 'restricted') ? () => setDialog({ type: 'reactivate', driver: profile }) : undefined} onArchive={canArchiveDriver && profile.accountStatus !== 'archived' ? () => setDialog({ type: 'archive', driver: profile }) : undefined}/>} 
+    {profile && (
+      <DriverProfile
+        driver={profile}
+        initialTab={profileTab}
+        areaNames={areaNames(profile)}
+        branchName={profile.branchId ? (branchNameById.get(profile.branchId) ?? profile.branchName) : profile.branchName}
+        shipments={(state?.shipments ?? []).filter((shipment) => shipment.driverId === profile.id)}
+        onClose={closeProfile}
+        onEdit={canUpdateDriver && profile.accountStatus !== 'archived' ? () => { closeProfile(); openEdit(profile); } : undefined}
+        onRemit={() => setDialog({ type: 'remit', driver: profile })}
+        onReset={canResetDriverAccess && profile.accountStatus !== 'archived' ? () => setDialog({ type: 'reset', driver: profile }) : undefined}
+        onSuspend={canSuspendDriver && profile.accountStatus === 'active' ? () => setDialog({ type: 'suspend', driver: profile }) : undefined}
+        onReactivate={canSuspendDriver && (profile.accountStatus === 'suspended' || profile.accountStatus === 'restricted') ? () => setDialog({ type: 'reactivate', driver: profile }) : undefined}
+        onArchive={canArchiveDriver && profile.accountStatus !== 'archived' ? () => setDialog({ type: 'archive', driver: profile }) : undefined}
+      />
+    )}
     {dialog?.type === 'create' && <DriverFormDialog title="إضافة مندوب جديد" form={form} branches={branchOptions} zones={zones} canSelectBranch={canReadBranches} onChange={setForm} onCancel={closeDialog} onSubmit={() => void saveDriver()} submitLabel="إضافة المندوب"/>}
     {dialog?.type === 'edit' && <DriverFormDialog title={`تعديل ${dialog.driver.name}`} form={form} branches={branchOptions} zones={zones} canSelectBranch={canReadBranches} onChange={setForm} onCancel={closeDialog} onSubmit={() => void saveDriver(dialog.driver)} submitLabel="حفظ التعديل"/>}
     {dialog?.type === 'reset' && <ResetAccessDialog driver={dialog.driver} onCancel={closeDialog} onSubmit={async (invalidateSessions, forcePasswordChange) => { const result = await run({ type: 'driver/resetAccess', driverId: dialog.driver.id, invalidateSessions, forcePasswordChange }); if (result.ok) closeDialog(); }}/>} 
     {dialog?.type === 'suspend' && <SuspendDriverDialog driver={dialog.driver} onCancel={closeDialog} onSubmit={async (reason, policy) => { const result = await run({ type: 'driver/suspend', driverId: dialog.driver.id, reason, policy }); if (result.ok) closeDialog(); }}/>} 
     {dialog?.type === 'reactivate' && <ReactivateDriverDialog driver={dialog.driver} onCancel={closeDialog} onSubmit={async (reason) => { const result = await run({ type: 'driver/reactivate', driverId: dialog.driver.id, reason }); if (result.ok) closeDialog(); }}/>} 
     {dialog?.type === 'archive' && <ArchiveDriverDialog driver={dialog.driver} onCancel={closeDialog} onSubmit={async (reason) => { const result = await run({ type: 'driver/archive', driverId: dialog.driver.id, reason }); if (result.ok) closeDialog(); }}/>} 
+    {dialog?.type === 'remit' && (
+      <RemitDriverDialog
+        driver={dialog.driver}
+        shipments={(state?.shipments ?? []).filter((shipment) => shipment.driverId === dialog.driver.id)}
+        onCancel={closeDialog}
+        onSubmit={async (remits) => {
+          for (const remit of remits) {
+            await run({
+              type: 'finance/reconcileShipment',
+              shipmentId: remit.shipmentId,
+              remittedCash: remit.remittedCash,
+              note: remit.note,
+            });
+          }
+          closeDialog();
+          showToast(`تم توريد وتقفيل عهدة ${dialog.driver.name} بنجاح!`, 'success');
+        }}
+      />
+    )} 
   </div>;
 }
 
@@ -467,5 +509,132 @@ function ArchiveDriverDialog({ driver,onCancel,onSubmit }:{driver:Driver;onCance
 
 function ProfileMetric({ icon,label,value,detail }:{icon:React.ReactNode;label:string;value:string;detail:string}) {
   return <div className="driver-profile-metric glass-card"><span>{icon}</span><div><small>{label}</small><strong>{value}</strong><em>{detail}</em></div></div>;
+}
+
+function RemitDriverDialog({
+  driver,
+  shipments,
+  onCancel,
+  onSubmit,
+}: {
+  driver: Driver;
+  shipments: Array<{ id: string; status: string; collectedCash: number; remittedCash: number }>;
+  onCancel: () => void;
+  onSubmit: (shipmentRemits: Array<{ shipmentId: string; remittedCash: number; note: string }>) => Promise<void>;
+}) {
+  const pendingRows = shipments.filter((s) => s.collectedCash > s.remittedCash);
+  const totalPending = pendingRows.reduce((sum, s) => sum + (s.collectedCash - s.remittedCash), 0);
+  const [actualReceived, setActualReceived] = useState(totalPending);
+  const [note, setNote] = useState(`توريد عهدة كاش - ${driver.name}`);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleConfirm = async () => {
+    setSubmitting(true);
+    try {
+      const remits = pendingRows.map((s) => ({
+        shipmentId: s.id,
+        remittedCash: s.collectedCash,
+        note: note.trim() || `توريد عهدة ${driver.name}`,
+      }));
+      await onSubmit(remits);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={`تقفيل وتوريد عهدة ${driver.name}`}
+      description="استلام كاش التحصيل COD من المندوب وإيداعه في الخزينة العامة للشركة."
+      onClose={onCancel}
+      footer={
+        <>
+          <button className="outline-btn" onClick={onCancel} disabled={submitting}>
+            إلغاء
+          </button>
+          <button
+            className="btn-primary"
+            style={{ background: 'linear-gradient(135deg, #10B981, #059669)' }}
+            disabled={submitting || !pendingRows.length}
+            onClick={handleConfirm}
+          >
+            <Banknote size={15} /> {submitting ? 'جارٍ التوريد…' : `تأكيد استلام ${formatCurrency(actualReceived)} وإيداعها`}
+          </button>
+        </>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="report-kpi-grid">
+          <div className="report-kpi glass-card">
+            <div>
+              <p className="report-kpi-label">عدد الشحنات المحصلة</p>
+              <p className="report-kpi-value">{pendingRows.length.toLocaleString('ar-EG')}</p>
+            </div>
+          </div>
+          <div className="report-kpi glass-card" style={{ borderColor: 'rgba(16, 185, 129, 0.4)' }}>
+            <div>
+              <p className="report-kpi-label">إجمالي عهدة الكاش المعلقة</p>
+              <p className="report-kpi-value" style={{ color: '#34D399' }}>
+                {formatCurrency(totalPending)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <label className="form-field">
+          <span>المبلغ المستلم فعلياً من المندوب (ج.م)</span>
+          <input
+            type="number"
+            className="input-glass"
+            value={actualReceived}
+            onChange={(e) => setActualReceived(Number(e.target.value))}
+          />
+        </label>
+
+        <label className="form-field">
+          <span>ملاحظة أو رقم إيصال التوريد للخزينة</span>
+          <input
+            className="input-glass"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="مثال: توريد وردية المساء - إيصال خزينة #482"
+          />
+        </label>
+
+        <div className="table-wrapper" style={{ maxHeight: '180px', overflowY: 'auto' }}>
+          <table className="data-table compact-table">
+            <thead>
+              <tr>
+                <th>رقم الشحنة</th>
+                <th>المحصل</th>
+                <th>المورد</th>
+                <th>المتبقي للتقفيل</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingRows.length ? (
+                pendingRows.map((s) => (
+                  <tr key={s.id}>
+                    <td className="tracking-num">{s.id}</td>
+                    <td>{formatCurrency(s.collectedCash)}</td>
+                    <td>{formatCurrency(s.remittedCash)}</td>
+                    <td className="amount" style={{ color: '#34D399', fontWeight: 700 }}>
+                      {formatCurrency(s.collectedCash - s.remittedCash)}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                    لا توجد عهدة كاش معلقة لهذا المندوب.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Modal>
+  );
 }
 
