@@ -374,6 +374,27 @@
   grid-column: span 2;
 }
 
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 0 0.75rem;
+  height: 40px;
+}
+
+.search-field input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #FFFFFF;
+  font-family: inherit;
+  font-size: 0.82rem;
+}
+
 .statement-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
