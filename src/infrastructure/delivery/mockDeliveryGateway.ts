@@ -166,7 +166,24 @@ async function createBootstrap(): Promise<DeliveryState> {
   return base;
 }
 
+let mockCachedState: DeliveryState | null = null;
+
 export const mockDeliveryGateway: DeliveryGateway = {
-  async load() { await delay(180); return createBootstrap(); },
-  async execute(command: DeliveryCommand): Promise<GatewayCommandResponse> { void command; await delay(80); return { result: { ok: true, message: 'تم قبول الأمر التجريبي.' }, applyLocally: true }; },
+  async load() {
+    if (!mockCachedState) {
+      mockCachedState = await createBootstrap();
+    }
+    await delay(120);
+    return structuredClone(mockCachedState);
+  },
+  async execute(command: DeliveryCommand): Promise<GatewayCommandResponse> {
+    if (!mockCachedState) {
+      mockCachedState = await createBootstrap();
+    }
+    const { reduceDeliveryCommand } = await import('../../application/delivery/reducer');
+    const { state: nextState, result } = reduceDeliveryCommand(mockCachedState, command);
+    mockCachedState = nextState;
+    await delay(90);
+    return { result, projection: structuredClone(nextState), applyLocally: true };
+  },
 };
