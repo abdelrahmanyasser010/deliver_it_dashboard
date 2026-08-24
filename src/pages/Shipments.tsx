@@ -303,19 +303,19 @@ export function ShipmentsPage() {
 
   const saveCurrentView = () => {
     const name = viewName.trim();
-    if (!name) { setToast('اكتب اسمًا للـView أولًا.'); return; }
+    if (!name) { setToast('اكتب اسمًا للفلتر أولًا.'); return; }
     const nextView: SavedShipmentView = { id: `view-${Date.now()}`, name, query, statusFilter, viewFilter, governorateFilter, driverFilter, merchantFilter, priorityFilter, columns: visibleColumns };
     const next = [nextView, ...savedViews].slice(0, 10);
     setSavedViews(next);
     localStorage.setItem('deliver-it-shipment-views', JSON.stringify(next));
-    setViewName(''); setSaveViewOpen(false); setToast(`تم حفظ View: ${name}`);
+    setViewName(''); setSaveViewOpen(false); setToast(`تم حفظ الفلتر: ${name}`);
   };
 
   const applySavedView = (id: string) => {
     const view = savedViews.find((item) => item.id === id);
     if (!view) return;
     setQuery(view.query); setStatusFilter(view.statusFilter); setViewFilter(view.viewFilter); setGovernorateFilter(view.governorateFilter); setDriverFilter(view.driverFilter); setMerchantFilter(view.merchantFilter); setPriorityFilter(view.priorityFilter); persistColumns(view.columns);
-    setToast(`تم تطبيق View: ${view.name}`);
+    setToast(`تم تطبيق الفلتر: ${view.name}`);
   };
 
   const deleteSavedView = (id: string) => {
@@ -346,7 +346,7 @@ export function ShipmentsPage() {
         </div>
         <div className="heading-actions">
           <button className="outline-btn" onClick={() => setColumnsOpen(true)}><Columns3 size={15} /> الأعمدة</button>
-          <button className="outline-btn" onClick={() => setSaveViewOpen(true)}><BookmarkPlus size={15} /> حفظ View</button>
+          <button className="outline-btn" onClick={() => setSaveViewOpen(true)}><BookmarkPlus size={15} /> حفظ الفلتر الحالي</button>
           <button className="outline-btn" onClick={exportFilteredShipments}><FileSpreadsheet size={15} /> تصدير Excel</button>
           <button className="btn-primary" disabled={importBusy} onClick={() => fileInputRef.current?.click()}><Upload size={15} />{importBusy ? 'جارٍ الاستيراد…' : 'استيراد CSV'}</button>
           <input ref={fileInputRef} className="visually-hidden" type="file" accept=".csv,text/csv" onChange={(event) => { const file = event.target.files?.[0]; if (file) readShipmentSheet(file); event.currentTarget.value = ''; }} />
@@ -374,7 +374,7 @@ export function ShipmentsPage() {
         <select className="input-glass" value={governorateFilter} onChange={(event) => setGovernorateFilter(event.target.value)} aria-label="فلتر المحافظة"><option value="all">كل المحافظات</option>{filterOptions.governorates.map((item) => <option key={item}>{item}</option>)}</select>
         <select className="input-glass" value={driverFilter} onChange={(event) => setDriverFilter(event.target.value)} aria-label="فلتر المندوب"><option value="all">كل المناديب</option><option value="unassigned">غير معين</option>{filterOptions.shipmentDrivers.map((item) => <option key={item}>{item}</option>)}</select>
         <select className="input-glass" value={merchantFilter} onChange={(event) => setMerchantFilter(event.target.value)} aria-label="فلتر التاجر"><option value="all">كل التجار</option>{filterOptions.merchants.map((item) => <option key={item}>{item}</option>)}</select>
-        <select className="input-glass saved-view-select" defaultValue="" onChange={(event) => { applySavedView(event.target.value); event.currentTarget.value = ''; }} aria-label="تطبيق View محفوظ"><option value="">Views محفوظة ({formatNumber(savedViews.length)})</option>{savedViews.map((view) => <option key={view.id} value={view.id}>{view.name}</option>)}</select>
+        <select className="input-glass saved-view-select" defaultValue="" onChange={(event) => { applySavedView(event.target.value); event.currentTarget.value = ''; }} aria-label="تطبيق فلتر محفوظ"><option value="">الفلاتر المحفوظة ({formatNumber(savedViews.length)})</option>{savedViews.map((view) => <option key={view.id} value={view.id}>{view.name}</option>)}</select>
         <select className="input-glass" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} aria-label="فلتر الأولوية"><option value="all">كل الأولويات</option><option value="urgent">عاجل</option><option value="high">مهم</option><option value="normal">طبيعي</option></select>
         <button className="outline-btn compact-btn" onClick={clearFilters} disabled={activeFilterCount === 0}><FilterX size={15} /> مسح الفلاتر ({formatNumber(activeFilterCount)})</button>
       </section>
@@ -458,7 +458,7 @@ export function ShipmentsPage() {
       {csvPreview && <CsvPreviewDialog preview={csvPreview} onCancel={() => setCsvPreview(null)} onConfirm={confirmImport} />}
 
       {columnsOpen && <Modal title="تخصيص أعمدة الجدول" description="اختر المعلومات التي تظهر في جدول الشحنات. يتم حفظ الاختيار على هذا الجهاز." onClose={() => setColumnsOpen(false)} footer={<><button className="outline-btn" onClick={() => persistColumns(defaultColumns)}>إظهار الكل</button><button className="btn-primary" onClick={() => setColumnsOpen(false)}>تم</button></>}><div className="column-picker">{shipmentColumns.map((column) => <label key={column.id}><input type="checkbox" checked={visibleColumns.includes(column.id)} onChange={() => persistColumns(visibleColumns.includes(column.id) ? visibleColumns.filter((item) => item !== column.id) : [...visibleColumns, column.id])}/><span>{column.label}</span></label>)}</div></Modal>}
-      {saveViewOpen && <Modal title="حفظ View جديدة" description="سيتم حفظ البحث والفلاتر والأعمدة الحالية لفتحها لاحقًا بضغطة واحدة." onClose={() => setSaveViewOpen(false)} footer={<><button className="outline-btn" onClick={() => setSaveViewOpen(false)}>إلغاء</button><button className="btn-primary" onClick={saveCurrentView}>حفظ</button></>}><label className="dialog-field"><span>اسم الـView</span><input className="input-glass" autoFocus value={viewName} onChange={(event) => setViewName(event.target.value)} placeholder="مثال: شحنات الجيزة المتأخرة" /></label>{savedViews.length > 0 && <div className="saved-views-manager"><strong>المحفوظ حاليًا</strong>{savedViews.map((view) => <div key={view.id}><button onClick={() => { applySavedView(view.id); setSaveViewOpen(false); }}>{view.name}</button><button className="danger-link" onClick={() => deleteSavedView(view.id)}>حذف</button></div>)}</div>}</Modal>}
+      {saveViewOpen && <Modal title="حفظ الفلترة الحالية كاختصار" description="سيتم حفظ الفلاتر والبحث والأعمدة المحددة حالياً لتطبيقها بضغطة زر واحدة في أي وقت." onClose={() => setSaveViewOpen(false)} footer={<><button className="outline-btn" onClick={() => setSaveViewOpen(false)}>إلغاء</button><button className="btn-primary" onClick={saveCurrentView}>حفظ الاختصار</button></>}><label className="dialog-field"><span>اسم الفلتر المحفوظ</span><input className="input-glass" autoFocus value={viewName} onChange={(event) => setViewName(event.target.value)} placeholder="مثال: شحنات الجيزة المتأخرة" /></label>{savedViews.length > 0 && <div className="saved-views-manager"><strong>الفلاتر المحفوظة مسبقاً</strong>{savedViews.map((view) => <div key={view.id}><button onClick={() => { applySavedView(view.id); setSaveViewOpen(false); }}>{view.name}</button><button className="danger-link" onClick={() => deleteSavedView(view.id)}>حذف</button></div>)}</div>}</Modal>}
 
 
       {printTargets.length > 0 && <ShipmentLabelsPreview shipments={printTargets} settings={delivery.state?.settings.printing} onClose={() => { setPrintTargets([]); setToast('تم تجهيز البوالص للطباعة.'); }} />}
