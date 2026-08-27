@@ -1,4 +1,4 @@
-# Deliver It Dashboard — Production Handoff
+﻿# FIX 365 Dashboard — Production Handoff
 
 ## 1) حالة النسخة
 
@@ -85,3 +85,4 @@ npm run build
 ## 10) قيد بيئة التسليم الحالية
 
 تعذر تنفيذ `npm ci` في بيئة البناء الحالية لأن الـnpm registry المتاح أعاد 404 للحزمة `zod-validation-error@4.0.2`. لذلك لم يتم الادعاء بتشغيل Vite/Vitest/ESLint فعليًا هنا. تم بدل ذلك تنفيذ parser/import/API-contract/static checks، ويجب أن تكون أوامر القسم السابق Gate إلزاميًا في CI قبل Production.
+

@@ -1,4 +1,4 @@
-# تقرير تطبيق مراجعة v7 على Deliver It Dashboard
+﻿# تقرير تطبيق مراجعة v7 على FIX 365 Dashboard
 
 ## الحالة
 تم تطبيق مراجعات Product/UI/Domain ذات الأولوية على نسخة الداشبورد المرفوعة، مع الحفاظ على بنية المشروع الحالية وعدم ربط Backend حقيقي في هذه النسخة.
@@ -76,3 +76,4 @@ npm run build
 
 ## ملاحظة مهمة
 هذه النسخة ما زالت Frontend/Mock-oriented. القواعد الحساسة مثل الصلاحيات، Allowed Transitions، العزل متعدد الشركات، التسويات المالية، Idempotency، الملفات، الإشعارات وExport Jobs يجب فرضها في Backend أيضاً قبل Production.
+

@@ -3,7 +3,7 @@ const CODE128_PATTERNS = [
 ];
 
 export function Code128Barcode({ value, height = 46 }: { value: string; height?: number }) {
-  const safe = value.toUpperCase().replace(/[^\x20-\x7E]/g, '-').slice(0, 48) || 'DELIVER-IT';
+  const safe = value.toUpperCase().replace(/[^\x20-\x7E]/g, '-').slice(0, 48) || 'FIX-365';
   const codes = [...safe].map((char) => char.charCodeAt(0) - 32);
   let checksum = 104;
   codes.forEach((code, index) => { checksum += code * (index + 1); });

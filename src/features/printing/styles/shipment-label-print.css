@@ -224,7 +224,7 @@
   margin-top: 2px;
 }
 
-/* Details Grid & COD */
+/* Details Grid & Collection */
 .label-details-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

@@ -354,7 +354,7 @@ export function ShipmentsPage() {
         <div className="heading-actions">
           <button className="outline-btn" onClick={() => setColumnsOpen(true)}><Columns3 size={15} /> الأعمدة</button>
           <button className="outline-btn" onClick={() => setSaveViewOpen(true)}><BookmarkPlus size={15} /> حفظ الفلتر الحالي</button>
-          <button className="outline-btn" onClick={exportFilteredShipments}><FileSpreadsheet size={15} /> تصدير Excel</button>
+          <button className="outline-btn" onClick={exportFilteredShipments}><FileSpreadsheet size={15} /> تحميل Excel</button>
           <button className="btn-primary" disabled={importBusy} onClick={() => fileInputRef.current?.click()}><Upload size={15} />{importBusy ? 'جارٍ الاستيراد…' : 'استيراد CSV'}</button>
           <input ref={fileInputRef} className="visually-hidden" type="file" accept=".csv,text/csv" onChange={(event) => { const file = event.target.files?.[0]; if (file) readShipmentSheet(file); event.currentTarget.value = ''; }} />
         </div>
@@ -488,4 +488,3 @@ const viewFilterLabels: Record<ViewFilter, string> = {
   delayed: 'الشحنات المتأخرة',
   'financial-review': 'تحتاج مراجعة مالية',
 };
-

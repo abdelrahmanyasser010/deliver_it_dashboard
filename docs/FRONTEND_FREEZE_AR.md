@@ -1,4 +1,4 @@
-# Deliver It — Frontend Freeze
+﻿# FIX 365 — فيكس 365 — Frontend Freeze
 
 ## حالة النسخة
 
@@ -382,3 +382,4 @@ npm run test:run
 - التقارير الكبيرة يجب حسابها في Backend Read Models أو Analytics Store.
 
 هذه الحدود مقصودة ولا تتطلب تغيير تصميم الصفحات عند بناء الـBackend.
+

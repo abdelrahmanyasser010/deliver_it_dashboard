@@ -564,7 +564,7 @@ function ProofSettings({
         <div className="policy-block-header">
           <Camera size={20} className="text-cyan" />
           <div>
-            <h3>سياسة إثبات التسليم (Proof of Delivery)</h3>
+            <h3>سياسة إثبات التسليم</h3>
             <p>إثبات التسليم الرسمي يعتمد الصورة واسم المستلم ولقطة GPS من تطبيق المندوب.</p>
           </div>
         </div>
@@ -682,7 +682,7 @@ function PrintingSettingsPanel({
         <div className="toggle-grid-inputs" style={{ marginTop: '1.25rem' }}>
           <Toggle
             checked={value.showCod}
-            label="إظهار مبلغ التحصيل COD على البوليصة"
+            label="إظهار مبلغ التحصيل عند التسليم على البوليصة"
             description="طباعة المبلغ المطلوب تحصيله من العميل المستلم بشكل بارز."
             onChange={(showCod) => onChange({ ...value, showCod })}
           />
@@ -697,3 +697,4 @@ function PrintingSettingsPanel({
     </div>
   );
 }
+

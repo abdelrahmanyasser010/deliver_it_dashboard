@@ -16,7 +16,7 @@ export const defaultLabelOptions: LabelPrintOptions = {
   showContents: true,
   showMerchantPhone: true,
   showDeliveryNotes: true,
-  companyName: 'DELIVER IT — ديليفر إت للشحن',
+  companyName: 'FIX 365 — فيكس 365 للشحن',
   footerText: 'شكراً لتعاملكم معنا · يرجى فحص الشحنة بحضور المندوب',
 };
 
@@ -94,7 +94,7 @@ export function ShipmentLabel({
         </div>
       </section>
 
-      {/* Package Contents & COD Details */}
+      {/* Package Contents & Collection Details */}
       <section className="label-details-grid">
         {opts.showContents && (
           <div className="detail-box contents-box">
@@ -108,7 +108,7 @@ export function ShipmentLabel({
 
         {opts.showCodAmount && (
           <div className="detail-box cod-box">
-            <span className="detail-label">المبلغ المطلوب تحصيله (COD)</span>
+            <span className="detail-label">المبلغ المطلوب تحصيله</span>
             <div className="cod-amount-badge">
               {shipment.expectedCollection > 0 ? (
                 <>
@@ -135,8 +135,10 @@ export function ShipmentLabel({
       {/* Label Footer */}
       <footer className="label-footer">
         <p>{opts.footerText}</p>
-        <span className="label-page-mark">Deliver It Logistics System</span>
+        <span className="label-page-mark">FIX 365 Logistics System</span>
       </footer>
     </article>
   );
 }
+
+

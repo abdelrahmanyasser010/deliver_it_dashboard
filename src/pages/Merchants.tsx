@@ -63,7 +63,7 @@ export function MerchantsPage() {
     <div className="merchants-summary compact-summary">
       <button className="ms-card glass-card compact-card merchant-shortcut" onClick={() => setStatusFilter('active')}><Store size={18} style={{ color:'#0EA5E9' }}/><div><p className="ms-label">التجار النشطون</p><p className="ms-value">{summary.activeMerchants.toLocaleString('ar-EG')} متجر</p></div></button>
       <div className="ms-card glass-card compact-card"><TrendingUp size={18} style={{ color:'#10B981' }}/><div><p className="ms-label">إجمالي قيمة الشحنات</p><p className="ms-value">{formatCurrency(summary.shipmentValue)}</p></div></div>
-      <button className="ms-card glass-card compact-card merchant-shortcut" onClick={() => navigate('/settlements')}><Banknote size={18} style={{ color:'#EF4444' }}/><div><p className="ms-label">مستحقات قيد التسوية</p><p className="ms-value">{formatCurrency(summary.pendingSettlement)}</p></div></button>
+      <button className="ms-card glass-card compact-card merchant-shortcut" onClick={() => navigate('/settlements')}><Banknote size={18} style={{ color:'#EF4444' }}/><div><p className="ms-label">مستحقات تحت التسوية</p><p className="ms-value">{formatCurrency(summary.pendingSettlement)}</p></div></button>
       <button className="ms-card glass-card compact-card merchant-shortcut" onClick={() => navigate('/applications')}><ClipboardCheck size={18} style={{ color:'#F59E0B' }}/><div><p className="ms-label">طلبات انضمام</p><p className="ms-value">مراجعة</p></div></button>
     </div>
 
@@ -174,7 +174,7 @@ function MerchantProfile({ merchant, shipments, settlements, tab, onTab, onClose
         <>
           <div className="merchant-profile-grid">
             <ProfileBox icon={<Package size={18}/>} label="إجمالي الشحنات" value={merchant.shipmentsCount.toLocaleString('ar-EG')} detail="اضغط تبويب الشحنات للتفاصيل"/>
-            <ProfileBox icon={<Banknote size={18}/>} label="مستحقات قيد التسوية" value={formatCurrency(merchant.pendingSettlement)} detail={cycleLabelMerchant(merchant.settlementCycle)}/>
+            <ProfileBox icon={<Banknote size={18}/>} label="مستحقات تحت التسوية" value={formatCurrency(merchant.pendingSettlement)} detail={cycleLabelMerchant(merchant.settlementCycle)}/>
             <ProfileBox icon={<TrendingUp size={18}/>} label="قيمة الشحنات المسلمة" value={formatCurrency(merchant.totalOrderValue)} detail="إجمالي قيمة البضائع"/>
             <ProfileBox icon={<BarChart3 size={18}/>} label="نسبة نجاح التسليم" value={`${performance.successRate.toLocaleString('ar-EG')}٪`} detail={`مرتجعات ${performance.returnRate.toLocaleString('ar-EG')}٪`}/>
           </div>
@@ -205,7 +205,7 @@ function MerchantProfile({ merchant, shipments, settlements, tab, onTab, onClose
                   <th>المستلم</th>
                   <th>المحافظة</th>
                   <th>الحالة</th>
-                  <th>قيمة التحصيل COD</th>
+                  <th>قيمة التحصيل عند التسليم</th>
                 </tr>
               </thead>
               <tbody>
@@ -403,7 +403,7 @@ function MerchantActionDialog({ type, merchant, shipments, eligibleShipmentIds, 
               <strong style={{ color: '#38BDF8' }}>{selectedIds.length.toLocaleString('ar-EG')}</strong>
             </div>
             <div className="settlement-stat-box glass-card">
-              <span>إجمالي التحصيل COD</span>
+              <span>إجمالي التحصيل عند التسليم</span>
               <strong>{formatCurrency(gross)}</strong>
             </div>
             <div className="settlement-stat-box glass-card" style={{ borderColor: 'rgba(16,185,129,0.4)' }}>
@@ -442,7 +442,7 @@ function MerchantActionDialog({ type, merchant, shipments, eligibleShipmentIds, 
                   <th>رقم الشحنة</th>
                   <th>المستلم</th>
                   <th>المحافظة</th>
-                  <th>تحصيل COD</th>
+                  <th>تحصيل عند التسليم</th>
                   <th>رسوم الشحن</th>
                   <th>الصافي</th>
                 </tr>
@@ -516,4 +516,5 @@ function deriveMerchantPerformance(shipments: Shipment[]) {
 
 function ProfileBox({icon,label,value,detail}:{icon:ReactNode;label:string;value:string;detail:string}){return <div className="merchant-profile-box glass-card"><span>{icon}</span><section><small>{label}</small><strong>{value}</strong><em>{detail}</em></section></div>;}
 function cycleLabelMerchant(value:Merchant['settlementCycle']){return {daily:'تسوية يومية',twiceWeekly:'مرتين أسبوعيًا',weekly:'تسوية أسبوعية'}[value];}
+
 

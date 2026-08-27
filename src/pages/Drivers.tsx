@@ -219,7 +219,7 @@ export function DriversPage() {
   return <div className="drivers-page compact-page">
     <div className="drivers-summary compact-summary">
       <button className="driver-summary-card glass-card compact-card drill-card" onClick={() => setShiftFilter('on')}><Users size={18} className="ds-icon blue"/><div><p className="ds-label">على وردية الآن</p><p className="ds-value">{liveDrivers.toLocaleString('ar-EG')} <small>من {activeAccounts.toLocaleString('ar-EG')} حسابات مفعلة</small></p></div></button>
-      <button className="driver-summary-card glass-card compact-card drill-card" onClick={() => setActionMessage('اضغط على عهدة أي مندوب لعرض الشحنات التي كونت المبلغ والتوريدات المرتبطة.') }><Banknote size={18} className="ds-icon amber"/><div><p className="ds-label">عهدة COD الحالية</p><p className="ds-value">{formatCurrency(currentCod)}</p></div></button>
+      <button className="driver-summary-card glass-card compact-card drill-card" onClick={() => setActionMessage('اضغط على تحصيل أي مندوب لعرض الشحنات التي كونت المبلغ والتوريدات المرتبطة.') }><Banknote size={18} className="ds-icon amber"/><div><p className="ds-label">تحصيل مع المناديب</p><p className="ds-value">{formatCurrency(currentCod)}</p></div></button>
       <button className="driver-summary-card glass-card compact-card drill-card"><UserCheck size={18} className="ds-icon purple"/><div><p className="ds-label">تم التسليم اليوم</p><p className="ds-value">{deliveredToday.toLocaleString('ar-EG')}</p></div></button>
     </div>
 
@@ -236,7 +236,7 @@ export function DriversPage() {
       <div className="driver-filter-row"><select className="input-glass" value={accountFilter} onChange={(e)=>setAccountFilter(e.target.value)}><option value="all">كل حالات الحساب</option><option value="active">فعال</option><option value="restricted">مقيّد</option><option value="suspended">موقوف</option><option value="archived">مؤرشف</option></select><select className="input-glass" value={shiftFilter} onChange={(e)=>setShiftFilter(e.target.value)}><option value="all">كل حالات الوردية</option><option value="on">على وردية</option><option value="off">خارج الوردية</option></select><select className="input-glass" value={areaFilter} onChange={(e)=>setAreaFilter(e.target.value)} disabled={referenceLoading}><option value="all">كل المناطق</option>{zones.map((zone)=><option key={zone.id} value={zone.id}>{zone.name}</option>)}</select></div>
       {referenceError && <div className="management-feedback">تعذر تحميل بيانات المناطق/الفروع: {referenceError}</div>}
       {actionMessage && <div className="management-feedback">{actionMessage}</div>}
-      <div className="table-wrapper"><table className="data-table compact-table"><thead><tr><th>الكود</th><th>المندوب</th><th>الحساب</th><th>التشغيل</th><th>المناطق</th><th>الحمولة</th><th>تم اليوم</th><th>عهدة COD</th><th>إجراءات</th></tr></thead><tbody>{filteredDrivers.map((driver) => { const account = driver.accountStatus ?? (driver.status === 'active' ? 'active' : 'suspended'); const operational = driver.operationalStatus ?? (driver.availability === 'available' ? 'available' : driver.availability === 'busy' ? 'busy' : 'offline'); const names = areaNames(driver); return <tr key={driver.id}><td className="tracking-num">{driver.userCode || driver.id}</td><td><button className="tracking-link" onClick={() => openProfile(driver)}>{driver.name}</button><small className="muted-cell" dir="ltr">{driver.phone}</small></td><td><StatusBadge label={accountLabels[account]} tone={account === 'active' ? 'success' : account === 'restricted' ? 'warning' : account === 'suspended' ? 'danger' : 'neutral'}/></td><td><StatusBadge label={driver.onShift ? operationalLabels[operational] : 'خارج الوردية'} tone={driver.onShift && operational === 'available' ? 'success' : operational === 'offline' ? 'neutral' : 'warning'}/></td><td>{names.slice(0,2).join('، ') || 'غير محدد'}{names.length > 2 ? '…' : ''}</td><td>{driver.activeLoad.toLocaleString('ar-EG')} / {(driver.maxOpenTasks ?? driver.capacity).toLocaleString('ar-EG')}</td><td>{driver.deliveredToday.toLocaleString('ar-EG')}</td><td><button className="tracking-link amount" onClick={() => openProfile(driver)}>{formatCurrency(driver.pendingCash)}</button></td><td>
+      <div className="table-wrapper"><table className="data-table compact-table"><thead><tr><th>الكود</th><th>المندوب</th><th>الحساب</th><th>التشغيل</th><th>المناطق</th><th>الحمولة</th><th>تم اليوم</th><th>التحصيل معه</th><th>إجراءات</th></tr></thead><tbody>{filteredDrivers.map((driver) => { const account = driver.accountStatus ?? (driver.status === 'active' ? 'active' : 'suspended'); const operational = driver.operationalStatus ?? (driver.availability === 'available' ? 'available' : driver.availability === 'busy' ? 'busy' : 'offline'); const names = areaNames(driver); return <tr key={driver.id}><td className="tracking-num">{driver.userCode || driver.id}</td><td><button className="tracking-link" onClick={() => openProfile(driver)}>{driver.name}</button><small className="muted-cell" dir="ltr">{driver.phone}</small></td><td><StatusBadge label={accountLabels[account]} tone={account === 'active' ? 'success' : account === 'restricted' ? 'warning' : account === 'suspended' ? 'danger' : 'neutral'}/></td><td><StatusBadge label={driver.onShift ? operationalLabels[operational] : 'خارج الوردية'} tone={driver.onShift && operational === 'available' ? 'success' : operational === 'offline' ? 'neutral' : 'warning'}/></td><td>{names.slice(0,2).join('، ') || 'غير محدد'}{names.length > 2 ? '…' : ''}</td><td>{driver.activeLoad.toLocaleString('ar-EG')} / {(driver.maxOpenTasks ?? driver.capacity).toLocaleString('ar-EG')}</td><td>{driver.deliveredToday.toLocaleString('ar-EG')}</td><td><button className="tracking-link amount" onClick={() => openProfile(driver)}>{formatCurrency(driver.pendingCash)}</button></td><td>
                 <div className="driver-row-actions">
                   <button className="btn-icon sm" onClick={() => openProfile(driver)} title="عرض التفاصيل" aria-label={`عرض ${driver.name}`}><Eye size={15}/></button>
                   <div className="merchant-more-wrap">
@@ -245,7 +245,7 @@ export function DriversPage() {
                       <div className="merchant-row-menu glass-panel">
                         {canUpdateDriver && account !== 'archived' && <button onClick={() => { openEdit(driver); setMenuDriverId(null); }}><Edit3 size={14}/> تعديل البيانات</button>}
                         <button onClick={() => openProfile(driver, 'tasks')}><Package size={14}/> المهام والشحنات</button>
-                        <button onClick={() => openProfile(driver, 'finance')}><Banknote size={14}/> عهدة COD والتوريدات</button>
+                        <button onClick={() => openProfile(driver, 'finance')}><Banknote size={14}/> التحصيل والتوريدات</button>
                         <button onClick={() => openConversation(driver)}><MessageCircle size={14}/> فتح المحادثة</button>
                         {canSuspendDriver && account === 'active' && <button onClick={() => { setDialog({ type: 'suspend', driver }); setMenuDriverId(null); }}><ShieldOff size={14}/> إيقاف المندوب</button>}
                         {canSuspendDriver && (account === 'suspended' || account === 'restricted') && <button onClick={() => { setDialog({ type: 'reactivate', driver }); setMenuDriverId(null); }}><UserCheck size={14}/> إعادة تفعيل</button>}
@@ -294,7 +294,7 @@ export function DriversPage() {
             });
           }
           closeDialog();
-          showToast(`تم توريد وتقفيل عهدة ${dialog.driver.name} بنجاح!`, 'success');
+          showToast(`تم توريد وتقفيل تحصيل ${dialog.driver.name} بنجاح!`, 'success');
         }}
       />
     )} 
@@ -324,7 +324,7 @@ function DriverProfile({ driver, shipments, areaNames, branchName, initialTab = 
   const locationAge = driver.lastLocationUpdateAt ? formatAge(driver.lastLocationUpdateAt) : 'غير متاح';
   const lastSeenAge = driver.lastSeenAt ? formatAge(driver.lastSeenAt) : locationAge;
   const alerts = [
-    driver.pendingCash > 10000 ? `عهدة COD مرتفعة: ${formatCurrency(driver.pendingCash)}` : null,
+    driver.pendingCash > 10000 ? `التحصيل مع المندوب مرتفع: ${formatCurrency(driver.pendingCash)}` : null,
     driver.lastLocationUpdateAt && Date.now() - new Date(driver.lastLocationUpdateAt).getTime() > 15*60*1000 ? `الموقع لم يتحدث منذ ${locationAge}` : null,
     driver.successRate < 85 ? `نسبة النجاح منخفضة: ${driver.successRate.toLocaleString('ar-EG')}٪` : null,
   ].filter(Boolean) as string[];
@@ -342,14 +342,14 @@ function DriverProfile({ driver, shipments, areaNames, branchName, initialTab = 
     <div className="merchant-profile-tabs">
       <button className={tab==='summary'?'active':''} onClick={()=>setTab('summary')}>الملخص</button>
       <button className={tab==='tasks'?'active':''} onClick={()=>setTab('tasks')}>المهام ({openTasks.length.toLocaleString('ar-EG')})</button>
-      <button className={tab==='finance'?'active':''} onClick={()=>setTab('finance')}>العهدة والتوريد</button>
+      <button className={tab==='finance'?'active':''} onClick={()=>setTab('finance')}>التحصيل والتوريد</button>
       <button className={tab==='access'?'active':''} onClick={()=>setTab('access')}>الوصول</button>
     </div>
     {tab==='summary' && <>
       <div className="driver-profile-grid">
         <ProfileMetric icon={<Package size={18}/>} label="المهام المفتوحة" value={`${driver.activeLoad.toLocaleString('ar-EG')} / ${(driver.maxOpenTasks ?? driver.capacity).toLocaleString('ar-EG')}`} detail={`${loadRatio.toLocaleString('ar-EG')}٪ من السعة`}/>
         <ProfileMetric icon={<TrendingUp size={18}/>} label="نسبة النجاح" value={`${driver.successRate.toLocaleString('ar-EG')}٪`} detail={`${driver.deliveredToday.toLocaleString('ar-EG')} تم اليوم`}/>
-        <ProfileMetric icon={<Banknote size={18}/>} label="عهدة COD" value={formatCurrency(driver.pendingCash)} detail="تتطلب توريد ومطابقة"/>
+        <ProfileMetric icon={<Banknote size={18}/>} label="التحصيل معه" value={formatCurrency(driver.pendingCash)} detail="يتطلب توريد ومطابقة"/>
         <ProfileMetric icon={<Clock3 size={18}/>} label="الوردية" value={driver.onShift ? (driver.shiftEndsAt ? `حتى ${formatDateTime(driver.shiftEndsAt)}` : 'وردية مفتوحة') : 'خارج الوردية'} detail={`آخر ظهور ${lastSeenAge}`}/>
       </div>
       <div className="driver-profile-sections">
@@ -361,12 +361,12 @@ function DriverProfile({ driver, shipments, areaNames, branchName, initialTab = 
     {tab==='finance' && <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="contact-phone-box" style={{ margin: 0 }}>
-          <span>إجمالي عهدة COD الحالية مع المندوب</span>
+          <span>إجمالي تحصيل مع المناديب مع المندوب</span>
           <strong style={{ color: '#10B981', fontSize: '1.1rem' }}>{formatCurrency(driver.pendingCash)}</strong>
         </div>
-        {onRemit && <button className="btn-primary" onClick={onRemit}><Wallet size={15}/> تقفيل وتوريد عهدة المندوب</button>}
+        {onRemit && <button className="btn-primary" onClick={onRemit}><Wallet size={15}/> استلام وتوريد تحصيل المندوب</button>}
       </div>
-      <div className="table-wrapper"><table className="data-table"><thead><tr><th>الشحنة</th><th>المحصل</th><th>المورد</th><th>المتبقي</th></tr></thead><tbody>{codRows.length ? codRows.map((item)=><tr key={item.id}><td className="tracking-num">{item.id}</td><td>{formatCurrency(item.collectedCash)}</td><td>{formatCurrency(item.remittedCash)}</td><td className="amount" style={{ color: '#F59E0B', fontWeight: 700 }}>{formatCurrency(item.collectedCash-item.remittedCash)}</td></tr>) : <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>لا توجد عهدة كاش معلقة لهذا المندوب.</td></tr>}</tbody></table></div>
+      <div className="table-wrapper"><table className="data-table"><thead><tr><th>الشحنة</th><th>المحصل</th><th>المورد</th><th>المتبقي</th></tr></thead><tbody>{codRows.length ? codRows.map((item)=><tr key={item.id}><td className="tracking-num">{item.id}</td><td>{formatCurrency(item.collectedCash)}</td><td>{formatCurrency(item.remittedCash)}</td><td className="amount" style={{ color: '#F59E0B', fontWeight: 700 }}>{formatCurrency(item.collectedCash-item.remittedCash)}</td></tr>) : <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>لا توجد تحصيل معلق معلقة لهذا المندوب.</td></tr>}</tbody></table></div>
     </div>}
     {tab==='access' && <div className="driver-access-actions"><p>معرف الدخول: <strong dir="ltr">{driver.userCode ?? driver.phone}</strong></p><p>الإدارة لا تنشئ أو ترى كلمة مرور المندوب. إعادة التعيين تتم عبر خدمة الهوية.</p><div className="toolbar-actions">{onReset && <button className="outline-btn" onClick={onReset}><KeyRound size={15}/> إعادة تعيين الدخول</button>}{onSuspend && <button className="outline-btn" onClick={onSuspend}><ShieldOff size={15}/> إيقاف المندوب</button>}{onReactivate && <button className="outline-btn" onClick={onReactivate}><UserCheck size={15}/> إعادة تفعيل المندوب</button>}{onArchive && <button className="outline-btn danger-link" onClick={onArchive}><Archive size={15}/> أرشفة</button>}</div></div>}
   </Modal>;
@@ -416,7 +416,7 @@ function DriverFormDialog({ title, form, branches, zones, canSelectBranch, onCha
 
       <div className="form-field full"><span>مناطق العمل المخصصة</span><div className="chips-selector-grid">{visibleZones.map((zone)=><button type="button" key={zone.id} className={`chip-toggle ${form.serviceAreaIds.includes(zone.id) ? 'active' : ''}`} onClick={()=>toggleArea(zone.id)}>{zone.name}{form.primaryZoneId===zone.id ? ' · الرئيسية' : ''}</button>)}</div>{!visibleZones.length && <small>لا توجد مناطق نشطة مرتبطة بهذا الفرع.</small>}</div>
 
-      <div className="form-field full"><span>أنواع المهام المسموحة</span><div className="chips-selector-grid"><button type="button" className={`chip-toggle ${form.taskTypes.includes('pickup') ? 'active' : ''}`} onClick={()=>toggleTask('pickup')}>استلام من التجار (Pickup)</button><button type="button" className={`chip-toggle ${form.taskTypes.includes('delivery') ? 'active' : ''}`} onClick={()=>toggleTask('delivery')}>توصيل للعملاء (Delivery)</button><button type="button" className={`chip-toggle ${form.taskTypes.includes('returns') ? 'active' : ''}`} onClick={()=>toggleTask('returns')}>استرجاع مرتجعات (Returns)</button></div></div>
+      <div className="form-field full"><span>أنواع المهام المسموحة</span><div className="chips-selector-grid"><button type="button" className={`chip-toggle ${form.taskTypes.includes('pickup') ? 'active' : ''}`} onClick={()=>toggleTask('pickup')}>استلام من التجار</button><button type="button" className={`chip-toggle ${form.taskTypes.includes('delivery') ? 'active' : ''}`} onClick={()=>toggleTask('delivery')}>توصيل للعملاء</button><button type="button" className={`chip-toggle ${form.taskTypes.includes('returns') ? 'active' : ''}`} onClick={()=>toggleTask('returns')}>استرجاع مرتجعات</button></div></div>
     </div>
   </Modal>;
 }
@@ -453,7 +453,7 @@ function SuspendDriverDialog({ driver,onCancel,onSubmit }:{driver:Driver;onCance
       <AlertTriangle size={18}/>
       <div>
         <strong>{driver.name}</strong>
-        <p>{driver.activeLoad.toLocaleString('ar-EG')} مهام مفتوحة · {formatCurrency(driver.pendingCash)} عهدة COD · {driver.onShift ? 'وردية مفتوحة' : 'خارج الوردية'}</p>
+        <p>{driver.activeLoad.toLocaleString('ar-EG')} مهام مفتوحة · {formatCurrency(driver.pendingCash)} تحصيل معه · {driver.onShift ? 'وردية مفتوحة' : 'خارج الوردية'}</p>
       </div>
     </div>
     <div className="admin-form-grid" style={{ marginTop: '1rem' }}>
@@ -461,7 +461,7 @@ function SuspendDriverDialog({ driver,onCancel,onSubmit }:{driver:Driver;onCance
         <span>سياسة التعامل مع المهام الحالية</span>
         <select className="input-glass" value={policy} onChange={(e)=>setPolicy(e.target.value as SuspendPolicy)}>
           <option value="complete_current_tasks">يكمل المهام الحالية ويُمنع من استلام مهام جديدة</option>
-          <option value="withdraw_and_reassign">سحب المهام القابلة للسحب وإعادة إسنادها</option>
+          <option value="withdraw_and_reassign">سحب المهام القابلة للسحب وإعادة تكليفها</option>
           <option value="immediate_stop">إيقاف فوري للحساب والتشغيل</option>
         </select>
         {policy === 'complete_current_tasks' && <small>سيظهر الحساب كمقيّد حتى تنتهي المهام الحالية، ثم يمكن إدارته أو إعادة تفعيله.</small>}
@@ -498,7 +498,7 @@ function ArchiveDriverDialog({ driver,onCancel,onSubmit }:{driver:Driver;onCance
   </>}>
     <div className="suspend-impact">
       <AlertTriangle size={18}/>
-      <div><strong>الأرشفة عملية تشغيلية مقيدة.</strong><p>الخادم سيرفض الأرشفة إذا كان لدى المندوب مهام مفتوحة أو عهدة COD غير مسوّاة. يتم الاحتفاظ بالسجل التاريخي ولا تُحذف البيانات.</p></div>
+      <div><strong>الأرشفة عملية تشغيلية مقيدة.</strong><p>الخادم سيرفض الأرشفة إذا كان لدى المندوب مهام مفتوحة أو تحصيل غير مسوّى. يتم الاحتفاظ بالسجل التاريخي ولا تُحذف البيانات.</p></div>
     </div>
     <label className="form-field full" style={{ marginTop: '1rem' }}>
       <span>سبب الأرشفة</span>
@@ -525,7 +525,7 @@ function RemitDriverDialog({
   const pendingRows = shipments.filter((s) => s.collectedCash > s.remittedCash);
   const totalPending = pendingRows.reduce((sum, s) => sum + (s.collectedCash - s.remittedCash), 0);
   const [actualReceived, setActualReceived] = useState(totalPending);
-  const [note, setNote] = useState(`توريد عهدة كاش - ${driver.name}`);
+  const [note, setNote] = useState(`توريد تحصيل معلق - ${driver.name}`);
   const [submitting, setSubmitting] = useState(false);
 
   const handleConfirm = async () => {
@@ -534,7 +534,7 @@ function RemitDriverDialog({
       const remits = pendingRows.map((s) => ({
         shipmentId: s.id,
         remittedCash: s.collectedCash,
-        note: note.trim() || `توريد عهدة ${driver.name}`,
+        note: note.trim() || `توريد تحصيل ${driver.name}`,
       }));
       await onSubmit(remits);
     } finally {
@@ -544,8 +544,8 @@ function RemitDriverDialog({
 
   return (
     <Modal
-      title={`تقفيل وتوريد عهدة ${driver.name}`}
-      description="استلام كاش التحصيل COD من المندوب وإيداعه في الخزينة العامة للشركة."
+      title={`استلام وتوريد تحصيل ${driver.name}`}
+      description="استلام تحصيل الشحنات عند التسليم من المندوب وإيداعه في الخزينة العامة للشركة."
       onClose={onCancel}
       footer={
         <>
@@ -573,7 +573,7 @@ function RemitDriverDialog({
           </div>
           <div className="report-kpi glass-card" style={{ borderColor: 'rgba(16, 185, 129, 0.4)' }}>
             <div>
-              <p className="report-kpi-label">إجمالي عهدة الكاش المعلقة</p>
+              <p className="report-kpi-label">إجمالي التحصيل المعلق</p>
               <p className="report-kpi-value" style={{ color: '#34D399' }}>
                 {formatCurrency(totalPending)}
               </p>
@@ -626,7 +626,7 @@ function RemitDriverDialog({
               ) : (
                 <tr>
                   <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                    لا توجد عهدة كاش معلقة لهذا المندوب.
+                    لا توجد تحصيل معلق معلقة لهذا المندوب.
                   </td>
                 </tr>
               )}
@@ -637,4 +637,5 @@ function RemitDriverDialog({
     </Modal>
   );
 }
+
 

@@ -1,4 +1,4 @@
-# حالة ربط Dashboard مع Deliver It Backend v1.3
+﻿# حالة ربط Dashboard مع FIX 365 Backend v1.3
 
 ## منفذ
 
@@ -26,3 +26,4 @@
 - `npm ci + test + lint + build` في بيئة Node سليمة.
 - E2E على Staging مع MySQL/Redis/queue workers والـtenant domains الحقيقية.
 - إكمال ترجمة نصوص صفحات الأعمال إلى الإنجليزية إذا كان Full bilingual شرط إطلاق.
+

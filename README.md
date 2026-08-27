@@ -1,6 +1,6 @@
-# Deliver It Dashboard
+﻿# FIX 365 Dashboard
 
-Production-oriented React/Vite dashboard connected to the Deliver It Laravel API.
+Production-oriented React/Vite dashboard connected to the FIX 365 Laravel API.
 
 ## Local setup
 
@@ -25,3 +25,4 @@ npm run test:run
 
 The contract snapshot used for integration is `contracts/openapi.yaml`.
 No mock gateway or demo data source is used by the runtime application.
+

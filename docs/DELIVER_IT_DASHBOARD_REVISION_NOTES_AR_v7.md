@@ -1,8 +1,8 @@
-# Deliver It Dashboard — Product & UI/UX Revision Notes
+﻿# FIX 365 Dashboard — Product & UI/UX Revision Notes
 ## مرجع تعديلات لوحة التحكم قبل ربط الـBackend
 
 **الحالة:** معتمد كمصدر عمل للتعديل القادم  
-**النطاق:** لوحة تحكم شركة الشحن Deliver It  
+**النطاق:** لوحة تحكم شركة الشحن FIX 365 — فيكس 365  
 **الهدف:** تثبيت وتحسين أهم العمليات التشغيلية قبل مرحلة Backend Integration
 
 ---
@@ -3008,4 +3008,5 @@ Request مثال:
 - Permissions verified.
 - Sensitive exports audited.
 - Large exports لا تجمد المتصفح.
+
 

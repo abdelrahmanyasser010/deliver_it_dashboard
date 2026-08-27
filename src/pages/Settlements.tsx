@@ -116,7 +116,7 @@ export function SettlementsPage() {
         من: new Date(item.periodStart),
         إلى: new Date(item.periodEnd),
         عدد_الشحنات: item.shipmentIds.length,
-        إجمالي_COD: item.grossCollection,
+        إجمالي_التحصيل: item.grossCollection,
         رسوم_الشحن: item.shippingFees,
         رسوم_المرتجع: item.returnFees,
         الخصومات: item.discounts,
@@ -152,7 +152,7 @@ export function SettlementsPage() {
               <Plus size={16} /> إنشاء تسوية تاجر
             </button>
             <button className="outline-btn" onClick={exportRows}>
-              <Download size={16} /> تصدير Excel
+              <Download size={16} /> تحميل Excel
             </button>
           </>
         }
@@ -160,7 +160,7 @@ export function SettlementsPage() {
 
       <div className="admin-summary-grid">
         <SummaryCard
-          label="قيد المراجعة أو الدفع"
+          label="تحت المراجعة أو الدفع"
           value={formatCurrency(pending)}
           icon={<Banknote size={20} />}
           gradient="linear-gradient(135deg,#F59E0B,#D97706)"
@@ -412,7 +412,7 @@ export function SettlementsPage() {
 
           {details.status === 'approved' && (
             <label className="form-field" style={{ marginTop: '1rem' }}>
-              <span>مرجع التحويل البنكي / المحفظة / الخزينة (Payment Reference)</span>
+              <span>رقم إيصال التحويل أو الخزينة</span>
               <input
                 className="input-glass"
                 value={paymentReference}
@@ -656,10 +656,10 @@ function CreateMerchantSettlementDialog({
           </div>
         </div>
 
-        {/* Payment Reference if Instant Payout */}
+        {/* Reference for instant payout */}
         {payoutMode === 'instant' && (
           <label className="form-field" style={{ animation: 'fadeIn 0.2s ease' }}>
-            <span>مرجع التحويل / كود الحوالة (Payment Reference)</span>
+            <span>رقم إيصال التحويل أو كود الحوالة</span>
             <input
               className="input-glass"
               value={paymentRef}
@@ -687,7 +687,7 @@ function CreateMerchantSettlementDialog({
           </div>
           <div className="report-kpi glass-card">
             <div>
-              <p className="report-kpi-label">إجمالي التحصيل COD</p>
+              <p className="report-kpi-label">إجمالي التحصيل عند التسليم</p>
               <p className="report-kpi-value">{formatCurrency(totalCod)}</p>
             </div>
           </div>
@@ -731,7 +731,7 @@ function CreateMerchantSettlementDialog({
                 <th>المستلم</th>
                 <th>المحافظة</th>
                 <th>الحالة</th>
-                <th>تحصيل COD</th>
+                <th>تحصيل عند التسليم</th>
                 <th>رسوم الشحن</th>
                 <th>الصافي</th>
               </tr>
@@ -803,3 +803,4 @@ function SummaryCard({
     </div>
   );
 }
+

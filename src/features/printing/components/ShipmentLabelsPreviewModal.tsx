@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Copy,
@@ -182,7 +182,7 @@ export function ShipmentLabelsPreviewModal({
                       checked={options.showCodAmount}
                       onChange={(e) => setOptions(o => ({ ...o, showCodAmount: e.target.checked }))}
                     />
-                    <span>إظهار مبلغ التحصيل (COD)</span>
+                    <span>إظهار مبلغ التحصيل على البوليصة</span>
                   </label>
 
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
@@ -277,3 +277,4 @@ export function ShipmentLabelsPreviewModal({
     </>
   );
 }
+

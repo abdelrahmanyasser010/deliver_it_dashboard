@@ -1,4 +1,4 @@
-import {
+﻿import {
   AlertCircle,
   ArrowDownRight,
   ArrowUpRight,
@@ -60,7 +60,7 @@ export function OverviewPage() {
     ],
     accounting: [
       { label: 'فروقات تحصيل', value: stats.cashDiscrepancies, detail: 'تحتاج مطابقة', icon: <AlertCircle size={19} />, tone: 'danger', path: '/exceptions?category=financial' },
-      { label: 'عهدة COD الحالية', value: stats.cashWithDrivers, detail: 'قيمة محصلة لم يتم توريدها', icon: <Banknote size={19} />, tone: 'warning', path: '/accounting' },
+      { label: 'تحصيل مع المناديب', value: stats.cashWithDrivers, detail: 'قيمة محصلة لم يتم توريدها', icon: <Banknote size={19} />, tone: 'warning', path: '/accounting' },
       { label: 'تسويات معلقة', value: stats.pendingSettlement, detail: 'مستحقات تحتاج مراجعة', icon: <RefreshCcw size={19} />, tone: 'warning', path: '/settlements' },
     ],
     support: [
@@ -87,7 +87,7 @@ export function OverviewPage() {
       description: 'مقارنة بأمس',
     },
     {
-      label: 'قيد التوصيل الآن',
+      label: 'في التوصيل الآن',
       value: stats.inTransit,
       previous: Math.max(1, stats.inTransit - 2),
       icon: <Truck size={21} />,
@@ -201,7 +201,7 @@ export function OverviewPage() {
           <div className="cash-summary-grid">
             <div><span>تم تحصيله</span><strong>{formatCurrency(stats.totalCashCollected)}</strong></div>
             <div><span>تم توريده</span><strong>{formatCurrency(stats.remittedCash)}</strong></div>
-            <div className="cash-alert"><span>عهدة COD لدى المناديب</span><strong>{formatCurrency(stats.cashWithDrivers)}</strong></div>
+            <div className="cash-alert"><span>تحصيل لدى المناديب</span><strong>{formatCurrency(stats.cashWithDrivers)}</strong></div>
             <div><span>داخل تسويات معلقة</span><strong>{formatCurrency(stats.pendingSettlement)}</strong></div>
           </div>
           <button className="outline-btn full-width" onClick={() => navigate('/accounting')}>فتح المحاسبة والتسويات</button>
@@ -238,3 +238,4 @@ export function OverviewPage() {
     </div>
   );
 }
+

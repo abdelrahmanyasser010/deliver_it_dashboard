@@ -12,14 +12,14 @@ import './Reports.css';
 type AccountingTab = 'overview' | 'statements' | 'ledger' | 'close';
 type PartyType = 'merchant' | 'driver';
 interface StatementRow { id: string; date: string; partyType: PartyType; partyName: string; shipmentId: string; description: string; debit: number; credit: number; }
-const tabs: Array<{ id: AccountingTab; label: string }> = [{ id: 'overview', label: 'الملخص' }, { id: 'statements', label: 'حسابات التجار والمناديب' }, { id: 'ledger', label: 'دفتر القيود' }, { id: 'close', label: 'تقفيل الفترة' }];
+const tabs: Array<{ id: AccountingTab; label: string }> = [{ id: 'overview', label: 'الملخص' }, { id: 'statements', label: 'حسابات التجار والمناديب' }, { id: 'ledger', label: 'مراجعة الحسابات' }, { id: 'close', label: 'تقفيل الفترة' }];
 const fmt = (value: number) => value.toLocaleString('ar-EG');
 
 function buildStatementRows(shipments: Shipment[]): StatementRow[] {
   return shipments.flatMap((shipment) => {
     const rows: StatementRow[] = [];
     if (['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status)) rows.push({ id: `MER-${shipment.id}`, date: shipment.statusChangedAt, partyType: 'merchant', partyName: shipment.merchantName, shipmentId: shipment.id, description: shipment.status === 'returned' ? 'رسوم مرتجع ورسوم تشغيل' : 'صافي مستحق شحنة مسلمة', debit: shipment.status === 'returned' ? Math.round(shipment.deliveryFee * .6) : 0, credit: ['delivered', 'partiallyDelivered'].includes(shipment.status) ? Math.max(0, shipment.collectedCash - shipment.deliveryFee - shipment.discount) : 0 });
-    if (shipment.driverId && shipment.collectedCash > 0) rows.push({ id: `DRV-${shipment.id}`, date: shipment.lastUpdatedAt, partyType: 'driver', partyName: shipment.driverName ?? shipment.driverId, shipmentId: shipment.id, description: 'عهدة تحصيل مطلوب توريدها', debit: shipment.collectedCash, credit: shipment.remittedCash });
+    if (shipment.driverId && shipment.collectedCash > 0) rows.push({ id: `DRV-${shipment.id}`, date: shipment.lastUpdatedAt, partyType: 'driver', partyName: shipment.driverName ?? shipment.driverId, shipmentId: shipment.id, description: 'تحصيل مع المندوب مطلوب توريده', debit: shipment.collectedCash, credit: shipment.remittedCash });
     return rows;
   });
 }
@@ -67,7 +67,7 @@ export function AccountingPage() {
     for (const item of items) {
       await run({ type: 'finance/reconcileShipment', shipmentId: item.id, remittedCash: item.cash, note });
     }
-    showToast(`تم توريد ومطابقة ${items.length} شحنة وإغلاق العهدة بنجاح.`);
+    showToast(`تم توريد ومطابقة ${items.length} شحنة وتقفيل تحصيلها بنجاح.`);
     setBatchRemittanceDriver(null);
   };
 
@@ -91,21 +91,21 @@ export function AccountingPage() {
   };
   const exportLedger = () => {
     downloadXlsx({
-      filename: `general-ledger-${periodKey}.xlsx`,
-      sheetName: 'سطور القيود',
+      filename: `accounting-review-${periodKey}.xlsx`,
+      sheetName: 'مراجعة الحسابات',
       rows: ledger.map((entry) => ({
-        القيد: entry.id,
+        الحركة: entry.id,
         التاريخ: new Date(entry.date),
         الحساب: entry.account,
         البيان: entry.description,
-        مدين: entry.debit,
-        دائن: entry.credit,
-        الحالة: entry.status === 'posted' ? 'مرحّل' : entry.status === 'pending' ? 'معلق' : 'معكوس',
+        عليه: entry.debit,
+        له: entry.credit,
+        الحالة: entry.status === 'posted' ? 'معتمد' : entry.status === 'pending' ? 'معلق' : 'ملغي',
         نوع_المصدر: entry.sourceType,
         المصدر: entry.sourceId,
       })),
     });
-    showToast('تم تجهيز دفتر القيود بصيغة Excel.');
+    showToast('تم تجهيز ملف مراجعة الحسابات بصيغة Excel.');
   };
 
   if (isLoading) return <div className="reports-page"><section className="glass-card">جاري تحميل البيانات المالية…</section></div>;
@@ -113,28 +113,28 @@ export function AccountingPage() {
     <header className="reports-hero glass-card">
       <div>
         <h2>المحاسبة والتحصيل</h2>
-        <p>متابعة عهد المناديب، توريد الكاش، كشوف حسابات التجار، وقيود اليومية.</p>
+        <p>تابع تحصيل المناديب، كشوف حسابات التجار، التسويات، وتقفيل الفترة من مكان واحد.</p>
       </div>
       <div className="toolbar-actions">
         <button className="btn-primary" onClick={() => setBatchRemittanceDriver(driversList[0] || '')}>
-          <Wallet size={15}/> تقفيل وتوريد عهدة مندوب
+          <Wallet size={15}/> استلام تحصيل مندوب
         </button>
         <button className="outline-btn" onClick={() => navigate('/settlements')}><ReceiptText size={15}/> تسويات التجار</button>
       </div>
     </header>
     <div className="reports-tabs accounting-tabs glass-card">{tabs.map((tab) => <button key={tab.id} className={`reports-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>)}</div>
 
-    {activeTab === 'overview' && <><div className="report-kpi-grid"><FinanceCard label="إجمالي المحصل" value={formatCurrency(totalCollected)} icon={<Banknote/>}/><FinanceCard label="تم توريده" value={formatCurrency(totalRemitted)} icon={<Landmark/>}/><FinanceCard label="مع المناديب (عهدة)" value={formatCurrency(cashWithDrivers)} icon={<Wallet/>}/><FinanceCard label="مستحقات التجار" value={formatCurrency(merchantPayables)} icon={<ReceiptText/>}/></div><div className="accounting-alert-grid"><button className="accounting-action-card glass-card" onClick={() => setBatchRemittanceDriver(driversList[0] || '')}><Wallet/><span><strong>توريد عهدة مندوب</strong><small>{formatCurrency(cashWithDrivers)} جاهزة للتوريد والتقفيل الآن</small></span></button><button className="accounting-action-card glass-card" onClick={() => navigate('/exceptions?category=financial')}><AlertTriangle/><span><strong>فروقات التحصيل</strong><small>{fmt(discrepancies.length)} شحنة تحتاج مطابقة</small></span></button><button className="accounting-action-card glass-card" onClick={() => navigate('/settlements')}><ReceiptText/><span><strong>تسويات مفتوحة</strong><small>{fmt(settlements.filter((item) => !['paid','reconciled','cancelled'].includes(item.status)).length)} تسوية</small></span></button><button className="accounting-action-card glass-card" onClick={() => setActiveTab('ledger')}><Landmark/><span><strong>قيود معلقة</strong><small>{fmt(pendingLedger)} قيد غير مرحّل</small></span></button></div></>}
+    {activeTab === 'overview' && <><div className="report-kpi-grid"><FinanceCard label="إجمالي المحصل" value={formatCurrency(totalCollected)} icon={<Banknote/>}/><FinanceCard label="تم توريده" value={formatCurrency(totalRemitted)} icon={<Landmark/>}/><FinanceCard label="تحصيل لم يورد" value={formatCurrency(cashWithDrivers)} icon={<Wallet/>}/><FinanceCard label="مستحقات التجار" value={formatCurrency(merchantPayables)} icon={<ReceiptText/>}/></div><div className="accounting-alert-grid"><button className="accounting-action-card glass-card" onClick={() => setBatchRemittanceDriver(driversList[0] || '')}><Wallet/><span><strong>استلام تحصيل مندوب</strong><small>{formatCurrency(cashWithDrivers)} جاهزة للتوريد والتقفيل الآن</small></span></button><button className="accounting-action-card glass-card" onClick={() => navigate('/exceptions?category=financial')}><AlertTriangle/><span><strong>فروقات التحصيل</strong><small>{fmt(discrepancies.length)} شحنة تحتاج مطابقة</small></span></button><button className="accounting-action-card glass-card" onClick={() => navigate('/settlements')}><ReceiptText/><span><strong>تسويات مفتوحة</strong><small>{fmt(settlements.filter((item) => !['paid','reconciled','cancelled'].includes(item.status)).length)} تسوية</small></span></button><button className="accounting-action-card glass-card" onClick={() => setActiveTab('ledger')}><Landmark/><span><strong>حركات حسابات معلقة</strong><small>{fmt(pendingLedger)} حركة تحتاج اعتماد</small></span></button></div></>}
 
-    {activeTab === 'statements' && <section className="glass-card"><div className="statement-toolbar"><label><span>نوع الحساب</span><select className="input-glass" value={partyType} onChange={(event) => { setPartyType(event.target.value as typeof partyType); setPartyName('all'); }}><option value="all">الكل</option><option value="merchant">التجار</option><option value="driver">المناديب</option></select></label><label><span>الحساب</span><select className="input-glass" value={partyName} onChange={(event) => setPartyName(event.target.value)}><option value="all">كل الحسابات</option>{partyOptions.map((name) => <option key={name}>{name}</option>)}</select></label><label className="statement-search"><span>بحث</span><div className="search-field"><Search size={15}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="الشحنة أو الحساب أو البيان"/></div></label><div className="toolbar-actions">{partyType === 'driver' && partyName !== 'all' && <button className="btn-primary" onClick={() => setBatchRemittanceDriver(partyName)}><Wallet size={15}/> تقفيل عهدة {partyName}</button>}<button className="outline-btn" onClick={exportStatements}><Download size={15}/> تصدير Excel</button></div></div><div className="statement-summary"><FinanceCard label="عليه (مطلوب)" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.debit, 0))} icon={<Wallet/>}/><FinanceCard label="له (مورّد/مستحق)" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.credit, 0))} icon={<Banknote/>}/><FinanceCard label="صافي الرصيد" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.debit - row.credit, 0))} icon={<ReceiptText/>}/></div><div className="table-wrapper"><table className="data-table"><thead><tr><th>التاريخ</th><th>الحساب</th><th>الشحنة</th><th>البيان</th><th>عليه</th><th>له</th><th>إجراء</th></tr></thead><tbody>{filteredStatements.map((row) => { const shipment = shipments.find((item) => item.id === row.shipmentId); return <tr key={row.id}><td>{formatDateTime(row.date)}</td><td><div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}><strong style={{ color: '#F8FAFC', fontSize: '0.86rem' }}>{row.partyName}</strong><span style={{ fontSize: '0.7rem', color: row.partyType === 'merchant' ? '#38BDF8' : '#818CF8' }}>{row.partyType === 'merchant' ? '🏷️ تاجر' : '🛵 مندوب'}</span></div></td><td><button className="tracking-link" onClick={() => navigate(`/shipments?shipment=${row.shipmentId}`)}>{row.shipmentId}</button></td><td>{row.description}</td><td>{formatCurrency(row.debit)}</td><td>{formatCurrency(row.credit)}</td><td>{row.partyType === 'driver' && shipment && shipment.collectedCash > shipment.remittedCash && <button className="outline-btn" onClick={() => setBatchRemittanceDriver(row.partyName)}>تقفيل وتوريد</button>}</td></tr>; })}</tbody></table></div></section>}
+    {activeTab === 'statements' && <section className="glass-card"><div className="statement-toolbar"><label><span>نوع الحساب</span><select className="input-glass" value={partyType} onChange={(event) => { setPartyType(event.target.value as typeof partyType); setPartyName('all'); }}><option value="all">الكل</option><option value="merchant">التجار</option><option value="driver">المناديب</option></select></label><label><span>الحساب</span><select className="input-glass" value={partyName} onChange={(event) => setPartyName(event.target.value)}><option value="all">كل الحسابات</option>{partyOptions.map((name) => <option key={name}>{name}</option>)}</select></label><label className="statement-search"><span>بحث</span><div className="search-field"><Search size={15}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="الشحنة أو الحساب أو البيان"/></div></label><div className="toolbar-actions">{partyType === 'driver' && partyName !== 'all' && <button className="btn-primary" onClick={() => setBatchRemittanceDriver(partyName)}><Wallet size={15}/> تقفيل تحصيل {partyName}</button>}<button className="outline-btn" onClick={exportStatements}><Download size={15}/> تحميل كشف الحساب</button></div></div><div className="statement-summary"><FinanceCard label="عليه" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.debit, 0))} icon={<Wallet/>}/><FinanceCard label="له" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.credit, 0))} icon={<Banknote/>}/><FinanceCard label="صافي الرصيد" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.debit - row.credit, 0))} icon={<ReceiptText/>}/></div><div className="table-wrapper"><table className="data-table"><thead><tr><th>التاريخ</th><th>الحساب</th><th>الشحنة</th><th>البيان</th><th>عليه</th><th>له</th><th>إجراء</th></tr></thead><tbody>{filteredStatements.map((row) => { const shipment = shipments.find((item) => item.id === row.shipmentId); return <tr key={row.id}><td>{formatDateTime(row.date)}</td><td><div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}><strong style={{ color: '#F8FAFC', fontSize: '0.86rem' }}>{row.partyName}</strong><span style={{ fontSize: '0.7rem', color: row.partyType === 'merchant' ? '#38BDF8' : '#818CF8' }}>{row.partyType === 'merchant' ? 'تاجر' : 'مندوب'}</span></div></td><td><button className="tracking-link" onClick={() => navigate(`/shipments?shipment=${row.shipmentId}`)}>{row.shipmentId}</button></td><td>{row.description}</td><td>{formatCurrency(row.debit)}</td><td>{formatCurrency(row.credit)}</td><td>{row.partyType === 'driver' && shipment && shipment.collectedCash > shipment.remittedCash && <button className="outline-btn" onClick={() => setBatchRemittanceDriver(row.partyName)}>استلام التوريد</button>}</td></tr>; })}</tbody></table></div></section>}
 
-    {activeTab === 'ledger' && <section className="glass-card"><div className="report-section-title"><div><h3>سطور دفتر الأستاذ</h3><span className="report-muted">كل صف يمثل سطرًا ماليًا مرتبطًا بمصدره؛ الترحيل يتم بعد مراجعة البنود المعلقة.</span></div><div className="toolbar-actions"><select className="input-glass" value={ledgerFilter} onChange={(event) => setLedgerFilter(event.target.value as typeof ledgerFilter)}><option value="all">كل الحالات</option><option value="pending">معلق</option><option value="posted">مرحّل</option><option value="reversed">معكوس</option></select><button className="outline-btn" onClick={exportLedger}><Download size={15}/> تصدير Excel</button><button className="btn-primary" onClick={() => setPostPreviewOpen(true)} disabled={pendingLedger === 0}><CheckCircle2 size={15}/> مراجعة وترحيل المعلق</button></div></div><div className="table-wrapper"><table className="data-table"><thead><tr><th>القيد</th><th>التاريخ</th><th>الحساب</th><th>البيان</th><th>مدين</th><th>دائن</th><th>الحالة</th><th>المصدر</th></tr></thead><tbody>{ledger.map((entry) => <tr key={entry.id}><td>{entry.id}</td><td>{formatDateTime(entry.date)}</td><td>{entry.account}</td><td>{entry.description}</td><td>{formatCurrency(entry.debit)}</td><td>{formatCurrency(entry.credit)}</td><td><StatusBadge label={entry.status === 'posted' ? 'مرحّل' : entry.status === 'pending' ? 'معلق' : 'معكوس'} tone={entry.status === 'posted' ? 'success' : entry.status === 'pending' ? 'warning' : 'danger'}/></td><td><button className="tracking-link" onClick={() => entry.sourceType === 'settlement' ? navigate(`/settlements?settlement=${entry.sourceId}`) : navigate(`/shipments?shipment=${entry.sourceId}`)}>{entry.sourceId}</button></td></tr>)}</tbody></table></div></section>}
+    {activeTab === 'ledger' && <section className="glass-card"><div className="report-section-title"><div><h3>مراجعة حركات الحسابات</h3><span className="report-muted">كل صف حركة مالية مرتبطة بشحنة أو تسوية. اعتمد الحركات المعلقة بعد المراجعة.</span></div><div className="toolbar-actions"><select className="input-glass" value={ledgerFilter} onChange={(event) => setLedgerFilter(event.target.value as typeof ledgerFilter)}><option value="all">كل الحالات</option><option value="pending">معلق</option><option value="posted">معتمد</option><option value="reversed">ملغي</option></select><button className="outline-btn" onClick={exportLedger}><Download size={15}/> تحميل ملف المراجعة</button><button className="btn-primary" onClick={() => setPostPreviewOpen(true)} disabled={pendingLedger === 0}><CheckCircle2 size={15}/> اعتماد الحركات المعلقة</button></div></div><div className="table-wrapper"><table className="data-table"><thead><tr><th>الحركة</th><th>التاريخ</th><th>الحساب</th><th>البيان</th><th>عليه</th><th>له</th><th>الحالة</th><th>المصدر</th></tr></thead><tbody>{ledger.map((entry) => <tr key={entry.id}><td>{entry.id}</td><td>{formatDateTime(entry.date)}</td><td>{entry.account}</td><td>{entry.description}</td><td>{formatCurrency(entry.debit)}</td><td>{formatCurrency(entry.credit)}</td><td><StatusBadge label={entry.status === 'posted' ? 'معتمد' : entry.status === 'pending' ? 'معلق' : 'ملغي'} tone={entry.status === 'posted' ? 'success' : entry.status === 'pending' ? 'warning' : 'danger'}/></td><td><button className="tracking-link" onClick={() => entry.sourceType === 'settlement' ? navigate(`/settlements?settlement=${entry.sourceId}`) : navigate(`/shipments?shipment=${entry.sourceId}`)}>{entry.sourceId}</button></td></tr>)}</tbody></table></div></section>}
 
-    {activeTab === 'close' && <section className="report-grid-2"><div className="glass-card"><div className="report-section-title"><h3>شروط إغلاق {periodKey}</h3></div><p className="report-muted">هذه الحالات مشتقة من البيانات ولا يمكن تعليمها يدويًا كمكتملة.</p><div className="funnel-list"><CheckItem label="لا توجد تحديثات مناديب معلقة ذات أثر تشغيلي" count={pendingUpdates}/><CheckItem label="تمت مطابقة فروقات التحصيل" count={discrepancies.length}/><CheckItem label="تم ترحيل سطور القيود المطلوبة" count={pendingLedger}/><CheckItem label="مرتجعات تحتاج متابعة مالية" count={pendingReturns} warningOnly/><CheckItem label="التزامات/تسويات مفتوحة مثبتة" count={openSettlements} warningOnly/></div></div><div className="glass-card"><LockKeyhole size={30}/><h3>إغلاق الفترة المحاسبية</h3><p className="report-muted">يمنع الإغلاق عند وجود فروقات مالية أو قيود أو تحديثات معلقة. التسويات المفتوحة قد تبقى التزامًا مثبتًا ولا تشترط الدفع قبل الإغلاق.</p><button className="btn-primary full-width" disabled={isClosed} onClick={() => setClosePreviewOpen(true)}>{isClosed ? 'الفترة مغلقة' : 'مراجعة وإغلاق الفترة'}</button></div></section>}
+    {activeTab === 'close' && <section className="report-grid-2"><div className="glass-card"><div className="report-section-title"><h3>شروط إغلاق {periodKey}</h3></div><p className="report-muted">هذه الحالات مشتقة من البيانات ولا يمكن تعليمها يدويًا كمكتملة.</p><div className="funnel-list"><CheckItem label="لا توجد تحديثات مناديب معلقة ذات أثر تشغيلي" count={pendingUpdates}/><CheckItem label="تمت مطابقة فروقات التحصيل" count={discrepancies.length}/><CheckItem label="تم اعتماد حركات الحسابات المطلوبة" count={pendingLedger}/><CheckItem label="مرتجعات تحتاج متابعة مالية" count={pendingReturns} warningOnly/><CheckItem label="التزامات/تسويات مفتوحة مثبتة" count={openSettlements} warningOnly/></div></div><div className="glass-card"><LockKeyhole size={30}/><h3>تقفيل الفترة</h3><p className="report-muted">يمنع التقفيل عند وجود فروقات مالية أو حركات حسابات أو تحديثات معلقة. التسويات المفتوحة قد تبقى التزامًا مثبتًا ولا تشترط الدفع قبل الإغلاق.</p><button className="btn-primary full-width" disabled={isClosed} onClick={() => setClosePreviewOpen(true)}>{isClosed ? 'الفترة مغلقة' : 'مراجعة وتقفيل الفترة'}</button></div></section>}
 
-    {postPreviewOpen && <Modal title="مراجعة ترحيل السطور المعلقة" description={`سيتم ترحيل ${fmt(pendingLedger)} سطرًا ماليًا بعد التأكيد.`} onClose={() => setPostPreviewOpen(false)} footer={<><button className="outline-btn" onClick={() => setPostPreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={pendingLedger === 0} onClick={async () => { const response = await run({ type: 'ledger/postAll' }); if (response.ok) setPostPreviewOpen(false); }}><CheckCircle2 size={15}/> تأكيد الترحيل</button></>}><div className="funnel-list"><CheckItem label="سطور معلقة" count={pendingLedger}/><p className="report-muted">في الـBackend الإنتاجي يجب التحقق من توازن كل Journal Entry قبل الترحيل، ولا تعدل القيود المرحلة مباشرة.</p></div></Modal>}
+    {postPreviewOpen && <Modal title="مراجعة اعتماد الحركات المعلقة" description={`سيتم اعتماد ${fmt(pendingLedger)} حركة مالية بعد التأكيد.`} onClose={() => setPostPreviewOpen(false)} footer={<><button className="outline-btn" onClick={() => setPostPreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={pendingLedger === 0} onClick={async () => { const response = await run({ type: 'ledger/postAll' }); if (response.ok) setPostPreviewOpen(false); }}><CheckCircle2 size={15}/> تأكيد الاعتماد</button></>}><div className="funnel-list"><CheckItem label="حركات معلقة" count={pendingLedger}/><p className="report-muted">في النسخة الإنتاجية يجب التأكد من صحة كل حركة قبل اعتمادها، وأي تعديل لاحق يتم بحركة تصحيح منفصلة.</p></div></Modal>}
 
-    {closePreviewOpen && <Modal title={`مراجعة إغلاق الفترة ${periodKey}`} description="الإغلاق يقفل الفترة أمام التعديل المباشر؛ أي تصحيح لاحق يتم كتسوية عكسية/تعديل في فترة مفتوحة." onClose={() => setClosePreviewOpen(false)} footer={<><button className="outline-btn" onClick={() => setClosePreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={!canClose} onClick={async () => { const response = await run({ type: 'period/close', period: periodKey }); if (response.ok) setClosePreviewOpen(false); }}><LockKeyhole size={15}/> تأكيد إغلاق الفترة</button></>}><div className="funnel-list"><CheckItem label="تحديثات مناديب معلقة" count={pendingUpdates}/><CheckItem label="فروقات تحصيل غير محسومة" count={discrepancies.length}/><CheckItem label="سطور قيود غير مرحلة" count={pendingLedger}/><CheckItem label="مرتجعات تحتاج متابعة (تنبيه)" count={pendingReturns} warningOnly/><CheckItem label="تسويات/التزامات مفتوحة (تنبيه)" count={openSettlements} warningOnly/></div>{!canClose && <p className="management-feedback warning-feedback">لا يمكن إغلاق الفترة قبل إنهاء البنود الحمراء أعلاه.</p>}</Modal>}
+    {closePreviewOpen && <Modal title={`مراجعة تقفيل الفترة ${periodKey}`} description="تقفيل الفترة يمنع التعديل المباشر؛ أي تصحيح لاحق يتم كتسوية أو حركة تصحيح في فترة مفتوحة." onClose={() => setClosePreviewOpen(false)} footer={<><button className="outline-btn" onClick={() => setClosePreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={!canClose} onClick={async () => { const response = await run({ type: 'period/close', period: periodKey }); if (response.ok) setClosePreviewOpen(false); }}><LockKeyhole size={15}/> تأكيد تقفيل الفترة</button></>}><div className="funnel-list"><CheckItem label="تحديثات مناديب معلقة" count={pendingUpdates}/><CheckItem label="فروقات تحصيل غير محسومة" count={discrepancies.length}/><CheckItem label="حركات حسابات غير معتمدة" count={pendingLedger}/><CheckItem label="مرتجعات تحتاج متابعة (تنبيه)" count={pendingReturns} warningOnly/><CheckItem label="تسويات/التزامات مفتوحة (تنبيه)" count={openSettlements} warningOnly/></div>{!canClose && <p className="management-feedback warning-feedback">لا يمكن تقفيل الفترة قبل إنهاء البنود الحمراء أعلاه.</p>}</Modal>}
 
 
     {batchRemittanceDriver !== null && (
@@ -173,7 +173,7 @@ function DriverRemittanceDialog({
   }, [shipments, selectedDriver]);
 
   const [selectedIds, setSelectedIds] = useState<string[]>(() => unremittedShipments.map((s) => s.id));
-  const [note, setNote] = useState('توريد ومطابقة عهدة كاش المندوب وإغلاق الحساب');
+  const [note, setNote] = useState('استلام ومطابقة تحصيل المندوب وتقفيل حسابه');
   const [submitting, setSubmitting] = useState(false);
 
   const toggle = (id: string) =>
@@ -201,8 +201,8 @@ function DriverRemittanceDialog({
   return (
     <Modal
       wide
-      title="تقفيل وتوريد عهدة كاش المندوب"
-      description="تصفية ومطابقة كاش الشحنات المسلمة مع المندوب في أي وقت (شحنة واحدة، مجموعة شحنات، أو كل الشحنات دفعة واحدة)."
+      title="استلام ومطابقة تحصيل المندوب"
+      description="تصفية ومطابقة تحصيل الشحنات المسلمة مع المندوب في أي وقت (شحنة واحدة، مجموعة شحنات، أو كل الشحنات دفعة واحدة)."
       onClose={onClose}
       footer={<>
         <button className="outline-btn" onClick={onClose} disabled={submitting}>إلغاء</button>
@@ -260,7 +260,7 @@ function DriverRemittanceDialog({
           </div>
           <div className="report-kpi glass-card">
             <div>
-              <p className="report-kpi-label">إجمالي العهدة المتبقية</p>
+              <p className="report-kpi-label">إجمالي التحصيل المتبقي</p>
               <p className="report-kpi-value">{formatCurrency(totalAllUnremitted)}</p>
             </div>
           </div>
@@ -301,7 +301,7 @@ function DriverRemittanceDialog({
                 <th>المستلم</th>
                 <th>التاجر</th>
                 <th>المحافظة</th>
-                <th>المحصل كاش</th>
+                <th>المحصل</th>
                 <th>المتبقي للتوريد</th>
               </tr>
             </thead>
@@ -333,7 +333,7 @@ function DriverRemittanceDialog({
               }) : (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)' }}>
-                    لا توجد عهدة كاش معلقة لهذا المندوب حالياً.
+                    لا يوجد تحصيل معلق لهذا المندوب حالياً.
                   </td>
                 </tr>
               )}
@@ -347,4 +347,5 @@ function DriverRemittanceDialog({
 
 function FinanceCard({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) { return <article className="report-kpi glass-card"><div className="report-kpi-icon" style={{ background: 'linear-gradient(135deg,#0EA5E9,#4F46E5)' }}>{icon}</div><div><p className="report-kpi-label">{label}</p><p className="report-kpi-value">{value}</p></div></article>; }
 function CheckItem({ label, count, warningOnly = false }: { label: string; count: number; warningOnly?: boolean }) { const done = count === 0; return <div className="funnel-row checklist-row"><span>{label}</span><StatusBadge label={done ? 'مكتمل' : `${fmt(count)} معلقة`} tone={done ? 'success' : warningOnly ? 'warning' : 'danger'}/></div>; }
+
 

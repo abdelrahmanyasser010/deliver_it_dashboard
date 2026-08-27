@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, ShieldCheck } from 'lucide-react';
+﻿import { Activity, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { EmptyState } from '../components/AsyncState';
 import { useDeliveryData } from '../context/DeliveryDataContext';
@@ -22,7 +22,8 @@ export function AuditLogPage() {
 function isCritical(action: string, detail: string) { return /delete|pay|close|reject|financial|settlement|حذف|دفع|إغلاق|رفض|مالي/i.test(`${action} ${detail}`); }
 function actionLabel(action: string) {
   const labels: Record<string, string> = {
-    'shipment/assignDriver': 'تعيين مندوب', 'shipment/transition': 'تغيير حالة شحنة', 'shipment/addAttempt': 'تسجيل محاولة توصيل', 'shipment/import': 'استيراد شحنات', 'pickup/approve': 'اعتماد استلام', 'pickup/review': 'مراجعة استلام', 'batch/assign': 'تعيين مجموعة توزيع', 'driverUpdate/approve': 'اعتماد تحديث مندوب', 'driverUpdate/reject': 'رفض تحديث مندوب', 'barcode/create': 'إنشاء دفعة باركود', 'barcode/close': 'إغلاق دفعة باركود', 'exception/resolve': 'حل استثناء', 'driver/upsert': 'حفظ مندوب', 'merchant/upsert': 'حفظ تاجر', 'settlement/create': 'إنشاء تسوية', 'settlement/approve': 'اعتماد تسوية', 'settlement/pay': 'دفع تسوية', 'finance/reconcileShipment': 'مطابقة مالية', 'ledger/postAll': 'ترحيل قيود', 'period/close': 'إغلاق فترة مالية',
+    'shipment/assignDriver': 'تعيين مندوب', 'shipment/transition': 'تغيير حالة شحنة', 'shipment/addAttempt': 'تسجيل محاولة توصيل', 'shipment/import': 'استيراد شحنات', 'pickup/approve': 'اعتماد استلام', 'pickup/review': 'مراجعة استلام', 'batch/assign': 'تعيين مجموعة توزيع', 'driverUpdate/approve': 'اعتماد تحديث مندوب', 'driverUpdate/reject': 'رفض تحديث مندوب', 'barcode/create': 'إنشاء دفعة باركود', 'barcode/close': 'تقفيل دفعة باركود', 'exception/resolve': 'حل استثناء', 'driver/upsert': 'حفظ مندوب', 'merchant/upsert': 'حفظ تاجر', 'settlement/create': 'إنشاء تسوية', 'settlement/approve': 'اعتماد تسوية', 'settlement/pay': 'دفع تسوية', 'finance/reconcileShipment': 'مطابقة مالية', 'ledger/postAll': 'اعتماد حركات حسابات', 'period/close': 'تقفيل فترة مالية',
   };
   return labels[action] ?? action;
 }
+

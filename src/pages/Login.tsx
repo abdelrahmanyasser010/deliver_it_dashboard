@@ -23,7 +23,7 @@ import './Login.css';
 
 export function LoginPage() {
   const { login, isLoading, error } = useAuth();
-  const [identifier, setIdentifier] = useState('admin@deliverit.com');
+  const [identifier, setIdentifier] = useState('admin@fix365.com');
   const [password, setPassword] = useState('password123');
   const [showPassword, setShowPassword] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -63,7 +63,7 @@ export function LoginPage() {
                 <Truck size={24} className="brand-truck-icon" />
               </div>
               <div>
-                <strong className="brand-title">Deliver It</strong>
+                <strong className="brand-title">FIX 365 — فيكس 365</strong>
                 <span className="brand-subtitle">
                   {en ? 'Enterprise Logistics Suite' : 'منظومة إدارة الشحن الذكية'}
                 </span>
@@ -91,7 +91,7 @@ export function LoginPage() {
             <p className="showcase-description">
               {en
                 ? 'Centralize your delivery operations, driver dispatching, automated merchant settlements, and barcode warehouse intake in one unified platform.'
-                : 'تحكم في حركة الشحنات، إسناد المناديب، مسح واستلام المخزن، وتسويات كاش التجار والمناديب بدقة محاسبية فورية.'}
+                : 'تحكم في حركة الشحنات، تكليف المناديب، مسح واستلام المخزن، وتسويات تحصيل التجار والمناديب بدقة محاسبية فورية.'}
             </p>
 
             {/* Feature Highlight Cards */}
@@ -102,7 +102,7 @@ export function LoginPage() {
                 </div>
                 <div>
                   <strong>{en ? 'Automated Dispatch & Live Tracking' : 'توجيه آلي وتتبع حي'}</strong>
-                  <p>{en ? 'Dispatch orders & track drivers live on map.' : 'إسناد سريع للطرود ومتابعة خطوط سير المناديب.'}</p>
+                  <p>{en ? 'Dispatch orders & track drivers live on map.' : 'تكليف سريع للطرود ومتابعة خطوط سير المناديب.'}</p>
                 </div>
               </div>
 
@@ -111,8 +111,8 @@ export function LoginPage() {
                   <TrendingUp size={18} />
                 </div>
                 <div>
-                  <strong>{en ? 'Financial & Merchant Settlements' : 'تسويات مالية وتقفيل كاش فوري'}</strong>
-                  <p>{en ? 'Reconcile driver COD & merchant payouts instantly.' : 'توريد عهدة المناديب وصرف مستحقات التجار بضغطة زر.'}</p>
+                  <strong>{en ? 'Financial & Merchant Settlements' : 'تسويات التجار وتحصيل المناديب'}</strong>
+                  <p>{en ? 'Reconcile driver collections and merchant payouts instantly.' : 'توريد تحصيل المناديب وصرف مستحقات التجار بضغطة زر.'}</p>
                 </div>
               </div>
 
@@ -262,21 +262,21 @@ export function LoginPage() {
                 <button
                   type="button"
                   className={`demo-pill ${identifier.includes('admin') ? 'active' : ''}`}
-                  onClick={() => setDemoRole('admin@deliverit.com', 'password123')}
+                  onClick={() => setDemoRole('admin@fix365.com', 'password123')}
                 >
                   {en ? 'Admin' : 'مدير النظام'}
                 </button>
                 <button
                   type="button"
                   className={`demo-pill ${identifier.includes('dispatch') ? 'active' : ''}`}
-                  onClick={() => setDemoRole('operations@deliverit.com', 'password123')}
+                  onClick={() => setDemoRole('operations@fix365.com', 'password123')}
                 >
                   {en ? 'Operations' : 'مشرف العمليات'}
                 </button>
                 <button
                   type="button"
                   className={`demo-pill ${identifier.includes('account') ? 'active' : ''}`}
-                  onClick={() => setDemoRole('finance@deliverit.com', 'password123')}
+                  onClick={() => setDemoRole('finance@fix365.com', 'password123')}
                 >
                   {en ? 'Accountant' : 'المحاسب المالي'}
                 </button>
@@ -298,3 +298,7 @@ export function LoginPage() {
     </main>
   );
 }
+
+
+
+

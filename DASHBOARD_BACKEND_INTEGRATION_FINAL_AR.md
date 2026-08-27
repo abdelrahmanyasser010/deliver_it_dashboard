@@ -1,4 +1,4 @@
-# Deliver It Dashboard — تقرير الربط النهائي
+﻿# FIX 365 Dashboard — تقرير الربط النهائي
 
 ## ما تم إغلاقه
 
@@ -42,3 +42,4 @@
 ## Runtime gate قبل النشر
 
 `npm ci` لم يكتمل داخل بيئة المراجعة بسبب timeout للوصول إلى registry، لذلك `npm run build/lint/test` يجب تشغيلها في CI أو جهاز التطوير المتصل بالإنترنت قبل Deployment. الفشل الذي ظهر محليًا كان نقص حزم `node_modules` (`vite/client` و`@types/node`) وليس خطأ TypeScript مثبتًا في السورس.
+

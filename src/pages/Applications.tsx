@@ -12,7 +12,7 @@ type MerchantApplicationDto = {
   activity?: string | null; city?: string | null; address?: string | null; average_orders?: number;
 };
 
-const statusLabel = (status: ApplicationStatus) => ({ submitted:'مقدم', otp_verified:'تم التحقق', under_review:'قيد المراجعة', approved:'مقبول', rejected:'مرفوض' }[status]);
+const statusLabel = (status: ApplicationStatus) => ({ submitted:'مقدم', otp_verified:'تم التحقق', under_review:'تحت المراجعة', approved:'مقبول', rejected:'مرفوض' }[status]);
 const statusTone = (status: ApplicationStatus) => status === 'approved' ? 'success' : status === 'rejected' ? 'danger' : 'warning';
 const actionId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 
