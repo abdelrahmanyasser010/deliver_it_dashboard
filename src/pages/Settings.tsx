@@ -1,20 +1,22 @@
 import { useState } from 'react';
-import { Banknote, Camera, MapPin, Plus, Printer, RotateCcw, Save, Scale, Settings2, Trash2 } from 'lucide-react';
+import { Banknote, Camera, MapPin, MessageCircle, Plus, Printer, RotateCcw, Save, Scale, Settings2, Trash2 } from 'lucide-react';
 import { ErrorState, PageSkeleton } from '../components/AsyncState';
 import { useDeliveryData } from '../context/DeliveryDataContext';
 import { useWorkspace } from '../context/WorkspaceContext';
 import {
   defaultGovernorateRates,
   defaultTenantOperationalSettings,
+  defaultWhatsAppTemplate,
   type FeeMode,
   type GovernorateRate,
   type PricingPolicySettings,
   type PrintingSettings,
   type ProofPolicySettings,
+  type WhatsAppNotificationSettings,
 } from '../domain/settings/entities';
 import './Settings.css';
 
-type SettingsTab = 'rates' | 'weight_pickup' | 'pricing' | 'proof' | 'printing';
+type SettingsTab = 'rates' | 'whatsapp' | 'weight_pickup' | 'pricing' | 'proof' | 'printing';
 
 interface TabConfig {
   id: SettingsTab;
@@ -24,7 +26,8 @@ interface TabConfig {
 }
 
 const tabs: TabConfig[] = [
-  { id: 'rates', label: 'أسعار المحافظات والمدن', description: 'جدول أسعار الشحن والمرتجع لكل نطاق جغرافي.', icon: MapPin },
+  { id: 'rates', label: 'أسعار وتوقيتات المحافظات', description: 'جدول أسعار الشحن وتوقيت التوصيل لكل محافظة.', icon: MapPin },
+  { id: 'whatsapp', label: 'إشعارات الواتساب للعملاء', description: 'تخصيص قالب الرسائل المباشرة ورابط التتبع.', icon: MessageCircle },
   { id: 'weight_pickup', label: 'الأوزان واستلام الشحنات (Pickup)', description: 'الكيلو الزائد، شروط البيك أب المجاني، وأجر المندوب.', icon: Scale },
   { id: 'pricing', label: 'الرسوم والضرائب', description: 'المرتجع والمحاولات والتحصيل والضريبة.', icon: Banknote },
   { id: 'proof', label: 'إثبات التسليم', description: 'الصورة واسم المستلم والموقع.', icon: Camera },
@@ -44,6 +47,9 @@ export function SettingsPage() {
   const [printing, setPrinting] = useState<PrintingSettings>(
     () => structuredClone(state?.settings.printing ?? defaultTenantOperationalSettings.printing)
   );
+  const [whatsApp, setWhatsApp] = useState<WhatsAppNotificationSettings>(
+    () => structuredClone(state?.settings.notifications?.whatsApp ?? defaultTenantOperationalSettings.notifications.whatsApp)
+  );
   const [saving, setSaving] = useState(false);
 
   if (isLoading) return <PageSkeleton rows={5} />;
@@ -55,7 +61,9 @@ export function SettingsPage() {
       ? { type: 'settings/updatePricing' as const, policy: pricing }
       : activeTab === 'proof'
         ? { type: 'settings/updateProof' as const, policy: proof }
-        : { type: 'settings/updatePrinting' as const, policy: printing };
+        : activeTab === 'whatsapp'
+          ? { type: 'settings/updateNotifications' as const, policy: { ...state?.settings.notifications, whatsApp } }
+          : { type: 'settings/updatePrinting' as const, policy: printing };
     const result = await execute(command);
     showToast(result.message, result.ok ? 'success' : 'danger');
     setSaving(false);
@@ -115,6 +123,7 @@ export function SettingsPage() {
 
             <div className="panel-body">
               {activeTab === 'rates' && <GovernorateRatesSettings value={pricing} onChange={setPricing} />}
+              {activeTab === 'whatsapp' && <WhatsAppSettingsPanel value={whatsApp} onChange={setWhatsApp} />}
               {activeTab === 'weight_pickup' && <WeightAndPickupSettings value={pricing} onChange={setPricing} />}
               {activeTab === 'pricing' && <PricingSettings value={pricing} onChange={setPricing} />}
               {activeTab === 'proof' && <ProofSettings value={proof} onChange={setProof} />}
@@ -693,6 +702,98 @@ function PrintingSettingsPanel({
             onChange={(showContents) => onChange({ ...value, showContents })}
           />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function WhatsAppSettingsPanel({
+  value,
+  onChange,
+}: {
+  value: WhatsAppNotificationSettings;
+  onChange: (val: WhatsAppNotificationSettings) => void;
+}) {
+  const sampleText = (value.defaultTemplate || defaultWhatsAppTemplate)
+    .replaceAll('{اسم_العميل}', 'محمد أحمد')
+    .replaceAll('{رقم_الشحنة}', 'SHP-90812')
+    .replaceAll('{اسم_التاجر}', 'متجر الأناقة')
+    .replaceAll('{اسم_شركة_الشحن}', value.companyName || 'فيكس 365')
+    .replaceAll('{المحافظة}', 'الإسكندرية')
+    .replaceAll('{مدة_التسليم}', 'خلال 2 أيام عمل')
+    .replaceAll('{المبلغ}', '450 ج.م')
+    .replaceAll('{رابط_التتبع}', 'https://deliverit.app/track/SHP-90812');
+
+  const insertVariable = (varName: string) => {
+    onChange({ ...value, defaultTemplate: `${value.defaultTemplate || ''} ${varName}`.trim() });
+  };
+
+  return (
+    <div className="whatsapp-settings-section">
+      <div className="toggle-grid-inputs">
+        <Toggle
+          checked={value.enabled}
+          label="تفعيل زر إشعارات الواتساب للعملاء"
+          description="إتاحة زر إرسال الواتساب السريع ببيانات التوصيل في شاشة الاستلام والشحنات."
+          onChange={(enabled) => onChange({ ...value, enabled })}
+        />
+      </div>
+
+      <div className="policy-grid-inputs" style={{ marginTop: '1.25rem' }}>
+        <label className="setting-field-card">
+          <span className="field-label">اسم شركة الشحن (يظهر في الرسالة)</span>
+          <div className="field-input-box">
+            <input
+              type="text"
+              value={value.companyName}
+              placeholder="مثال: فيكس 365"
+              onChange={(e) => onChange({ ...value, companyName: e.target.value })}
+            />
+          </div>
+        </label>
+      </div>
+
+      <div className="template-editor-card" style={{ marginTop: '1.25rem' }}>
+        <label className="field-label" style={{ fontWeight: 800, marginBottom: '0.4rem', display: 'block' }}>
+          قالب رسالة إشعار التوصيل (WhatsApp Template)
+        </label>
+        <p className="rates-notice" style={{ marginBottom: '0.65rem' }}>
+          انقر على المتغيرات التالية لإضافتها تلقائيًا إلى القالب. تُحسب مدة التسليم تلقائيًا حسب جدول المحافظة المحدد في الإعدادات:
+        </p>
+        <div className="variable-badges-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem' }}>
+          {[
+            '{اسم_العميل}',
+            '{رقم_الشحنة}',
+            '{اسم_التاجر}',
+            '{اسم_شركة_الشحن}',
+            '{المحافظة}',
+            '{مدة_التسليم}',
+            '{المبلغ}',
+            '{رابط_التتبع}',
+          ].map((v) => (
+            <button
+              key={v}
+              type="button"
+              className="chip-badge"
+              style={{ background: 'rgba(59,130,246,0.15)', color: '#60A5FA', border: '1px solid rgba(59,130,246,0.3)', padding: '0.25rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}
+              onClick={() => insertVariable(v)}
+            >
+              + {v}
+            </button>
+          ))}
+        </div>
+        <textarea
+          className="input-glass"
+          rows={4}
+          style={{ width: '100%', fontFamily: 'inherit', padding: '0.75rem', lineHeight: '1.6' }}
+          value={value.defaultTemplate}
+          onChange={(e) => onChange({ ...value, defaultTemplate: e.target.value })}
+        />
+      </div>
+
+      <div className="whatsapp-preview-box" style={{ marginTop: '1.25rem', padding: '1rem', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 'var(--radius-md)' }}>
+        <strong style={{ color: '#34D399', display: 'block', marginBottom: '0.4rem' }}>💬 معاينة حية لرسالة الواتساب:</strong>
+        <p style={{ whiteSpace: 'pre-wrap', fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: '1.6' }}>{sampleText}</p>
       </div>
     </div>
   );

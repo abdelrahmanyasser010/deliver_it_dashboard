@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { AlertCircle, ArrowRightLeft, Banknote, CheckSquare, Eye, PenLine, Printer, Square, Truck, X } from 'lucide-react';
+import { AlertCircle, ArrowRightLeft, Banknote, CheckSquare, Eye, MessageCircle, PenLine, Printer, Square, Truck, X } from 'lucide-react';
 import { Drawer, Modal } from '../../components/ui/Ui';
 import type { Shipment, ShipmentStatus } from '../../domain/logistics/entities';
 import { shipmentTransitions } from '../../application/delivery/workflow';
+import { openWhatsAppNotification } from '../../utils/whatsapp';
 import { getCsvValue, type CsvPreview } from './csvImport';
 import {
   calculateShipmentFinancials,
@@ -41,7 +42,7 @@ export function ShipmentRow({ shipment, checked, onToggle, onOpen, onPrint, now,
       {visibleColumns.includes('task') && <td><span className="status-badge" style={{ color: task.color, background: task.bg }}>{task.label}</span>{shipment.exceptionReason && <small className="table-subline exception-text">{shipment.exceptionReason}</small>}</td>}
       {visibleColumns.includes('collection') && <td><strong className="amount">{formatCurrency(shipment.expectedCollection)}</strong><small className="table-subline" style={{ color: financial.color }}>{financial.label}</small></td>}
       {visibleColumns.includes('updated') && <td>{formatAge(shipment.lastUpdatedAt)}{isDelayed && <small className="table-subline delayed-text">متأخرة عن الموعد</small>}</td>}
-      <td><div className="row-actions"><button className="btn-icon sm" onClick={onOpen} aria-label={`عرض ${shipment.id}`}><Eye size={15} /></button><button className="btn-icon sm" onClick={onPrint} aria-label={`طباعة ${shipment.id}`}><Printer size={15} /></button></div></td>
+      <td><div className="row-actions"><button className="btn-icon sm" onClick={onOpen} aria-label={`عرض ${shipment.id}`} title="عرض التفاصيل"><Eye size={15} /></button><button className="btn-icon sm" onClick={() => openWhatsAppNotification(shipment)} aria-label={`واتساب ${shipment.id}`} title="إرسال رسالة واتساب للعميل" style={{ color: '#22c55e' }}><MessageCircle size={15} /></button><button className="btn-icon sm" onClick={onPrint} aria-label={`طباعة ${shipment.id}`} title="طباعة البوليصة"><Printer size={15} /></button></div></td>
     </tr>
   );
 }
@@ -103,6 +104,7 @@ export function ShipmentDrawer({ shipment, relatedShipments, attempts, activeAct
             <h4>الإجراءات المتاحة</h4>
             <div className="shipment-ops-grid">
               <button className="outline-btn" onClick={() => onAction('assign')}><Truck size={16} /> تعيين مندوب</button>
+              <button className="outline-btn" onClick={() => openWhatsAppNotification(shipment)} style={{ color: '#22c55e', borderColor: 'rgba(34,197,94,0.3)' }}><MessageCircle size={16} /> إرسال واتساب للعميل</button>
               <button className="outline-btn" onClick={() => onAction('editFee')}><PenLine size={16} /> تعديل رسوم الشحن والسبب</button>
               <button className="outline-btn" onClick={() => onAction('settlement')} disabled={shipment.collectedCash === 0}><Banknote size={16} /> طلب تسوية</button>
             </div>

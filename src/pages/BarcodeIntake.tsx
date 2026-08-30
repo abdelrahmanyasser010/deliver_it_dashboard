@@ -1,4 +1,4 @@
-import { Barcode, CheckCircle2, PenLine, RotateCcw, ScanLine, TriangleAlert, Undo2, XCircle } from 'lucide-react';
+import { Barcode, CheckCircle2, MessageCircle, PenLine, RotateCcw, ScanLine, TriangleAlert, Undo2, XCircle } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { EmptyState, PageSkeleton } from '../components/AsyncState';
 import { MetricCard, Modal, SectionHeader, StatusBadge } from '../components/ui/Ui';
@@ -6,6 +6,7 @@ import { useDeliveryData } from '../context/DeliveryDataContext';
 import { useWorkspace } from '../context/WorkspaceContext';
 import type { Shipment } from '../domain/logistics/entities';
 import { createClientId } from '../utils/id';
+import { openWhatsAppNotification } from '../utils/whatsapp';
 import './BarcodeIntake.css';
 
 export function BarcodeIntakePage() {
@@ -152,14 +153,24 @@ export function BarcodeIntakePage() {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       {shipment && (
-                        <button
-                          className="outline-btn sm"
-                          style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
-                          onClick={() => startEditFee(shipment)}
-                          title="تعديل الرسوم أو الوزن"
-                        >
-                          <PenLine size={13}/> تعديل الرسوم
-                        </button>
+                        <>
+                          <button
+                            className="outline-btn sm"
+                            style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
+                            onClick={() => startEditFee(shipment)}
+                            title="تعديل الرسوم أو الوزن"
+                          >
+                            <PenLine size={13}/> تعديل الرسوم
+                          </button>
+                          <button
+                            className="btn-primary sm"
+                            style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem', background: '#16a34a', borderColor: '#15803d' }}
+                            onClick={() => openWhatsAppNotification(shipment, state?.settings)}
+                            title="إرسال رسالة واتساب للعميل بموعد التوصيل"
+                          >
+                            <MessageCircle size={13}/> إرسال واتساب
+                          </button>
+                        </>
                       )}
                       <StatusBadge label="صحيح" tone="success"/>
                     </div>

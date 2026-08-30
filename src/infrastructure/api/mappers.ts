@@ -132,6 +132,11 @@ export function notificationFromApi(input: unknown): NotificationSettings {
     slaDelayEnabled: hasEvent('sla_delay') || hasEvent('shipment_delayed'),
     notifyMerchantOnApprovedStatus: hasEvent('shipment_status_approved') || hasEvent('shipment_status_changed'),
     notifyDriverOnClarification: hasEvent('driver_clarification') || hasEvent('driver_update_review'),
+    whatsApp: {
+      enabled: bool(channels.whatsapp, true),
+      companyName: str(r.company_name) || defaultTenantOperationalSettings.notifications.whatsApp.companyName,
+      defaultTemplate: str(r.whatsapp_template) || defaultTenantOperationalSettings.notifications.whatsApp.defaultTemplate,
+    },
   };
 }
 

@@ -85,6 +85,15 @@ export interface PrintingSettings {
   barcodeFormat: 'code128';
 }
 
+export interface WhatsAppNotificationSettings {
+  enabled: boolean;
+  companyName: string;
+  defaultTemplate: string;
+}
+
+export const defaultWhatsAppTemplate =
+  'أهلاً {اسم_العميل} 👋 تم استلام شحنتك رقم {رقم_الشحنة} من {اسم_التاجر} لدى شركة {اسم_شركة_الشحن}. سيتم التوصيل إلى {المحافظة} {مدة_التسليم}. المبلغ المطلوب عند الاستلام: {المبلغ}. تتبع شحنتك: {رابط_التتبع}';
+
 export interface NotificationSettings {
   inAppEnabled: boolean;
   pushDriverEnabled: boolean;
@@ -92,6 +101,7 @@ export interface NotificationSettings {
   slaDelayEnabled: boolean;
   notifyMerchantOnApprovedStatus: boolean;
   notifyDriverOnClarification: boolean;
+  whatsApp: WhatsAppNotificationSettings;
 }
 
 export interface TenantOperationalSettings {
@@ -172,6 +182,11 @@ export const defaultTenantOperationalSettings: TenantOperationalSettings = {
     slaDelayEnabled: true,
     notifyMerchantOnApprovedStatus: true,
     notifyDriverOnClarification: true,
+    whatsApp: {
+      enabled: true,
+      companyName: 'فيكس 365',
+      defaultTemplate: defaultWhatsAppTemplate,
+    },
   },
   updatedAt: new Date().toISOString(),
   updatedBy: 'إعدادات النظام الافتراضية',
