@@ -54,10 +54,27 @@ export function SettlementsPage() {
   const [paymentReference, setPaymentReference] = useState('INSTAPAY-TXN-001');
   const [bulkApproveOpen, setBulkApproveOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [quickPayTarget, setQuickPayTarget] = useState<{ merchantName: string; shipmentIds: string[]; totalNet: number } | null>(null);
 
   const settlements = useMemo(() => state?.settlements ?? [], [state?.settlements]);
   const shipments = useMemo(() => state?.shipments ?? [], [state?.shipments]);
   const merchants = useMemo(() => state?.merchants ?? [], [state?.merchants]);
+
+  const merchantsWithUnsettled = useMemo(() => {
+    const map = new Map<string, { merchantId: string; merchantName: string; shipmentIds: string[]; totalCod: number; totalNet: number }>();
+    shipments.forEach((s) => {
+      if (['delivered', 'partiallyDelivered', 'returned'].includes(s.status) && s.settlementStatus === 'unsettled') {
+        const key = s.merchantName || s.merchantId;
+        const existing = map.get(key) || { merchantId: s.merchantId, merchantName: s.merchantName, shipmentIds: [], totalCod: 0, totalNet: 0 };
+        existing.shipmentIds.push(s.id);
+        existing.totalCod += s.collectedCash;
+        const net = s.status === 'returned' ? -Math.round(s.deliveryFee * 0.6) : Math.max(0, s.collectedCash - s.deliveryFee - s.discount);
+        existing.totalNet += net;
+        map.set(key, existing);
+      }
+    });
+    return Array.from(map.values());
+  }, [shipments]);
 
   const details = settlements.find((item) => item.id === detailsId) ?? null;
 
@@ -184,6 +201,60 @@ export function SettlementsPage() {
           gradient="linear-gradient(135deg,#0EA5E9,#4F46E5)"
         />
       </div>
+
+      {merchantsWithUnsettled.length > 0 && (
+        <section className="glass-card" style={{ marginBottom: '1.25rem', border: '1px solid rgba(16, 185, 129, 0.25)', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(15, 23, 42, 0.6))' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Zap size={18} color="#10B981" />
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#F8FAFC' }}>
+                تسويات تجار جاهزة للصرف السريع (بنقرة واحدة)
+              </h3>
+            </div>
+            <span style={{ fontSize: '0.78rem', color: '#94A3B8' }}>
+              {merchantsWithUnsettled.length.toLocaleString('ar-EG')} تجار ينتظرون الصرف
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0.75rem' }}>
+            {merchantsWithUnsettled.map((m) => (
+              <div
+                key={m.merchantId || m.merchantName}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '12px',
+                  padding: '0.85rem 1rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div>
+                  <strong style={{ color: '#F8FAFC', fontSize: '0.92rem', display: 'block' }}>{m.merchantName}</strong>
+                  <span style={{ fontSize: '0.76rem', color: '#94A3B8' }}>
+                    {m.shipmentIds.length.toLocaleString('ar-EG')} شحنة مسوّاة جاهزة
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.2rem' }}>
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: '#94A3B8', display: 'block' }}>صافي المستحق</span>
+                    <strong style={{ color: '#34D399', fontSize: '1rem' }}>{formatCurrency(m.totalNet)}</strong>
+                  </div>
+                  <button
+                    className="btn-primary"
+                    style={{ background: 'linear-gradient(135deg, #10B981, #059669)', padding: '0.4rem 0.85rem', fontSize: '0.78rem' }}
+                    onClick={() => setQuickPayTarget({ merchantName: m.merchantName, shipmentIds: m.shipmentIds, totalNet: m.totalNet })}
+                  >
+                    <Zap size={14} /> صرف فوري
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="glass-card">
         <div className="settlement-toolbar">
@@ -483,6 +554,18 @@ export function SettlementsPage() {
           onSubmit={handleCreateSettlement}
         />
       )}
+
+      {/* Quick Pay Modal */}
+      {quickPayTarget && (
+        <QuickPayModal
+          target={quickPayTarget}
+          onClose={() => setQuickPayTarget(null)}
+          onConfirm={async (ref) => {
+            await handleCreateSettlement(quickPayTarget.shipmentIds, ref);
+            setQuickPayTarget(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -501,6 +584,7 @@ function CreateMerchantSettlementDialog({
   const [selectedMerchantId, setSelectedMerchantId] = useState(merchants[0]?.id ?? '');
   const [payoutMode, setPayoutMode] = useState<'instant' | 'review'>('instant');
   const [paymentRef, setPaymentRef] = useState('INSTAPAY-001');
+  const [showTable, setShowTable] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const eligibleShipments = useMemo(() => {
@@ -702,79 +786,89 @@ function CreateMerchantSettlementDialog({
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.2rem' }}>
-          <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            حدد الشحنات المراد تضمينها في هذه التسوية:
-          </span>
           <button
             type="button"
             className="outline-btn"
-            style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem' }}
-            onClick={selectedIds.length === eligibleShipments.length ? deselectAll : selectAll}
+            style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', color: '#38BDF8', borderColor: 'rgba(56,189,248,0.3)' }}
+            onClick={() => setShowTable(!showTable)}
           >
-            {selectedIds.length === eligibleShipments.length ? 'إلغاء تحديد الكل' : 'تحديد كل الشحنات'}
+            {showTable ? '▲ إخفاء تفاصيل الشحنات' : '▼ عرض تفاصيل الشحنات المحددة (تعديل الاختيار)'}
           </button>
+
+          {showTable && (
+            <button
+              type="button"
+              className="outline-btn"
+              style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem' }}
+              onClick={selectedIds.length === eligibleShipments.length ? deselectAll : selectAll}
+            >
+              {selectedIds.length === eligibleShipments.length ? 'إلغاء تحديد الكل' : 'تحديد كل الشحنات'}
+            </button>
+          )}
         </div>
 
         {/* Shipments Checklist Table */}
-        <div className="table-wrapper" style={{ maxHeight: '240px', overflowY: 'auto' }}>
-          <table className="data-table compact-table">
-            <thead>
-              <tr>
-                <th style={{ width: '36px', textAlign: 'center' }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.length === eligibleShipments.length && eligibleShipments.length > 0}
-                    onChange={() => (selectedIds.length === eligibleShipments.length ? deselectAll() : selectAll())}
-                  />
-                </th>
-                <th>رقم الشحنة</th>
-                <th>المستلم</th>
-                <th>المحافظة</th>
-                <th>الحالة</th>
-                <th>تحصيل عند التسليم</th>
-                <th>رسوم الشحن</th>
-                <th>الصافي</th>
-              </tr>
-            </thead>
-            <tbody>
-              {eligibleShipments.length ? (
-                eligibleShipments.map((s) => {
-                  const isChecked = selectedIds.includes(s.id);
-                  const net =
-                    s.status === 'returned'
-                      ? -Math.round(s.deliveryFee * 0.6)
-                      : Math.max(0, s.collectedCash - s.deliveryFee - s.discount);
-                  return (
-                    <tr
-                      key={s.id}
-                      onClick={() => toggle(s.id)}
-                      style={{ cursor: 'pointer', background: isChecked ? 'rgba(14, 165, 233, 0.08)' : undefined }}
-                    >
-                      <td style={{ textAlign: 'center' }}>
-                        <input type="checkbox" checked={isChecked} onChange={() => {}} />
-                      </td>
-                      <td className="tracking-num">{s.id}</td>
-                      <td>{s.customerName || 'عميل'}</td>
-                      <td>{s.governorate || '—'}</td>
-                      <td>{s.status === 'returned' ? 'مرتجع' : 'تم التسليم'}</td>
-                      <td>{formatCurrency(s.collectedCash)}</td>
-                      <td>{formatCurrency(s.deliveryFee)}</td>
-                      <td className="amount" style={{ color: net >= 0 ? '#10B981' : '#EF4444', fontWeight: 700 }}>
-                        {formatCurrency(net)}
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
+        {showTable && (
+          <div className="table-wrapper" style={{ maxHeight: '240px', overflowY: 'auto' }}>
+            <table className="data-table compact-table">
+              <thead>
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)' }}>
-                    لا توجد شحنات غير مسوّاة لهذا التاجر حالياً.
-                  </td>
+                  <th style={{ width: '36px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length === eligibleShipments.length && eligibleShipments.length > 0}
+                      onChange={() => (selectedIds.length === eligibleShipments.length ? deselectAll() : selectAll())}
+                    />
+                  </th>
+                  <th>رقم الشحنة</th>
+                  <th>المستلم</th>
+                  <th>المحافظة</th>
+                  <th>الحالة</th>
+                  <th>تحصيل عند التسليم</th>
+                  <th>رسوم الشحن</th>
+                  <th>الصافي</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {eligibleShipments.length ? (
+                  eligibleShipments.map((s) => {
+                    const isChecked = selectedIds.includes(s.id);
+                    const net =
+                      s.status === 'returned'
+                        ? -Math.round(s.deliveryFee * 0.6)
+                        : Math.max(0, s.collectedCash - s.deliveryFee - s.discount);
+                    return (
+                      <tr
+                        key={s.id}
+                        onClick={() => toggle(s.id)}
+                        style={{ cursor: 'pointer', background: isChecked ? 'rgba(14, 165, 233, 0.08)' : undefined }}
+                      >
+                        <td style={{ textAlign: 'center' }}>
+                          <input type="checkbox" checked={isChecked} onChange={() => {}} />
+                        </td>
+                        <td className="tracking-num">{s.id}</td>
+                        <td>{s.customerName || 'عميل'}</td>
+                        <td>{s.governorate || '—'}</td>
+                        <td>{s.status === 'returned' ? 'مرتجع' : 'تم التسليم'}</td>
+                        <td>{formatCurrency(s.collectedCash)}</td>
+                        <td>{formatCurrency(s.deliveryFee)}</td>
+                        <td className="amount" style={{ color: net >= 0 ? '#10B981' : '#EF4444', fontWeight: 700 }}>
+                          {formatCurrency(net)}
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)' }}>
+                      لا توجد شحنات غير مسوّاة لهذا التاجر حالياً.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </Modal>
   );
@@ -801,6 +895,79 @@ function SummaryCard({
         <p className="admin-summary-value">{value}</p>
       </div>
     </div>
+  );
+}
+
+function QuickPayModal({
+  target,
+  onClose,
+  onConfirm,
+}: {
+  target: { merchantName: string; shipmentIds: string[]; totalNet: number };
+  onClose: () => void;
+  onConfirm: (ref: string) => Promise<void>;
+}) {
+  const [ref, setRef] = useState('INSTAPAY-001');
+  const [submitting, setSubmitting] = useState(false);
+
+  return (
+    <Modal
+      title={`⚡ صرف فوري لـ ${target.merchantName}`}
+      description={`صرف أرباح ${target.shipmentIds.length.toLocaleString('ar-EG')} شحنة مسوّاة وتحديث محفظة التاجر فورا.`}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="outline-btn" onClick={onClose} disabled={submitting}>
+            إلغاء
+          </button>
+          <button
+            className="btn-primary"
+            style={{ background: 'linear-gradient(135deg, #10B981, #059669)' }}
+            disabled={submitting}
+            onClick={async () => {
+              setSubmitting(true);
+              try {
+                await onConfirm(ref.trim() || 'INSTAPAY-001');
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+          >
+            <Zap size={15} /> {submitting ? 'جارٍ التحويل…' : `تأكيد التحويل والصرف (${formatCurrency(target.totalNet)})`}
+          </button>
+        </>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="report-kpi-grid">
+          <div className="report-kpi glass-card">
+            <div>
+              <p className="report-kpi-label">التاجر</p>
+              <p className="report-kpi-value" style={{ fontSize: '1rem' }}>{target.merchantName}</p>
+            </div>
+          </div>
+          <div className="report-kpi glass-card" style={{ borderColor: 'rgba(16,185,129,0.4)' }}>
+            <div>
+              <p className="report-kpi-label">صافي المبلغ المحوّل</p>
+              <p className="report-kpi-value" style={{ color: '#34D399' }}>
+                {formatCurrency(target.totalNet)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <label className="form-field">
+          <span>رقم إيصال التحويل أو كود الحوالة</span>
+          <input
+            className="input-glass"
+            autoFocus
+            value={ref}
+            onChange={(e) => setRef(e.target.value)}
+            placeholder="مثال: INSTAPAY-98421 أو تحويل بنكي CIB"
+          />
+        </label>
+      </div>
+    </Modal>
   );
 }
 

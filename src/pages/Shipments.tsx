@@ -21,7 +21,7 @@ import type {
   ShipmentStatus,
 } from '../domain/logistics/entities';
 import { buildServerImportFile, parseCsv, serverImportColumnMapping, validateImportRow, type CsvPreview } from '../features/shipments/csvImport';
-import { BulkActionDialog, CsvPreviewDialog, SelectionBar, ShipmentDrawer, ShipmentRow, type BulkAction, type ShipmentAction, type ShipmentColumn } from '../features/shipments/ShipmentPresentation';
+import { BulkActionDialog, BulkStatusDialog, CsvPreviewDialog, SelectionBar, ShipmentDrawer, ShipmentRow, type BulkAction, type ShipmentAction, type ShipmentColumn } from '../features/shipments/ShipmentPresentation';
 import { ShipmentLabelsPreview } from '../features/printing/ShipmentLabelsPreview';
 import { downloadXlsx } from '../utils/exportSpreadsheet';
 import { uploadApiFile } from '../infrastructure/api/files';
@@ -340,6 +340,13 @@ export function ShipmentsPage() {
     setCheckedIds([]);
   };
 
+  const submitBulkStatusChange = async (nextStatus: ShipmentStatus, reason: string) => {
+    const result = await delivery.execute({ type: 'shipment/transition', shipmentIds: checkedShipments.map((s) => s.id), nextStatus, reason: reason || `تغيير يدوي جماعي من اللوحة — ${checkedShipments.length} شحنة` });
+    setToast(result.message);
+    setBulkAction(null);
+    setCheckedIds([]);
+  };
+
   if (shipmentQuery.isLoading) return <PageSkeleton rows={4} />;
   if (shipmentQuery.error) return <ErrorState message={shipmentQuery.error} onRetry={shipmentQuery.refetch} />;
 
@@ -407,6 +414,7 @@ export function ShipmentsPage() {
           totalCod={checkedShipments.reduce((sum, shipment) => sum + shipment.expectedCollection, 0)}
           onAssign={() => setBulkAction('assign')}
           onPrint={() => setBulkAction('print')}
+          onStatusChange={() => setBulkAction('status')}
           onClear={() => setCheckedIds([])}
         />
       )}
@@ -452,7 +460,15 @@ export function ShipmentsPage() {
         />
       )}
 
-      {bulkAction && (
+      {bulkAction === 'status' && (
+        <BulkStatusDialog
+          shipments={checkedShipments}
+          onCancel={() => setBulkAction(null)}
+          onSubmit={submitBulkStatusChange}
+        />
+      )}
+
+      {bulkAction && bulkAction !== 'status' && (
         <BulkActionDialog
           action={bulkAction}
           shipments={checkedShipments}

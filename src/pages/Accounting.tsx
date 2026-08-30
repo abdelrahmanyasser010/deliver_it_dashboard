@@ -63,6 +63,19 @@ export function AccountingPage() {
     return [...new Set([...fromShipments, ...fromState])];
   }, [shipments, state?.drivers]);
 
+  const driversWithUnremitted = useMemo(() => {
+    const map = new Map<string, { driverName: string; count: number; totalCash: number }>();
+    shipments.forEach((s) => {
+      if (s.driverName && s.collectedCash > s.remittedCash && ['delivered', 'partiallyDelivered', 'inTransit', 'receivedAtOffice'].includes(s.status)) {
+        const existing = map.get(s.driverName) || { driverName: s.driverName, count: 0, totalCash: 0 };
+        existing.count += 1;
+        existing.totalCash += (s.collectedCash - s.remittedCash);
+        map.set(s.driverName, existing);
+      }
+    });
+    return Array.from(map.values());
+  }, [shipments]);
+
   const handleBatchRemit = async (items: Array<{ id: string; cash: number }>, note: string) => {
     for (const item of items) {
       await run({ type: 'finance/reconcileShipment', shipmentId: item.id, remittedCash: item.cash, note });
@@ -113,18 +126,68 @@ export function AccountingPage() {
     <header className="reports-hero glass-card">
       <div>
         <h2>المحاسبة والتحصيل</h2>
-        <p>تابع تحصيل المناديب، كشوف حسابات التجار، التسويات، وتقفيل الفترة من مكان واحد.</p>
+        <p>متابعة عهد المناديب، توريد الكاش، كشوف حسابات التجار، وقيود اليومية.</p>
       </div>
       <div className="toolbar-actions">
         <button className="btn-primary" onClick={() => setBatchRemittanceDriver(driversList[0] || '')}>
-          <Wallet size={15}/> استلام تحصيل مندوب
+          <Wallet size={15}/> تقفيل وتوريد عهدة مندوب
         </button>
         <button className="outline-btn" onClick={() => navigate('/settlements')}><ReceiptText size={15}/> تسويات التجار</button>
       </div>
     </header>
     <div className="reports-tabs accounting-tabs glass-card">{tabs.map((tab) => <button key={tab.id} className={`reports-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>)}</div>
 
-    {activeTab === 'overview' && <><div className="report-kpi-grid"><FinanceCard label="إجمالي المحصل" value={formatCurrency(totalCollected)} icon={<Banknote/>}/><FinanceCard label="تم توريده" value={formatCurrency(totalRemitted)} icon={<Landmark/>}/><FinanceCard label="تحصيل لم يورد" value={formatCurrency(cashWithDrivers)} icon={<Wallet/>}/><FinanceCard label="مستحقات التجار" value={formatCurrency(merchantPayables)} icon={<ReceiptText/>}/></div><div className="accounting-alert-grid"><button className="accounting-action-card glass-card" onClick={() => setBatchRemittanceDriver(driversList[0] || '')}><Wallet/><span><strong>استلام تحصيل مندوب</strong><small>{formatCurrency(cashWithDrivers)} جاهزة للتوريد والتقفيل الآن</small></span></button><button className="accounting-action-card glass-card" onClick={() => navigate('/exceptions?category=financial')}><AlertTriangle/><span><strong>فروقات التحصيل</strong><small>{fmt(discrepancies.length)} شحنة تحتاج مطابقة</small></span></button><button className="accounting-action-card glass-card" onClick={() => navigate('/settlements')}><ReceiptText/><span><strong>تسويات مفتوحة</strong><small>{fmt(settlements.filter((item) => !['paid','reconciled','cancelled'].includes(item.status)).length)} تسوية</small></span></button><button className="accounting-action-card glass-card" onClick={() => setActiveTab('ledger')}><Landmark/><span><strong>حركات حسابات معلقة</strong><small>{fmt(pendingLedger)} حركة تحتاج اعتماد</small></span></button></div></>}
+    {activeTab === 'overview' && <>
+      <div className="report-kpi-grid">
+        <FinanceCard label="إجمالي المحصل" value={formatCurrency(totalCollected)} icon={<Banknote/>}/>
+        <FinanceCard label="تم توريده" value={formatCurrency(totalRemitted)} icon={<Landmark/>}/>
+        <FinanceCard label="تحصيل لم يورد" value={formatCurrency(cashWithDrivers)} icon={<Wallet/>}/>
+        <FinanceCard label="مستحقات التجار" value={formatCurrency(merchantPayables)} icon={<ReceiptText/>}/>
+      </div>
+
+      {driversWithUnremitted.length > 0 && (
+        <section className="glass-card" style={{ marginBottom: '1.25rem', border: '1px solid rgba(14, 165, 233, 0.25)', background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.05), rgba(15, 23, 42, 0.6))' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Wallet size={18} color="#0EA5E9" />
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#F8FAFC' }}>
+                استلام عهد الكاش من المناديب (تصفية فورية)
+              </h3>
+            </div>
+            <span style={{ fontSize: '0.78rem', color: '#94A3B8' }}>
+              {driversWithUnremitted.length.toLocaleString('ar-EG')} مناديب بحوزتهم كاش لم يورّد
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0.75rem' }}>
+            {driversWithUnremitted.map((d) => (
+              <div key={d.driverName} style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '0.85rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', justifyContent: 'space-between' }}>
+                <div>
+                  <strong style={{ color: '#F8FAFC', fontSize: '0.92rem', display: 'block' }}>{d.driverName}</strong>
+                  <span style={{ fontSize: '0.76rem', color: '#94A3B8' }}>{d.count.toLocaleString('ar-EG')} شحنة محصلة معلقة</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.2rem' }}>
+                  <div>
+                    <span style={{ fontSize: '0.7rem', color: '#94A3B8', display: 'block' }}>العهدة الحالية</span>
+                    <strong style={{ color: '#38BDF8', fontSize: '1rem' }}>{formatCurrency(d.totalCash)}</strong>
+                  </div>
+                  <button className="btn-primary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.78rem' }} onClick={() => setBatchRemittanceDriver(d.driverName)}>
+                    <Wallet size={14} /> توريد العهدة
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="accounting-alert-grid">
+        <button className="accounting-action-card glass-card" onClick={() => setBatchRemittanceDriver(driversList[0] || '')}><Wallet/><span><strong>استلام تحصيل مندوب</strong><small>{formatCurrency(cashWithDrivers)} جاهزة للتوريد والتقفيل الآن</small></span></button>
+        <button className="accounting-action-card glass-card" onClick={() => navigate('/exceptions?category=financial')}><AlertTriangle/><span><strong>فروقات التحصيل</strong><small>{fmt(discrepancies.length)} شحنة تحتاج مطابقة</small></span></button>
+        <button className="accounting-action-card glass-card" onClick={() => navigate('/settlements')}><ReceiptText/><span><strong>تسويات مفتوحة</strong><small>{fmt(settlements.filter((item) => !['paid','reconciled','cancelled'].includes(item.status)).length)} تسوية</small></span></button>
+        <button className="accounting-action-card glass-card" onClick={() => setActiveTab('ledger')}><Landmark/><span><strong>حركات حسابات معلقة</strong><small>{fmt(pendingLedger)} حركة تحتاج اعتماد</small></span></button>
+      </div>
+    </>}
 
     {activeTab === 'statements' && <section className="glass-card"><div className="statement-toolbar"><label><span>نوع الحساب</span><select className="input-glass" value={partyType} onChange={(event) => { setPartyType(event.target.value as typeof partyType); setPartyName('all'); }}><option value="all">الكل</option><option value="merchant">التجار</option><option value="driver">المناديب</option></select></label><label><span>الحساب</span><select className="input-glass" value={partyName} onChange={(event) => setPartyName(event.target.value)}><option value="all">كل الحسابات</option>{partyOptions.map((name) => <option key={name}>{name}</option>)}</select></label><label className="statement-search"><span>بحث</span><div className="search-field"><Search size={15}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="الشحنة أو الحساب أو البيان"/></div></label><div className="toolbar-actions">{partyType === 'driver' && partyName !== 'all' && <button className="btn-primary" onClick={() => setBatchRemittanceDriver(partyName)}><Wallet size={15}/> تقفيل تحصيل {partyName}</button>}<button className="outline-btn" onClick={exportStatements}><Download size={15}/> تحميل كشف الحساب</button></div></div><div className="statement-summary"><FinanceCard label="عليه" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.debit, 0))} icon={<Wallet/>}/><FinanceCard label="له" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.credit, 0))} icon={<Banknote/>}/><FinanceCard label="صافي الرصيد" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.debit - row.credit, 0))} icon={<ReceiptText/>}/></div><div className="table-wrapper"><table className="data-table"><thead><tr><th>التاريخ</th><th>الحساب</th><th>الشحنة</th><th>البيان</th><th>عليه</th><th>له</th><th>إجراء</th></tr></thead><tbody>{filteredStatements.map((row) => { const shipment = shipments.find((item) => item.id === row.shipmentId); return <tr key={row.id}><td>{formatDateTime(row.date)}</td><td><div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}><strong style={{ color: '#F8FAFC', fontSize: '0.86rem' }}>{row.partyName}</strong><span style={{ fontSize: '0.7rem', color: row.partyType === 'merchant' ? '#38BDF8' : '#818CF8' }}>{row.partyType === 'merchant' ? 'تاجر' : 'مندوب'}</span></div></td><td><button className="tracking-link" onClick={() => navigate(`/shipments?shipment=${row.shipmentId}`)}>{row.shipmentId}</button></td><td>{row.description}</td><td>{formatCurrency(row.debit)}</td><td>{formatCurrency(row.credit)}</td><td>{row.partyType === 'driver' && shipment && shipment.collectedCash > shipment.remittedCash && <button className="outline-btn" onClick={() => setBatchRemittanceDriver(row.partyName)}>استلام التوريد</button>}</td></tr>; })}</tbody></table></div></section>}
 

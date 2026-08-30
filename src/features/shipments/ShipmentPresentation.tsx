@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { AlertCircle, Banknote, CheckSquare, Eye, PenLine, Printer, Square, Truck, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { AlertCircle, ArrowRightLeft, Banknote, CheckSquare, Eye, PenLine, Printer, Square, Truck, X } from 'lucide-react';
 import { Drawer, Modal } from '../../components/ui/Ui';
-import type { Shipment } from '../../domain/logistics/entities';
+import type { Shipment, ShipmentStatus } from '../../domain/logistics/entities';
+import { shipmentTransitions } from '../../application/delivery/workflow';
 import { getCsvValue, type CsvPreview } from './csvImport';
 import {
   calculateShipmentFinancials,
@@ -16,7 +17,7 @@ import {
 } from '../../utils/helpers';
 
 export type ShipmentAction = 'assign' | 'settlement' | 'editFee';
-export type BulkAction = 'assign' | 'print';
+export type BulkAction = 'assign' | 'print' | 'status';
 export type ShipmentColumn = 'customer' | 'merchant' | 'area' | 'driver' | 'status' | 'task' | 'collection' | 'updated';
 
 const formatNumber = (value: number) => value.toLocaleString('ar-EG');
@@ -45,11 +46,11 @@ export function ShipmentRow({ shipment, checked, onToggle, onOpen, onPrint, now,
   );
 }
 
-export function SelectionBar({ count, total, totalCod, onAssign, onPrint, onClear }: { count: number; total: number; totalCod: number; onAssign: () => void; onPrint: () => void; onClear: () => void }) {
+export function SelectionBar({ count, total, totalCod, onAssign, onPrint, onStatusChange, onClear }: { count: number; total: number; totalCod: number; onAssign: () => void; onPrint: () => void; onStatusChange: () => void; onClear: () => void }) {
   return (
     <div className="selection-bar glass-panel">
       <div><strong>تم تحديد {formatNumber(count)} من {formatNumber(total)} نتيجة ظاهرة</strong><small>إجمالي التحصيل المتوقع: {formatCurrency(totalCod)}</small></div>
-      <div className="selection-actions"><button className="outline-btn" onClick={onAssign}><Truck size={15} /> تعيين مندوب</button><button className="outline-btn" onClick={onPrint}><Printer size={15} /> طباعة</button><button className="icon-plain" onClick={onClear} aria-label="إلغاء التحديد"><X size={17} /></button></div>
+      <div className="selection-actions"><button className="btn-primary" onClick={onStatusChange}><ArrowRightLeft size={15} /> تغيير الحالة</button><button className="outline-btn" onClick={onAssign}><Truck size={15} /> تعيين مندوب</button><button className="outline-btn" onClick={onPrint}><Printer size={15} /> طباعة</button><button className="icon-plain" onClick={onClear} aria-label="إلغاء التحديد"><X size={17} /></button></div>
     </div>
   );
 }
@@ -187,7 +188,7 @@ export function BulkActionDialog({ action, shipments, drivers, onCancel, onSubmi
   const [driverId, setDriverId] = useState(drivers[0]?.id ?? '');
   const totalCod = shipments.reduce((sum, shipment) => sum + shipment.expectedCollection, 0);
   const urgentCount = shipments.filter((shipment) => shipment.priority === 'urgent').length;
-  const title = { assign: 'تعيين مندوب للشحنات المحددة', print: 'طباعة البوليصات المحددة' }[action];
+  const title = { assign: 'تعيين مندوب للشحنات المحددة', print: 'طباعة البوليصات المحددة', status: 'تغيير حالة الشحنات المحددة' }[action];
   return <Modal title={title} description={`${formatNumber(shipments.length)} شحنة`} onClose={onCancel} footer={<><button className="outline-btn" onClick={onCancel}>إلغاء</button><button className="btn-primary" onClick={() => onSubmit({ driverId })}>تنفيذ</button></>}>
     <div className="shipment-action-body">
       <div className="bulk-summary"><div><span>إجمالي التحصيل</span><strong>{formatCurrency(totalCod)}</strong></div><div><span>شحنات عاجلة</span><strong>{formatNumber(urgentCount)}</strong></div><div><span>المناطق</span><strong>{formatNumber(new Set(shipments.map((shipment) => shipment.governorate)).size)}</strong></div></div>
@@ -220,3 +221,75 @@ function DetailRow({ label, value, dir, bold, wide, danger }: { label: string; v
   return <div className={`detail-row ${wide ? 'wide' : ''}`}><span className="detail-label">{label}</span><span className={`detail-value ${bold ? 'bold-value' : ''} ${danger ? 'danger-value' : ''}`} dir={dir}>{value}</span></div>;
 }
 
+export function BulkStatusDialog({ shipments, onCancel, onSubmit }: { shipments: Shipment[]; onCancel: () => void; onSubmit: (nextStatus: ShipmentStatus, reason: string) => void }) {
+  const [reason, setReason] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState<ShipmentStatus | ''>('');
+
+  const allowedStatuses = useMemo(() => {
+    if (shipments.length === 0) return [];
+    const sets = shipments.map((s) => new Set(shipmentTransitions[s.status] ?? []));
+    const intersection = [...sets[0]].filter((status) => sets.every((set) => set.has(status)));
+    return intersection as ShipmentStatus[];
+  }, [shipments]);
+
+  const statusGroups: Array<{ label: string; statuses: ShipmentStatus[]; color: string }> = [
+    { label: '✅ تسليم', statuses: ['delivered', 'partiallyDelivered' as ShipmentStatus], color: '#10B981' },
+    { label: '🔄 إعادة توجيه', statuses: ['inTransit', 'receivedAtOffice', 'deliveredToDriver'], color: '#0EA5E9' },
+    { label: '⏸️ تأجيل / فشل', statuses: ['postponed', 'failedToDeliver'], color: '#F59E0B' },
+    { label: '↩️ مرتجع', statuses: ['returned'], color: '#EF4444' },
+    { label: '📦 تجهيز', statuses: ['readyToShip'], color: '#8B5CF6' },
+  ];
+
+  const currentStatusSummary = useMemo(() => {
+    const counts: Record<string, number> = {};
+    shipments.forEach((s) => {
+      const label = statusConfig[s.status].label;
+      counts[label] = (counts[label] ?? 0) + 1;
+    });
+    return Object.entries(counts).map(([label, count]) => `${label} (${count})`).join(' · ');
+  }, [shipments]);
+
+  return <Modal wide title="تغيير حالة الشحنات المحددة" description={`${formatNumber(shipments.length)} شحنة محددة — اختر الحالة الجديدة`} onClose={onCancel} footer={<><button className="outline-btn" onClick={onCancel}>إلغاء</button><button className="btn-primary" disabled={!selectedStatus} onClick={() => selectedStatus && onSubmit(selectedStatus, reason)}><ArrowRightLeft size={15} /> تأكيد تغيير الحالة ({formatNumber(shipments.length)} شحنة)</button></>}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+      <div style={{ background: 'rgba(14, 165, 233, 0.08)', borderRadius: '12px', padding: '0.75rem 1rem', fontSize: '0.82rem', color: '#94A3B8' }}>
+        <strong style={{ color: '#F8FAFC', display: 'block', marginBottom: '0.3rem' }}>الحالات الحالية:</strong>
+        {currentStatusSummary}
+      </div>
+
+      {allowedStatuses.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#F59E0B' }}>
+          <AlertCircle size={28} style={{ marginBottom: '0.5rem' }} />
+          <p style={{ fontWeight: 700, fontSize: '0.92rem' }}>لا توجد حالة مشتركة يمكن الانتقال إليها</p>
+          <p style={{ fontSize: '0.78rem', color: '#94A3B8', marginTop: '0.3rem' }}>الشحنات المحددة في حالات مختلفة ولا يوجد انتقال مشترك بينها. حاول تحديد شحنات من نفس الحالة.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.6rem' }}>
+          {statusGroups.map((group) => {
+            const available = group.statuses.filter((s) => allowedStatuses.includes(s));
+            if (available.length === 0) return null;
+            return available.map((status) => {
+              const cfg = statusConfig[status];
+              const isSelected = selectedStatus === status;
+              return <button key={status} type="button" onClick={() => setSelectedStatus(status)} style={{
+                padding: '0.85rem 1rem', borderRadius: '12px', cursor: 'pointer', textAlign: 'right',
+                border: isSelected ? `2px solid ${cfg.color}` : '1px solid rgba(255,255,255,0.08)',
+                background: isSelected ? cfg.bg : 'rgba(255,255,255,0.02)',
+                transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', gap: '0.6rem',
+                fontFamily: 'inherit', color: isSelected ? cfg.color : '#CBD5E1',
+              }}>
+                <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />
+                <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{cfg.label}</span>
+              </button>;
+            });
+          })}
+        </div>
+      )}
+
+      <label className="form-field">
+        <span>سبب التغيير / ملاحظات (اختياري)</span>
+        <input className="input-glass" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="مثال: تم التسليم بالمكتب — تغيير يدوي من الإدارة" />
+      </label>
+    </div>
+  </Modal>;
+}

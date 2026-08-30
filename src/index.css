@@ -596,3 +596,124 @@ select option {
   }
 }
 
+/* ==========================================================================
+   Comprehensive Unified Responsive Framework (1024px, 768px, 480px)
+   ========================================================================== */
+
+@media (max-width: 1024px) {
+  .admin-summary-grid,
+  .report-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+
+  .selection-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+  }
+
+  .selection-actions {
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-layout {
+    flex-direction: column !important;
+  }
+
+  .sidebar {
+    width: 100% !important;
+    min-height: auto !important;
+    border-left: 0 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    padding: 0.5rem 0.75rem !important;
+  }
+
+  .sidebar-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    padding: 0.25rem 0 !important;
+    gap: 0.35rem !important;
+  }
+
+  .nav-section {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 0.35rem !important;
+  }
+
+  .nav-section-title {
+    display: none !important;
+  }
+
+  .nav-item {
+    white-space: nowrap !important;
+    padding: 0.45rem 0.75rem !important;
+    font-size: 0.78rem !important;
+  }
+
+  .admin-summary-grid,
+  .report-kpi-grid,
+  .accounting-alert-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .settlement-toolbar,
+  .statement-toolbar {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.6rem !important;
+  }
+
+  .statement-search {
+    grid-column: auto !important;
+    width: 100% !important;
+  }
+
+  .table-wrapper {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .modal-container {
+    width: 95% !important;
+    max-width: 100% !important;
+    margin: 0.5rem !important;
+    padding: 1rem !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-kicker {
+    font-size: 0.7rem !important;
+  }
+
+  h2 {
+    font-size: 1.25rem !important;
+  }
+
+  .btn-primary,
+  .outline-btn {
+    padding: 0.45rem 0.75rem !important;
+    font-size: 0.78rem !important;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 0.5rem 0.6rem !important;
+    font-size: 0.75rem !important;
+  }
+
+  .chip-toggle {
+    padding: 0.4rem 0.65rem !important;
+    font-size: 0.75rem !important;
+  }
+}
+
+
