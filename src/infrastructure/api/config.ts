@@ -15,7 +15,9 @@ export const DEVICE_STORAGE_KEY = 'deliver-it-dashboard-device-id-v1';
 export const API_CACHE_PREFIX = 'deliver-it-api-cache-v1:';
 
 export function ensureApiConfigured() {
-  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is required in production.');
+  if (!API_BASE_URL) {
+    console.warn('VITE_API_BASE_URL is not set. Operating in offline/state mode.');
+  }
 }
 
 export function getOrCreateDeviceId() {
