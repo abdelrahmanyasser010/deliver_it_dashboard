@@ -12,7 +12,6 @@ import {
   formatCurrency,
   formatDateTime,
   paymentTypeLabels,
-  priorityConfig,
   statusConfig,
   taskStatusConfig,
 } from '../../utils/helpers';
@@ -27,7 +26,6 @@ export function ShipmentRow({ shipment, checked, onToggle, onOpen, onPrint, now,
   const status = statusConfig[shipment.status];
   const task = taskStatusConfig[shipment.taskStatus];
   const financial = financialStatusConfig[shipment.financialStatus];
-  const priority = priorityConfig[shipment.priority];
   const isDelayed = shipment.expectedDeliveryAt && new Date(shipment.expectedDeliveryAt).getTime() < now && !['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status);
 
   return (
@@ -38,7 +36,7 @@ export function ShipmentRow({ shipment, checked, onToggle, onOpen, onPrint, now,
       {visibleColumns.includes('merchant') && <td>{shipment.merchantName}</td>}
       {visibleColumns.includes('area') && <td>{shipment.governorate}<small className="table-subline">{shipment.city}</small></td>}
       {visibleColumns.includes('driver') && <td>{shipment.driverName ?? <span className="missing-value">غير معين</span>}</td>}
-      {visibleColumns.includes('status') && <td><span className="status-badge" style={{ color: status.color, background: status.bg }}>{status.label}</span><span className="mini-badge" style={{ color: priority.color, background: priority.bg }}>{priority.label}</span></td>}
+      {visibleColumns.includes('status') && <td><span className="status-badge" style={{ color: status.color, background: status.bg }}>{status.label}</span></td>}
       {visibleColumns.includes('task') && <td><span className="status-badge" style={{ color: task.color, background: task.bg }}>{task.label}</span>{shipment.exceptionReason && <small className="table-subline exception-text">{shipment.exceptionReason}</small>}</td>}
       {visibleColumns.includes('collection') && <td><strong className="amount">{formatCurrency(shipment.expectedCollection)}</strong><small className="table-subline" style={{ color: financial.color }}>{financial.label}</small></td>}
       {visibleColumns.includes('updated') && <td>{formatAge(shipment.lastUpdatedAt)}{isDelayed && <small className="table-subline delayed-text">متأخرة عن الموعد</small>}</td>}
@@ -61,7 +59,6 @@ export function ShipmentDrawer({ shipment, relatedShipments, attempts, activeAct
   const status = statusConfig[shipment.status];
   const task = taskStatusConfig[shipment.taskStatus];
   const financial = financialStatusConfig[shipment.financialStatus];
-  const priority = priorityConfig[shipment.priority];
 
   return (
     <Drawer className="detail-drawer" title={shipment.id} description={`ملف الشحنة — آخر تحديث ${formatAge(shipment.lastUpdatedAt)}`} onClose={onClose} footer={<button className="btn-primary full-width" onClick={onPrint}><Printer size={16} /> طباعة البوليصة</button>}>
@@ -69,7 +66,6 @@ export function ShipmentDrawer({ shipment, relatedShipments, attempts, activeAct
           <span style={{ color: status.color, background: status.bg }}>{status.label}</span>
           <span style={{ color: task.color, background: task.bg }}>{task.label}</span>
           <span style={{ color: financial.color, background: financial.bg }}>{financial.label}</span>
-          <span style={{ color: priority.color, background: priority.bg }}>{priority.label}</span>
         </div>
 
         <div className="drawer-body">

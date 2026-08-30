@@ -30,7 +30,6 @@ import { asRecord } from '../infrastructure/api/mappers';
 import { friendlyApiMessage } from '../infrastructure/api/errors';
 import {
   financialStatusConfig,
-  priorityConfig,
   statusConfig,
   taskStatusConfig,
 } from '../utils/helpers';
@@ -68,7 +67,7 @@ const shipmentColumns: Array<{ id: ShipmentColumn; label: string }> = [
   { id: 'customer', label: 'المستلم' }, { id: 'merchant', label: 'التاجر' }, { id: 'area', label: 'المنطقة' }, { id: 'driver', label: 'المندوب' },
   { id: 'status', label: 'الحالة' }, { id: 'task', label: 'المطلوب' }, { id: 'collection', label: 'التحصيل' }, { id: 'updated', label: 'آخر تحديث' },
 ];
-const defaultColumns = shipmentColumns.map((item) => item.id);
+const defaultColumns: ShipmentColumn[] = ['customer', 'merchant', 'area', 'driver', 'status', 'collection', 'updated'];
 function readSavedViews(): SavedShipmentView[] {
   try { return JSON.parse(localStorage.getItem('deliver-it-shipment-views') ?? '[]') as SavedShipmentView[]; } catch { return []; }
 }
@@ -389,7 +388,6 @@ export function ShipmentsPage() {
         <select className="input-glass" value={driverFilter} onChange={(event) => setDriverFilter(event.target.value)} aria-label="فلتر المندوب"><option value="all">كل المناديب</option><option value="unassigned">غير معين</option>{filterOptions.shipmentDrivers.map((item) => <option key={item}>{item}</option>)}</select>
         <select className="input-glass" value={merchantFilter} onChange={(event) => setMerchantFilter(event.target.value)} aria-label="فلتر التاجر"><option value="all">كل التجار</option>{filterOptions.merchants.map((item) => <option key={item}>{item}</option>)}</select>
         <select className="input-glass saved-view-select" defaultValue="" onChange={(event) => { applySavedView(event.target.value); event.currentTarget.value = ''; }} aria-label="تطبيق فلتر محفوظ"><option value="">الفلاتر المحفوظة ({formatNumber(savedViews.length)})</option>{savedViews.map((view) => <option key={view.id} value={view.id}>{view.name}</option>)}</select>
-        <select className="input-glass" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} aria-label="فلتر الأولوية"><option value="all">كل الأولويات</option><option value="urgent">عاجل</option><option value="high">مهم</option><option value="normal">طبيعي</option></select>
         <button className="outline-btn compact-btn" onClick={clearFilters} disabled={activeFilterCount === 0}><FilterX size={15} /> مسح الفلاتر ({formatNumber(activeFilterCount)})</button>
       </section>
 
@@ -401,7 +399,6 @@ export function ShipmentsPage() {
           {governorateFilter !== 'all' && <UiFilterChip label={`المحافظة: ${governorateFilter}`} onRemove={() => setGovernorateFilter('all')} />}
           {driverFilter !== 'all' && <UiFilterChip label={`المندوب: ${driverFilter === 'unassigned' ? 'غير معين' : driverFilter}`} onRemove={() => setDriverFilter('all')} />}
           {merchantFilter !== 'all' && <UiFilterChip label={`التاجر: ${merchantFilter}`} onRemove={() => setMerchantFilter('all')} />}
-          {priorityFilter !== 'all' && <UiFilterChip label={`الأولوية: ${priorityConfig[priorityFilter as keyof typeof priorityConfig].label}`} onRemove={() => setPriorityFilter('all')} />}
           {fromDate && <UiFilterChip label={`من: ${fromDate}`} onRemove={() => { const next = new URLSearchParams(searchParams); next.delete('from'); setSearchParams(next, { replace: true }); }} />}
           {toDate && <UiFilterChip label={`إلى: ${toDate}`} onRemove={() => { const next = new URLSearchParams(searchParams); next.delete('to'); setSearchParams(next, { replace: true }); }} />}
         </div>
