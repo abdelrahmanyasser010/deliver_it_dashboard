@@ -47,27 +47,19 @@ function numberValue(row: Record<string, string>, keys: string[]) {
 
 export function validateImportRow(data: Record<string, string>, rowNumber: number, existingCodes: Set<string>): CsvPreviewRow {
   const errors: string[] = [];
-  const merchantId = getCsvValue(data, ['merchant_id', 'merchantId', 'معرف التاجر']);
   const customer = getCsvValue(data, ['recipient_name', 'customerName', 'العميل', 'name']);
   const phone = getCsvValue(data, ['recipient_phone', 'phone', 'customerPhone', 'الهاتف']);
-  const governorate = getCsvValue(data, ['governorate', 'المحافظة']);
-  const city = getCsvValue(data, ['city', 'المدينة']);
   const address = getCsvValue(data, ['address_line', 'address', 'العنوان']);
-  const itemName = getCsvValue(data, ['item_name', 'item', 'المنتج']);
   const quantity = numberValue(data, ['quantity', 'الكمية']);
   const minorPrice = numberValue(data, ['unit_price_minor']);
   const currencyPrice = numberValue(data, ['unit_price', 'price', 'total', 'المبلغ', 'amount']);
   const code = getCsvValue(data, ['external_order_number', 'code', 'trackingNumber', 'كود', 'البوليصة']);
 
-  if (!merchantId) errors.push('merchant_id مطلوب عند الاستيراد من لوحة الإدارة');
   if (!customer) errors.push('اسم المستلم مطلوب');
   if (!/^01\d{9}$/.test(phone.replace(/\s/g, ''))) errors.push('رقم الهاتف غير صحيح');
-  if (!governorate) errors.push('المحافظة مطلوبة');
-  if (!city) errors.push('المدينة مطلوبة');
   if (!address) errors.push('العنوان مطلوب');
-  if (!itemName) errors.push('اسم الصنف مطلوب');
-  if (!Number.isFinite(quantity) || quantity < 1 || !Number.isInteger(quantity)) errors.push('الكمية يجب أن تكون رقمًا صحيحًا أكبر من صفر');
-  if ((!Number.isFinite(minorPrice) || minorPrice < 0) && (!Number.isFinite(currencyPrice) || currencyPrice < 0)) errors.push('سعر الصنف مطلوب');
+  if (Number.isFinite(quantity) && (quantity < 1 || !Number.isInteger(quantity))) errors.push('الكمية يجب أن تكون رقمًا صحيحًا أكبر من صفر');
+  if ((!Number.isFinite(minorPrice) || minorPrice < 0) && (!Number.isFinite(currencyPrice) || currencyPrice < 0)) errors.push('قيمة الشحنة مطلوبة');
   return { rowNumber, data, errors, duplicate: Boolean(code && existingCodes.has(code)) };
 }
 
@@ -102,7 +94,7 @@ function normalizedRow(row: Record<string, string>) {
     priority: getCsvValue(row, ['priority','الأولوية']) || 'normal',
     notes: getCsvValue(row, ['notes','ملاحظات']),
     item_sku: getCsvValue(row, ['item_sku','sku']),
-    item_name: getCsvValue(row, ['item_name','item','المنتج']),
+    item_name: getCsvValue(row, ['item_name','item','المنتج']) || 'شحنة مستوردة',
     quantity: String(Math.max(1, Math.round(numberValue(row, ['quantity','الكمية']) || 1))),
     unit_price_minor: String(Number.isFinite(directMinor) ? Math.max(0,Math.round(directMinor)) : Math.max(0,Math.round(currencyPrice*100))),
     weight_grams: getCsvValue(row, ['weight_grams','الوزن بالجرام']),

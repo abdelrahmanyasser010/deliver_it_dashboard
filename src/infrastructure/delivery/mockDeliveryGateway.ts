@@ -2,7 +2,7 @@ import type { DeliveryGateway, GatewayCommandResponse } from '../../application/
 import type { DeliveryCommand, DeliveryState } from '../../application/delivery/types';
 import type { Merchant } from '../../domain/logistics/entities';
 import type { DeliveryBatch, DriverShipmentUpdate, PickupTask, ReturnCase } from '../../domain/operations/entities';
-import type { FinancialLedgerEntry, MerchantSettlement } from '../../domain/finance/entities';
+import type { DriverFinancialAdjustment, FinancialLedgerEntry, MerchantSettlement, OperationalExpense } from '../../domain/finance/entities';
 import { defaultTenantOperationalSettings } from '../../domain/settings/entities';
 import { logisticsMockRepository } from '../mock/logisticsMockRepository';
 
@@ -133,6 +133,28 @@ function createLedger(state: Pick<DeliveryState, 'shipments'>): FinancialLedgerE
   });
 }
 
+function createOperationalExpenses(): OperationalExpense[] {
+  return [
+    { id: 'EXP-1001', date: iso(-72), category: 'utilities', description: 'كهرباء ومياه الفرع', amount: 1250, paymentMethod: 'cash', status: 'approved', createdBy: 'المحاسبة' },
+    { id: 'EXP-1002', date: iso(-48), category: 'packaging', description: 'أكياس ولواصق تغليف', amount: 850, paymentMethod: 'wallet', status: 'approved', createdBy: 'المحاسبة' },
+    { id: 'EXP-1003', date: iso(-12), category: 'maintenance', description: 'صيانة طابعة البوالص', amount: 450, paymentMethod: 'cash', status: 'pending', createdBy: 'التشغيل' },
+  ];
+}
+
+function createDriverAdjustments(state: Pick<DeliveryState, 'drivers'>): DriverFinancialAdjustment[] {
+  return state.drivers.slice(0, 3).map((driver, index) => ({
+    id: `DADJ-${2001 + index}`,
+    driverId: driver.id,
+    driverName: driver.name,
+    date: iso(-24 - index * 12),
+    type: index === 1 ? 'deduction' : 'bonus',
+    amount: index === 1 ? 75 : 150 + index * 50,
+    description: index === 1 ? 'خصم فرق تحصيل بعد المراجعة' : 'مكافأة تسليمات خارج الزون',
+    status: 'approved',
+    createdBy: 'المحاسبة',
+  }));
+}
+
 function createChatRooms(state: Pick<DeliveryState, 'shipments'>): DeliveryState['chatRooms'] {
   const targets = state.shipments.filter((shipment) => ['needsCustomerService', 'needsFinancialReview', 'needsStatusApproval'].includes(shipment.taskStatus)).slice(0, 4);
   return targets.map((shipment, index) => ({
@@ -151,10 +173,15 @@ async function createBootstrap(): Promise<DeliveryState> {
   const snapshot = await logisticsMockRepository.getSnapshot();
   const merchants = snapshot.merchants.map(enrichMerchant);
   const base: DeliveryState = {
-    shipments: snapshot.shipments.map((shipment) => ({ ...shipment, version: 1, pricingSnapshot: { shippingFee: shipment.deliveryFee, returnFeeMode: 'disabled', returnFeeValue: 0, freeAttempts: 3, extraAttemptFeeMode: 'disabled', extraAttemptFeeValue: 0, collectionFeeMode: 'disabled', collectionFeeValue: 0, vatEnabled: false, vatRate: 0 }, events: [{ id: `EVT-${shipment.id}-1`, shipmentId: shipment.id, type: 'created', title: 'تم إنشاء الشحنة', detail: `أنشأها ${shipment.merchantName}`, createdAt: shipment.createdAt, actor: shipment.merchantName }], attempts: [] })),
+    shipments: snapshot.shipments.map((shipment) => {
+      const rate = defaultTenantOperationalSettings.pricing.governorateRates.find((item) => shipment.governorate.includes(item.governorate) || item.governorate.includes(shipment.governorate));
+      const merchantDeliveryFee = rate?.merchantDeliveryFee ?? shipment.deliveryFee;
+      const driverDeliveryCost = rate?.driverDeliveryCost ?? Math.round(merchantDeliveryFee * 0.65);
+      return { ...shipment, deliveryFee: merchantDeliveryFee, version: 1, pricingSnapshot: { shippingFee: merchantDeliveryFee, merchantDeliveryFee, driverDeliveryCost, grossShippingProfit: Math.max(0, merchantDeliveryFee - driverDeliveryCost), returnFeeMode: 'disabled', returnFeeValue: 0, freeAttempts: 3, extraAttemptFeeMode: 'disabled', extraAttemptFeeValue: 0, collectionFeeMode: 'disabled', collectionFeeValue: 0, vatEnabled: false, vatRate: 0 }, events: [{ id: `EVT-${shipment.id}-1`, shipmentId: shipment.id, type: 'created', title: 'تم إنشاء الشحنة', detail: `أنشأها ${shipment.merchantName}`, createdAt: shipment.createdAt, actor: shipment.merchantName }], attempts: [] };
+    }),
     drivers: snapshot.drivers.map((driver, index) => ({ ...driver, vehicleType: index % 3 === 0 ? 'van' : index % 2 === 0 ? 'car' : 'motorcycle', vehicleNumber: `د ل ف ${1000 + index}`, userCode: `driver${index + 1}`, accountStatus: driver.status === 'active' ? 'active' : 'suspended', operationalStatus: driver.status !== 'active' ? 'offline' : index % 3 === 0 ? 'delivery_task' : index % 2 === 0 ? 'busy' : 'available', branchId: index % 2 === 0 ? 'BR-Cairo' : 'BR-Giza', branchName: index % 2 === 0 ? 'فرع القاهرة' : 'فرع الجيزة', serviceAreas: [driver.zone], taskTypes: ['pickup','delivery','returns'], maxBatchShipments: driver.capacity, maxOpenTasks: Math.max(driver.capacity, 12), onShift: driver.status === 'active' && index !== 3, lastSeenAt: index === 3 ? iso(-5) : iso(-0.08 - index * 0.03) })),
     merchants,
-    pickupTasks: [], deliveryBatches: [], driverUpdates: [], returnCases: [], settlements: [], ledgerEntries: [], barcodeBatches: [], chatRooms: [], auditEvents: [], closedPeriods: [], settings: structuredClone(defaultTenantOperationalSettings), lastSyncedAt: iso(),
+    pickupTasks: [], deliveryBatches: [], driverUpdates: [], returnCases: [], settlements: [], ledgerEntries: [], operationalExpenses: [], driverAdjustments: [], barcodeBatches: [], chatRooms: [], auditEvents: [], closedPeriods: [], settings: structuredClone(defaultTenantOperationalSettings), lastSyncedAt: iso(),
   };
   base.pickupTasks = createPickupTasks(base);
   base.deliveryBatches = createDeliveryBatches(base);
@@ -162,6 +189,8 @@ async function createBootstrap(): Promise<DeliveryState> {
   base.returnCases = createReturnCases(base);
   base.settlements = createSettlements(base);
   base.ledgerEntries = createLedger(base);
+  base.operationalExpenses = createOperationalExpenses();
+  base.driverAdjustments = createDriverAdjustments(base);
   base.chatRooms = createChatRooms(base);
   return base;
 }

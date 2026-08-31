@@ -1,25 +1,102 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, Banknote, CheckCircle2, Download, Landmark, LockKeyhole, ReceiptText, Search, Wallet } from 'lucide-react';
+import { AlertTriangle, Banknote, CheckCircle2, Download, Landmark, LockKeyhole, Plus, ReceiptText, Search, Wallet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Modal, StatusBadge } from '../components/ui/Ui';
 import { useDeliveryData } from '../context/DeliveryDataContext';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { approvedDriverAdjustmentCost, approvedOperationalExpenses, deliveryCost, driverDeliveryCost, merchantShippingFee, shippingRevenue } from '../domain/finance/calculations';
+import type { DriverAdjustmentType, DriverFinancialAdjustment, OperationalExpense, OperationalExpenseCategory } from '../domain/finance/entities';
 import type { Shipment } from '../domain/logistics/entities';
 import { downloadXlsx } from '../utils/exportSpreadsheet';
 import { formatCurrency, formatDateTime } from '../utils/helpers';
 import './Reports.css';
 
-type AccountingTab = 'overview' | 'statements' | 'ledger' | 'close';
+type AccountingTab = 'overview' | 'statements' | 'expenses' | 'ledger' | 'close';
 type PartyType = 'merchant' | 'driver';
-interface StatementRow { id: string; date: string; partyType: PartyType; partyName: string; shipmentId: string; description: string; debit: number; credit: number; }
-const tabs: Array<{ id: AccountingTab; label: string }> = [{ id: 'overview', label: 'الملخص' }, { id: 'statements', label: 'حسابات التجار والمناديب' }, { id: 'ledger', label: 'مراجعة الحسابات' }, { id: 'close', label: 'تقفيل الفترة' }];
+type DatePreset = 'all' | 'today' | 'this_week' | 'this_month';
+
+interface StatementRow {
+  id: string;
+  date: string;
+  partyType: PartyType;
+  partyName: string;
+  shipmentId: string;
+  description: string;
+  debit: number;
+  credit: number;
+}
+
+const tabs: Array<{ id: AccountingTab; label: string }> = [
+  { id: 'overview', label: 'الملخص' },
+  { id: 'statements', label: 'كشوف الحساب' },
+  { id: 'expenses', label: 'المصاريف والمدفوعات' },
+  { id: 'ledger', label: 'مراجعة الحسابات' },
+  { id: 'close', label: 'تقفيل الفترة' },
+];
+
 const fmt = (value: number) => value.toLocaleString('ar-EG');
+const today = () => new Date().toISOString().slice(0, 10);
+
+const expenseLabels: Record<OperationalExpenseCategory, string> = {
+  rent: 'إيجار',
+  utilities: 'كهرباء ومياه',
+  salaries: 'رواتب',
+  fuel: 'بنزين ومشاوير',
+  maintenance: 'صيانة',
+  packaging: 'تغليف ومطبوعات',
+  marketing: 'تسويق',
+  software: 'أنظمة وبرامج',
+  other: 'أخرى',
+};
+
+const adjustmentLabels: Record<DriverAdjustmentType, string> = {
+  bonus: 'إضافة / مكافأة',
+  deduction: 'خصم',
+  reimbursement: 'تعويض مصروف',
+  advance: 'سلفة',
+};
+
+function inDatePreset(date: string, preset: DatePreset) {
+  if (preset === 'all') return true;
+  const target = new Date(date).getTime();
+  const now = new Date();
+  if (preset === 'today') return target >= new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (preset === 'this_week') {
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay());
+    start.setHours(0, 0, 0, 0);
+    return target >= start.getTime();
+  }
+  return target >= new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+}
 
 function buildStatementRows(shipments: Shipment[]): StatementRow[] {
   return shipments.flatMap((shipment) => {
     const rows: StatementRow[] = [];
-    if (['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status)) rows.push({ id: `MER-${shipment.id}`, date: shipment.statusChangedAt, partyType: 'merchant', partyName: shipment.merchantName, shipmentId: shipment.id, description: shipment.status === 'returned' ? 'رسوم مرتجع ورسوم تشغيل' : 'صافي مستحق شحنة مسلمة', debit: shipment.status === 'returned' ? Math.round(shipment.deliveryFee * .6) : 0, credit: ['delivered', 'partiallyDelivered'].includes(shipment.status) ? Math.max(0, shipment.collectedCash - shipment.deliveryFee - shipment.discount) : 0 });
-    if (shipment.driverId && shipment.collectedCash > 0) rows.push({ id: `DRV-${shipment.id}`, date: shipment.lastUpdatedAt, partyType: 'driver', partyName: shipment.driverName ?? shipment.driverId, shipmentId: shipment.id, description: 'تحصيل مع المندوب مطلوب توريده', debit: shipment.collectedCash, credit: shipment.remittedCash });
+    if (['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status)) {
+      rows.push({
+        id: `MER-${shipment.id}`,
+        date: shipment.statusChangedAt,
+        partyType: 'merchant',
+        partyName: shipment.merchantName,
+        shipmentId: shipment.id,
+        description: shipment.status === 'returned' ? 'رسوم مرتجع وتشغيل' : 'صافي مستحق شحنة مسلمة',
+        debit: shipment.status === 'returned' ? Math.round(shipment.deliveryFee * 0.6) : 0,
+        credit: ['delivered', 'partiallyDelivered'].includes(shipment.status) ? Math.max(0, shipment.collectedCash - shipment.deliveryFee - shipment.discount) : 0,
+      });
+    }
+    if (shipment.driverId && shipment.collectedCash > 0) {
+      rows.push({
+        id: `DRV-${shipment.id}`,
+        date: shipment.lastUpdatedAt,
+        partyType: 'driver',
+        partyName: shipment.driverName ?? shipment.driverId,
+        shipmentId: shipment.id,
+        description: 'تحصيل مع المندوب مطلوب توريده',
+        debit: shipment.collectedCash,
+        credit: shipment.remittedCash,
+      });
+    }
     return rows;
   });
 }
@@ -31,101 +108,59 @@ export function AccountingPage() {
   const [activeTab, setActiveTab] = useState<AccountingTab>('overview');
   const [partyType, setPartyType] = useState<'all' | PartyType>('all');
   const [partyName, setPartyName] = useState('all');
-  const [datePreset, setDatePreset] = useState<'all' | 'today' | 'this_week' | 'this_month'>('all');
+  const [datePreset, setDatePreset] = useState<DatePreset>('all');
   const [search, setSearch] = useState('');
   const [ledgerFilter, setLedgerFilter] = useState<'all' | 'pending' | 'posted' | 'reversed'>('all');
-  const [ledgerDatePreset, setLedgerDatePreset] = useState<'all' | 'today' | 'this_week' | 'this_month'>('all');
-  const [closePreviewOpen, setClosePreviewOpen] = useState(false);
+  const [batchRemittanceDriver, setBatchRemittanceDriver] = useState<string | null>(null);
+  const [expenseOpen, setExpenseOpen] = useState(false);
+  const [driverAdjustmentOpen, setDriverAdjustmentOpen] = useState(false);
   const [postPreviewOpen, setPostPreviewOpen] = useState(false);
+  const [closePreviewOpen, setClosePreviewOpen] = useState(false);
 
   const shipments = useMemo(() => state?.shipments ?? [], [state?.shipments]);
+  const pricing = state?.settings.pricing;
+  const expenses = state?.operationalExpenses ?? [];
+  const driverAdjustments = state?.driverAdjustments ?? [];
   const statements = useMemo(() => buildStatementRows(shipments), [shipments]);
-  const partyOptions = useMemo(() => [...new Set(statements.filter((row) => partyType === 'all' || row.partyType === partyType).map((row) => row.partyName))], [statements, partyType]);
-  
-  const filteredStatements = statements.filter((row) => {
-    if (partyType !== 'all' && row.partyType !== partyType) return false;
-    if (partyName !== 'all' && row.partyName !== partyName) return false;
-    if (search && !`${row.id} ${row.shipmentId} ${row.partyName} ${row.description}`.toLocaleLowerCase('ar-EG').includes(search.toLocaleLowerCase('ar-EG'))) return false;
-
-    if (datePreset !== 'all') {
-      const rowDate = new Date(row.date).getTime();
-      const now = new Date();
-      if (datePreset === 'today') {
-        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        if (rowDate < startOfDay) return false;
-      } else if (datePreset === 'this_week') {
-        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay())).getTime();
-        if (rowDate < startOfWeek) return false;
-      } else if (datePreset === 'this_month') {
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-        if (rowDate < startOfMonth) return false;
-      }
-    }
-    return true;
-  });
-
-  const ledger = (state?.ledgerEntries ?? []).filter((entry) => {
-    if (ledgerFilter !== 'all' && entry.status !== ledgerFilter) return false;
-    if (ledgerDatePreset !== 'all') {
-      const entryDate = new Date(entry.date).getTime();
-      const now = new Date();
-      if (ledgerDatePreset === 'today') {
-        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        if (entryDate < startOfDay) return false;
-      } else if (ledgerDatePreset === 'this_week') {
-        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay())).getTime();
-        if (entryDate < startOfWeek) return false;
-      } else if (ledgerDatePreset === 'this_month') {
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-        if (entryDate < startOfMonth) return false;
-      }
-    }
-    return true;
-  });
   const settlements = state?.settlements ?? [];
+  const ledgerRows = state?.ledgerEntries ?? [];
+  const drivers = state?.drivers ?? [];
+
+  const periodKey = new Date().toISOString().slice(0, 7);
+  const partyOptions = useMemo(() => [...new Set(statements.filter((row) => partyType === 'all' || row.partyType === partyType).map((row) => row.partyName))], [statements, partyType]);
+  const filteredStatements = statements.filter((row) =>
+    (partyType === 'all' || row.partyType === partyType) &&
+    (partyName === 'all' || row.partyName === partyName) &&
+    inDatePreset(row.date, datePreset) &&
+    (!search || `${row.id} ${row.shipmentId} ${row.partyName} ${row.description}`.toLocaleLowerCase('ar-EG').includes(search.toLocaleLowerCase('ar-EG')))
+  );
+  const ledger = ledgerRows.filter((entry) => (ledgerFilter === 'all' || entry.status === ledgerFilter) && inDatePreset(entry.date, datePreset));
+
   const totalCollected = shipments.reduce((sum, shipment) => sum + shipment.collectedCash, 0);
   const totalRemitted = shipments.reduce((sum, shipment) => sum + shipment.remittedCash, 0);
   const cashWithDrivers = Math.max(0, totalCollected - totalRemitted);
   const merchantPayables = shipments.filter((shipment) => ['remitted', 'inSettlement'].includes(shipment.financialStatus) && shipment.settlementStatus === 'unsettled').reduce((sum, shipment) => sum + Math.max(0, shipment.collectedCash - shipment.deliveryFee - shipment.discount), 0);
+  const revenue = pricing ? shippingRevenue(shipments, pricing) : 0;
+  const courierCost = pricing ? deliveryCost(shipments, pricing) : 0;
+  const expenseCost = approvedOperationalExpenses(expenses);
+  const driverExtraCost = approvedDriverAdjustmentCost(driverAdjustments);
+  const grossProfit = revenue - courierCost;
+  const netOperatingProfit = grossProfit - expenseCost - driverExtraCost;
   const discrepancies = shipments.filter((shipment) => shipment.financialStatus === 'discrepancy');
-  const pendingLedger = state?.ledgerEntries.filter((entry) => entry.status === 'pending').length ?? 0;
+  const pendingLedger = ledgerRows.filter((entry) => entry.status === 'pending').length;
   const pendingUpdates = state?.driverUpdates.filter((update) => update.status === 'pendingAdminApproval').length ?? 0;
   const pendingReturns = shipments.filter((shipment) => shipment.taskStatus === 'needsReturnProcessing').length;
-  const periodKey = new Date().toISOString().slice(0, 7);
+  const openSettlements = settlements.filter((item) => !['paid', 'reconciled', 'cancelled'].includes(item.status)).length;
   const isClosed = state?.closedPeriods.includes(periodKey) ?? false;
-  const openSettlements = settlements.filter((item) => !['paid','reconciled','cancelled'].includes(item.status)).length;
   const canClose = pendingLedger === 0 && discrepancies.length === 0 && pendingUpdates === 0;
+  const driversList = useMemo(() => [...new Set([...shipments.map((shipment) => shipment.driverName).filter(Boolean) as string[], ...drivers.map((driver) => driver.name)])], [shipments, drivers]);
 
-  const [batchRemittanceDriver, setBatchRemittanceDriver] = useState<string | null>(null);
-
-  const driversList = useMemo(() => {
-    const fromShipments = shipments.map((s) => s.driverName).filter(Boolean) as string[];
-    const fromState = (state?.drivers ?? []).map((d) => d.name);
-    return [...new Set([...fromShipments, ...fromState])];
-  }, [shipments, state?.drivers]);
-
-  const driversWithUnremitted = useMemo(() => {
-    const map = new Map<string, { driverName: string; count: number; totalCash: number }>();
-    shipments.forEach((s) => {
-      if (s.driverName && s.collectedCash > s.remittedCash && ['delivered', 'partiallyDelivered', 'inTransit', 'receivedAtOffice'].includes(s.status)) {
-        const existing = map.get(s.driverName) || { driverName: s.driverName, count: 0, totalCash: 0 };
-        existing.count += 1;
-        existing.totalCash += (s.collectedCash - s.remittedCash);
-        map.set(s.driverName, existing);
-      }
-    });
-    return Array.from(map.values());
-  }, [shipments]);
-
-  const handleBatchRemit = async (items: Array<{ id: string; cash: number }>, note: string) => {
-    for (const item of items) {
-      await run({ type: 'finance/reconcileShipment', shipmentId: item.id, remittedCash: item.cash, note });
-    }
-    showToast(`تم توريد ومطابقة ${items.length} شحنة وتقفيل تحصيلها بنجاح.`);
-    setBatchRemittanceDriver(null);
+  const run = async (command: Parameters<typeof execute>[0]) => {
+    const result = await execute(command);
+    showToast(result.message, result.ok ? 'success' : 'danger');
+    return result;
   };
 
-  const run = async (command: Parameters<typeof execute>[0]) => { const result = await execute(command); showToast(result.message, result.ok ? 'success' : 'danger'); return result; };
   const exportStatements = () => {
     downloadXlsx({
       filename: `account-statements-${periodKey}.xlsx`,
@@ -141,8 +176,9 @@ export function AccountingPage() {
         له: row.credit,
       })),
     });
-    showToast('تم تجهيز كشف الحساب بصيغة Excel.');
+    showToast('تم تجهيز كشف الحساب.');
   };
+
   const exportLedger = () => {
     downloadXlsx({
       filename: `accounting-review-${periodKey}.xlsx`,
@@ -155,677 +191,164 @@ export function AccountingPage() {
         عليه: entry.debit,
         له: entry.credit,
         الحالة: entry.status === 'posted' ? 'معتمد' : entry.status === 'pending' ? 'معلق' : 'ملغي',
-        نوع_المصدر: entry.sourceType,
         المصدر: entry.sourceId,
       })),
     });
-    showToast('تم تجهيز ملف مراجعة الحسابات بصيغة Excel.');
+    showToast('تم تجهيز ملف مراجعة الحسابات.');
   };
 
-  if (isLoading) return <div className="reports-page"><section className="glass-card">جاري تحميل البيانات المالية…</section></div>;
-  return <div className="reports-page">
-    <header className="reports-hero glass-card">
-      <div>
-        <h2>المحاسبة والتحصيل</h2>
-        <p>متابعة عهد المناديب، توريد الكاش، كشوف حسابات التجار، وقيود اليومية.</p>
-      </div>
-      <div className="toolbar-actions">
-        <button className="btn-primary" onClick={() => setBatchRemittanceDriver(driversList[0] || '')}>
-          <Wallet size={15}/> تقفيل وتوريد عهدة مندوب
-        </button>
-        <button className="outline-btn" onClick={() => navigate('/settlements')}><ReceiptText size={15}/> تسويات التجار</button>
-      </div>
-    </header>
-    <div className="reports-tabs accounting-tabs glass-card">{tabs.map((tab) => <button key={tab.id} className={`reports-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>)}</div>
+  if (isLoading || !pricing) return <div className="reports-page"><section className="glass-card">جاري تحميل البيانات المالية...</section></div>;
 
-    {activeTab === 'overview' && <>
-      <div className="report-kpi-grid">
-        <FinanceCard label="إجمالي المحصل" value={formatCurrency(totalCollected)} icon={<Banknote/>}/>
-        <FinanceCard label="تم توريده" value={formatCurrency(totalRemitted)} icon={<Landmark/>}/>
-        <FinanceCard label="تحصيل لم يورد" value={formatCurrency(cashWithDrivers)} icon={<Wallet/>}/>
-        <FinanceCard label="مستحقات التجار" value={formatCurrency(merchantPayables)} icon={<ReceiptText/>}/>
+  return (
+    <div className="reports-page">
+      <header className="reports-hero glass-card">
+        <div>
+          <h2>المحاسبة والتحصيل</h2>
+          <p>تابع تحصيل المناديب، ربح الشحن، المصاريف التشغيلية، وتسويات التجار من مكان واحد.</p>
+        </div>
+        <div className="toolbar-actions">
+          <button className="btn-primary" onClick={() => setBatchRemittanceDriver(driversList[0] || '')}><Wallet size={15} /> استلام تحصيل مندوب</button>
+          <button className="outline-btn" onClick={() => setExpenseOpen(true)}><Plus size={15} /> مصروف تشغيلي</button>
+          <button className="outline-btn" onClick={() => setDriverAdjustmentOpen(true)}><Banknote size={15} /> حركة مندوب</button>
+        </div>
+      </header>
+
+      <div className="reports-tabs accounting-tabs glass-card">
+        {tabs.map((tab) => <button key={tab.id} className={`reports-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>)}
       </div>
 
-      {driversWithUnremitted.length > 0 && (
-        <section className="glass-card" style={{ marginBottom: '1.25rem', border: '1px solid rgba(14, 165, 233, 0.25)', background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.05), rgba(15, 23, 42, 0.6))' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Wallet size={18} color="#0EA5E9" />
-              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#F8FAFC' }}>
-                استلام عهد الكاش من المناديب (تصفية فورية)
-              </h3>
-            </div>
-            <span style={{ fontSize: '0.78rem', color: '#94A3B8' }}>
-              {driversWithUnremitted.length.toLocaleString('ar-EG')} مناديب بحوزتهم كاش لم يورّد
-            </span>
+      {activeTab === 'overview' && (
+        <>
+          <div className="report-kpi-grid">
+            <FinanceCard label="إيراد الشحن من التجار" value={formatCurrency(revenue)} icon={<ReceiptText />} />
+            <FinanceCard label="تكلفة توصيل المناديب" value={formatCurrency(courierCost)} icon={<Wallet />} />
+            <FinanceCard label="ربح الشحن قبل المصاريف" value={formatCurrency(grossProfit)} icon={<Banknote />} />
+            <FinanceCard label="صافي التشغيل" value={formatCurrency(netOperatingProfit)} icon={<Landmark />} />
           </div>
+          <div className="report-kpi-grid">
+            <FinanceCard label="إجمالي المحصل" value={formatCurrency(totalCollected)} icon={<Banknote />} />
+            <FinanceCard label="تم توريده" value={formatCurrency(totalRemitted)} icon={<Landmark />} />
+            <FinanceCard label="تحصيل لم يورد" value={formatCurrency(cashWithDrivers)} icon={<Wallet />} />
+            <FinanceCard label="مستحقات التجار" value={formatCurrency(merchantPayables)} icon={<ReceiptText />} />
+          </div>
+          <div className="accounting-alert-grid">
+            <button className="accounting-action-card glass-card" onClick={() => setBatchRemittanceDriver(driversList[0] || '')}><Wallet /><span><strong>استلام تحصيل مندوب</strong><small>{formatCurrency(cashWithDrivers)} جاهزة للتوريد والتقفيل</small></span></button>
+            <button className="accounting-action-card glass-card" onClick={() => setExpenseOpen(true)}><Plus /><span><strong>تسجيل مصروف</strong><small>كهرباء، مياه، صيانة، وقود أو أي بند تشغيل</small></span></button>
+            <button className="accounting-action-card glass-card" onClick={() => setDriverAdjustmentOpen(true)}><Banknote /><span><strong>إضافة أو خصم مندوب</strong><small>مكافأة، سلفة، تعويض، أو خصم فرق</small></span></button>
+            <button className="accounting-action-card glass-card" onClick={() => setActiveTab('ledger')}><Landmark /><span><strong>حركات معلقة</strong><small>{fmt(pendingLedger)} حركة تحتاج اعتماد</small></span></button>
+          </div>
+        </>
+      )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0.75rem' }}>
-            {driversWithUnremitted.map((d) => (
-              <div key={d.driverName} style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '0.85rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', justifyContent: 'space-between' }}>
-                <div>
-                  <strong style={{ color: '#F8FAFC', fontSize: '0.92rem', display: 'block' }}>{d.driverName}</strong>
-                  <span style={{ fontSize: '0.76rem', color: '#94A3B8' }}>{d.count.toLocaleString('ar-EG')} شحنة محصلة معلقة</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.2rem' }}>
-                  <div>
-                    <span style={{ fontSize: '0.7rem', color: '#94A3B8', display: 'block' }}>العهدة الحالية</span>
-                    <strong style={{ color: '#38BDF8', fontSize: '1rem' }}>{formatCurrency(d.totalCash)}</strong>
-                  </div>
-                  <button className="btn-primary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.78rem' }} onClick={() => setBatchRemittanceDriver(d.driverName)}>
-                    <Wallet size={14} /> توريد العهدة
-                  </button>
-                </div>
-              </div>
-            ))}
+      {activeTab === 'statements' && (
+        <section className="glass-card">
+          <Toolbar partyType={partyType} partyName={partyName} partyOptions={partyOptions} datePreset={datePreset} search={search} onPartyType={(value) => { setPartyType(value); setPartyName('all'); }} onPartyName={setPartyName} onDatePreset={setDatePreset} onSearch={setSearch} action={<button className="outline-btn" onClick={exportStatements}><Download size={15} /> تحميل كشف الحساب</button>} />
+          <div className="statement-summary">
+            <FinanceCard label="عليه" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.debit, 0))} icon={<Wallet />} />
+            <FinanceCard label="له" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.credit, 0))} icon={<Banknote />} />
+            <FinanceCard label="صافي الرصيد" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.debit - row.credit, 0))} icon={<ReceiptText />} />
+          </div>
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead><tr><th>التاريخ</th><th>الحساب</th><th>الشحنة</th><th>البيان</th><th>عليه</th><th>له</th><th>إجراء</th></tr></thead>
+              <tbody>
+                {filteredStatements.map((row) => <tr key={row.id}><td>{formatDateTime(row.date)}</td><td><strong>{row.partyName}</strong><small className="muted-cell">{row.partyType === 'merchant' ? 'تاجر' : 'مندوب'}</small></td><td><button className="tracking-link" onClick={() => navigate(`/shipments?shipment=${row.shipmentId}`)}>{row.shipmentId}</button></td><td>{row.description}</td><td>{formatCurrency(row.debit)}</td><td>{formatCurrency(row.credit)}</td><td>{row.partyType === 'driver' && <button className="outline-btn" onClick={() => setBatchRemittanceDriver(row.partyName)}>استلام التوريد</button>}</td></tr>)}
+              </tbody>
+            </table>
           </div>
         </section>
       )}
 
-      <div className="accounting-alert-grid">
-        <button className="accounting-action-card glass-card" onClick={() => setBatchRemittanceDriver(driversList[0] || '')}><Wallet/><span><strong>استلام تحصيل مندوب</strong><small>{formatCurrency(cashWithDrivers)} جاهزة للتوريد والتقفيل الآن</small></span></button>
-        <button className="accounting-action-card glass-card" onClick={() => navigate('/exceptions?category=financial')}><AlertTriangle/><span><strong>فروقات التحصيل</strong><small>{fmt(discrepancies.length)} شحنة تحتاج مطابقة</small></span></button>
-        <button className="accounting-action-card glass-card" onClick={() => navigate('/settlements')}><ReceiptText/><span><strong>تسويات مفتوحة</strong><small>{fmt(settlements.filter((item) => !['paid','reconciled','cancelled'].includes(item.status)).length)} تسوية</small></span></button>
-        <button className="accounting-action-card glass-card" onClick={() => setActiveTab('ledger')}><Landmark/><span><strong>حركات حسابات معلقة</strong><small>{fmt(pendingLedger)} حركة تحتاج اعتماد</small></span></button>
-      </div>
-    </>}
-
-    {activeTab === 'statements' && (
-      <section className="glass-card">
-        <div className="statement-toolbar">
-          <label>
-            <span>نوع الحساب</span>
-            <select
-              className="input-glass"
-              value={partyType}
-              onChange={(event) => {
-                setPartyType(event.target.value as typeof partyType);
-                setPartyName('all');
-              }}
-            >
-              <option value="all">الكل</option>
-              <option value="merchant">التجار</option>
-              <option value="driver">المناديب</option>
-            </select>
-          </label>
-
-          <label>
-            <span>الحساب</span>
-            <select
-              className="input-glass"
-              value={partyName}
-              onChange={(event) => setPartyName(event.target.value)}
-            >
-              <option value="all">كل الحسابات</option>
-              {partyOptions.map((name) => (
-                <option key={name}>{name}</option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>الفترة الزمنية</span>
-            <select
-              className="input-glass"
-              value={datePreset}
-              onChange={(event) => setDatePreset(event.target.value as typeof datePreset)}
-            >
-              <option value="all">كل الأوقات</option>
-              <option value="today">اليوم فقط</option>
-              <option value="this_week">هذا الأسبوع</option>
-              <option value="this_month">هذا الشهر</option>
-            </select>
-          </label>
-
-          <label className="statement-search">
-            <span>بحث</span>
-            <div className="search-field">
-              <Search size={15} />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="الشحنة أو الحساب أو البيان"
-              />
-            </div>
-          </label>
-
-          <div className="toolbar-actions">
-            <button className="outline-btn" onClick={exportStatements}>
-              <Download size={15} /> تحميل كشف الحساب
-            </button>
-          </div>
-        </div>
-        <div className="statement-summary">
-          <FinanceCard label="عليه" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.debit, 0))} icon={<Wallet/>}/>
-          <FinanceCard label="له" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.credit, 0))} icon={<Banknote/>}/>
-          <FinanceCard label="صافي الرصيد" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.debit - row.credit, 0))} icon={<ReceiptText/>}/>
-        </div>
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>التاريخ</th>
-                <th>الحساب</th>
-                <th>الشحنة</th>
-                <th>البيان</th>
-                <th>عليه</th>
-                <th>له</th>
-                <th>إجراء</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStatements.map((row) => {
-                const shipment = shipments.find((item) => item.id === row.shipmentId);
-                return (
-                  <tr key={row.id}>
-                    <td>{formatDateTime(row.date)}</td>
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                        <strong style={{ color: '#F8FAFC', fontSize: '0.86rem' }}>{row.partyName}</strong>
-                        <span style={{ fontSize: '0.7rem', color: row.partyType === 'merchant' ? '#38BDF8' : '#818CF8' }}>
-                          {row.partyType === 'merchant' ? 'تاجر' : 'مندوب'}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <button className="tracking-link" onClick={() => navigate(`/shipments?shipment=${row.shipmentId}`)}>
-                        {row.shipmentId}
-                      </button>
-                    </td>
-                    <td>{row.description}</td>
-                    <td>{formatCurrency(row.debit)}</td>
-                    <td>{formatCurrency(row.credit)}</td>
-                    <td>
-                      {row.partyType === 'driver' && shipment && shipment.collectedCash > shipment.remittedCash && (
-                        <button className="outline-btn" onClick={() => setBatchRemittanceDriver(row.partyName)}>
-                          استلام التوريد
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    )}
-
-    {activeTab === 'ledger' && (
-      <section className="glass-card">
-        <div className="report-section-title">
-          <div>
-            <h3>مراجعة حركات الحسابات (دفتر الأستاذ)</h3>
-            <span className="report-muted">
-              كل صف حركة مالية مرتبطة بشحنة أو تسوية. اعتمد الحركات المعلقة بعد المراجعة وتدقيق الميزانية.
-            </span>
-          </div>
-          <div className="toolbar-actions">
-            <select
-              className="input-glass"
-              value={ledgerDatePreset}
-              onChange={(event) => setLedgerDatePreset(event.target.value as typeof ledgerDatePreset)}
-            >
-              <option value="all">كل الأوقات</option>
-              <option value="today">اليوم فقط</option>
-              <option value="this_week">هذا الأسبوع</option>
-              <option value="this_month">هذا الشهر</option>
-            </select>
-
-            <select
-              className="input-glass"
-              value={ledgerFilter}
-              onChange={(event) => setLedgerFilter(event.target.value as typeof ledgerFilter)}
-            >
-              <option value="all">كل الحالات</option>
-              <option value="pending">معلق 🟡</option>
-              <option value="posted">معتمد 🟢</option>
-              <option value="reversed">ملغي 🔴</option>
-            </select>
-
-            <button className="outline-btn" onClick={exportLedger}>
-              <Download size={15} /> تحميل ملف المراجعة
-            </button>
-
-            <button className="btn-primary" onClick={() => setPostPreviewOpen(true)} disabled={pendingLedger === 0}>
-              <CheckCircle2 size={15} /> اعتماد الحركات المعلقة ({pendingLedger})
-            </button>
-          </div>
-        </div>
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>الحركة</th>
-                <th>التاريخ</th>
-                <th>الحساب</th>
-                <th>البيان</th>
-                <th>عليه</th>
-                <th>له</th>
-                <th>الحالة</th>
-                <th>المصدر</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ledger.map((entry) => (
-                <tr key={entry.id}>
-                  <td>{entry.id}</td>
-                  <td>{formatDateTime(entry.date)}</td>
-                  <td>{entry.account}</td>
-                  <td>{entry.description}</td>
-                  <td>{formatCurrency(entry.debit)}</td>
-                  <td>{formatCurrency(entry.credit)}</td>
-                  <td>
-                    <StatusBadge
-                      label={entry.status === 'posted' ? 'معتمد' : entry.status === 'pending' ? 'معلق' : 'ملغي'}
-                      tone={entry.status === 'posted' ? 'success' : entry.status === 'pending' ? 'warning' : 'danger'}
-                    />
-                  </td>
-                  <td>
-                    <button
-                      className="tracking-link"
-                      onClick={() =>
-                        entry.sourceType === 'settlement'
-                          ? navigate(`/settlements?settlement=${entry.sourceId}`)
-                          : navigate(`/shipments?shipment=${entry.sourceId}`)
-                      }
-                    >
-                      {entry.sourceId}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    )}
-
-    {activeTab === 'close' && (
-      <section className="report-grid-2">
-        <div className="glass-card">
+      {activeTab === 'expenses' && (
+        <section className="glass-card">
           <div className="report-section-title">
-            <h3>شروط وقواعد إغلاق الفترة المالية ({periodKey})</h3>
+            <div><h3>المصاريف والمدفوعات</h3><span className="report-muted">أي بند هنا يدخل في صافي التشغيل ويظهر في مراجعة الحسابات.</span></div>
+            <div className="toolbar-actions"><button className="outline-btn" onClick={() => setExpenseOpen(true)}><Plus size={15} /> مصروف تشغيلي</button><button className="btn-primary" onClick={() => setDriverAdjustmentOpen(true)}><Plus size={15} /> حركة مندوب</button></div>
           </div>
-          <p className="report-muted">
-            هذه الشروط يتم فحصها أوتوماتيكياً من بيانات النظام للتأكد من سلامة الميزانية قبل التقفيل.
-          </p>
-          <div className="funnel-list">
-            <CheckItem
-              label="لا توجد تحديثات مناديب معلقة ذات أثر تشغيلي"
-              count={pendingUpdates}
-              onClick={() => navigate('/admin-operations')}
-            />
-            <CheckItem
-              label="تمت مطابقة وحسم كافة فروقات التحصيل"
-              count={discrepancies.length}
-              onClick={() => navigate('/exceptions?category=financial')}
-            />
-            <CheckItem
-              label="تم اعتماد كل حركات وقيود الحسابات المعلقة"
-              count={pendingLedger}
-              onClick={() => setActiveTab('ledger')}
-            />
-            <CheckItem
-              label="مرتجعات تحتاج متابعة مالية (تنبيه)"
-              count={pendingReturns}
-              warningOnly
-              onClick={() => navigate('/exceptions?category=returns')}
-            />
-            <CheckItem
-              label="التزامات وتسويات مفتوحة مثبتة (تنبيه)"
-              count={openSettlements}
-              warningOnly
-              onClick={() => navigate('/settlements')}
-            />
+          <div className="report-kpi-grid">
+            <FinanceCard label="مصاريف تشغيلية معتمدة" value={formatCurrency(expenseCost)} icon={<ReceiptText />} />
+            <FinanceCard label="مدفوعات إضافية للمناديب" value={formatCurrency(driverExtraCost)} icon={<Wallet />} />
+            <FinanceCard label="مصاريف معلقة" value={formatCurrency(expenses.filter((item) => item.status === 'pending').reduce((sum, item) => sum + item.amount, 0))} icon={<AlertTriangle />} />
           </div>
-        </div>
-
-        <div className="glass-card">
-          <LockKeyhole size={30} />
-          <h3>تقفيل وترحيل الفترة المالية</h3>
-          <p className="report-muted">
-            تقفيل الفترة يمنع التعديل المباشر على الحسابات السابقة نهائياً لحماية الميزانية من التلاعب. أي تصحيح لاحق يتم بحركة تسوية تصحيحية في الفترة الجديدة المفتوحة.
-          </p>
-          <button
-            className="btn-primary full-width"
-            disabled={isClosed}
-            onClick={() => setClosePreviewOpen(true)}
-          >
-            {isClosed ? '🔒 الفترة مغلقة ومرحلة بالفعل' : 'مراجعة وتقفيل الفترة المالية'}
-          </button>
-        </div>
-      </section>
-    )}
-
-    {postPreviewOpen && <Modal title="مراجعة اعتماد الحركات المعلقة" description={`سيتم اعتماد ${fmt(pendingLedger)} حركة مالية بعد التأكيد.`} onClose={() => setPostPreviewOpen(false)} footer={<><button className="outline-btn" onClick={() => setPostPreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={pendingLedger === 0} onClick={async () => { const response = await run({ type: 'ledger/postAll' }); if (response.ok) setPostPreviewOpen(false); }}><CheckCircle2 size={15}/> تأكيد الاعتماد</button></>}><div className="funnel-list"><CheckItem label="حركات معلقة" count={pendingLedger}/><p className="report-muted">في النسخة الإنتاجية يجب التأكد من صحة كل حركة قبل اعتمادها، وأي تعديل لاحق يتم بحركة تصحيح منفصلة.</p></div></Modal>}
-
-    {closePreviewOpen && (
-      <Modal
-        title={`مراجعة تقفيل الفترة ${periodKey}`}
-        description="تقفيل الفترة يمنع التعديل المباشر؛ اضغط على أي بند معلق باللون الأحمر للانتقال المباشر وحله."
-        onClose={() => setClosePreviewOpen(false)}
-        footer={<><button className="outline-btn" onClick={() => setClosePreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={!canClose} onClick={async () => { const response = await run({ type: 'period/close', period: periodKey }); if (response.ok) setClosePreviewOpen(false); }}><LockKeyhole size={15}/> تأكيد تقفيل الفترة</button></>}
-      >
-        <div className="funnel-list">
-          <CheckItem
-            label="تحديثات مناديب معلقة"
-            count={pendingUpdates}
-            onClick={() => { setClosePreviewOpen(false); navigate('/admin-operations'); }}
-          />
-          <CheckItem
-            label="فروقات تحصيل غير محسومة"
-            count={discrepancies.length}
-            onClick={() => { setClosePreviewOpen(false); navigate('/exceptions?category=financial'); }}
-          />
-          <CheckItem
-            label="حركات حسابات غير معتمدة"
-            count={pendingLedger}
-            onClick={() => { setClosePreviewOpen(false); setActiveTab('ledger'); }}
-          />
-          <CheckItem
-            label="مرتجعات تحتاج متابعة (تنبيه)"
-            count={pendingReturns}
-            warningOnly
-            onClick={() => { setClosePreviewOpen(false); navigate('/exceptions?category=returns'); }}
-          />
-          <CheckItem
-            label="تسويات/التزامات مفتوحة (تنبيه)"
-            count={openSettlements}
-            warningOnly
-            onClick={() => { setClosePreviewOpen(false); navigate('/settlements'); }}
-          />
-        </div>
-        {!canClose && <p className="management-feedback warning-feedback" style={{ marginTop: '0.75rem' }}>اضغط على أي بند أحمر أعلاه للانتقال فوراً وحل المشكلة المانعة للتقفيل.</p>}
-      </Modal>
-    )}
-
-
-    {batchRemittanceDriver !== null && (
-      <DriverRemittanceDialog
-        driverName={batchRemittanceDriver}
-        drivers={driversList}
-        shipments={shipments}
-        onClose={() => setBatchRemittanceDriver(null)}
-        onSubmit={handleBatchRemit}
-      />
-    )}
-  </div>;
-}
-
-function DriverRemittanceDialog({
-  driverName,
-  drivers,
-  shipments,
-  onClose,
-  onSubmit,
-}: {
-  driverName: string;
-  drivers: string[];
-  shipments: Shipment[];
-  onClose: () => void;
-  onSubmit: (shipmentsToRemit: Array<{ id: string; cash: number }>, note: string) => Promise<void>;
-}) {
-  const [selectedDriver, setSelectedDriver] = useState(driverName || drivers[0] || '');
-  const unremittedShipments = useMemo(() => {
-    return shipments.filter(
-      (s) =>
-        (s.driverName === selectedDriver || s.driverId === selectedDriver) &&
-        s.collectedCash > s.remittedCash &&
-        ['delivered', 'partiallyDelivered', 'inTransit', 'receivedAtOffice'].includes(s.status)
-    );
-  }, [shipments, selectedDriver]);
-
-  const [selectedIds, setSelectedIds] = useState<string[]>(() => unremittedShipments.map((s) => s.id));
-  const [method, setMethod] = useState<'cash' | 'vodafone_cash' | 'instapay' | 'bank_transfer'>('cash');
-  const [receiptRef, setReceiptRef] = useState('REC-89021');
-  const [walletOrTxnRef, setWalletOrTxnRef] = useState('');
-  const [note, setNote] = useState('استلام ومطابقة تحصيل المندوب وتقفيل حسابه');
-  const [submitting, setSubmitting] = useState(false);
-
-  const toggle = (id: string) =>
-    setSelectedIds((items) => (items.includes(id) ? items.filter((x) => x !== id) : [...items, id]));
-  const selectAll = () => setSelectedIds(unremittedShipments.map((s) => s.id));
-  const deselectAll = () => setSelectedIds([]);
-
-  const selectedRows = unremittedShipments.filter((s) => selectedIds.includes(s.id));
-  const totalDue = selectedRows.reduce((sum, s) => sum + (s.collectedCash - s.remittedCash), 0);
-  const totalAllUnremitted = unremittedShipments.reduce((sum, s) => sum + (s.collectedCash - s.remittedCash), 0);
-
-  const handleConfirm = async () => {
-    if (!selectedRows.length) return;
-    setSubmitting(true);
-    const fullNoteText = `${method === 'vodafone_cash' ? '📱 فودافون كاش' : method === 'cash' ? '💵 نقداً في الخزينة' : '🏦 تحويل / انستا باي'} · إيصال: ${receiptRef || 'بدون'} ${walletOrTxnRef ? `· مرجع/محفظة: ${walletOrTxnRef}` : ''} ${note ? `· ${note}` : ''}`.trim();
-    try {
-      await onSubmit(
-        selectedRows.map((s) => ({ id: s.id, cash: s.collectedCash })),
-        fullNoteText
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal
-      wide
-      title="استلام ومطابقة تحصيل المندوب"
-      description="تصفية ومطابقة تحصيل الشحنات المسلمة مع المندوب وتسجيل إيصال التوريد الخزينة."
-      onClose={onClose}
-      footer={<>
-        <button className="outline-btn" onClick={onClose} disabled={submitting}>إلغاء</button>
-        <button className="btn-primary" disabled={!selectedIds.length || submitting} onClick={handleConfirm}>
-          <CheckCircle2 size={15}/> {submitting ? 'جارٍ الحفظ…' : `تأكيد استلام التوريد (${selectedIds.length} شحنة — ${formatCurrency(totalDue)})`}
-        </button>
-      </>}
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.9rem 1.1rem', alignItems: 'flex-end' }}>
-          <label className="form-field">
-            <span>اختر المندوب</span>
-            <select
-              className="input-glass"
-              value={selectedDriver}
-              onChange={(e) => {
-                setSelectedDriver(e.target.value);
-                const nextUnremitted = shipments.filter(
-                  (s) =>
-                    (s.driverName === e.target.value || s.driverId === e.target.value) &&
-                    s.collectedCash > s.remittedCash &&
-                    ['delivered', 'partiallyDelivered', 'inTransit', 'receivedAtOffice'].includes(s.status)
-                );
-                setSelectedIds(nextUnremitted.map((s) => s.id));
-              }}
-            >
-              {drivers.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="form-field">
-            <span>طريقة التوريد</span>
-            <select
-              className="input-glass"
-              value={method}
-              onChange={(e) => setMethod(e.target.value as typeof method)}
-            >
-              <option value="cash">💵 نقداً في خزينة الشركة</option>
-              <option value="vodafone_cash">📱 فودافون كاش / محفظة إلكترونية</option>
-              <option value="instapay">⚡ انستا باي (InstaPay)</option>
-              <option value="bank_transfer">🏦 تحويل بنكي</option>
-            </select>
-          </label>
-
-          <label className="form-field">
-            <span>{method === 'cash' ? 'رقم إيصال الخزينة الورقي' : 'رقم الإيصال / المرجع'}</span>
-            <input
-              className="input-glass"
-              value={receiptRef}
-              onChange={(e) => setReceiptRef(e.target.value)}
-              placeholder={method === 'cash' ? 'مثال: REC-90812' : 'مثال: REF-5401'}
-            />
-          </label>
-
-          {method === 'vodafone_cash' && (
-            <label className="form-field">
-              <span>رقم محفظة فودافون كاش / رقم العملية</span>
-              <input
-                className="input-glass"
-                value={walletOrTxnRef}
-                onChange={(e) => setWalletOrTxnRef(e.target.value)}
-                placeholder="مثال: 01099887766 أو VF-88412"
-              />
-            </label>
-          )}
-
-          <label className="form-field">
-            <span>ملاحظات إضافية على البيان</span>
-            <input
-              className="input-glass"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="مثال: تم الاستلام وتقفيل الحساب..."
-            />
-          </label>
-        </div>
-
-        <div className="report-kpi-grid">
-          <div className="report-kpi glass-card">
-            <div>
-              <p className="report-kpi-label">شحنات معلقة للتحصيل</p>
-              <p className="report-kpi-value">{unremittedShipments.length.toLocaleString('ar-EG')}</p>
-            </div>
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead><tr><th>التاريخ</th><th>النوع</th><th>البند</th><th>المبلغ</th><th>الدفع</th><th>الحالة</th></tr></thead>
+              <tbody>
+                {expenses.map((expense) => <tr key={expense.id}><td>{formatDateTime(expense.date)}</td><td>{expenseLabels[expense.category]}</td><td>{expense.description}</td><td>{formatCurrency(expense.amount)}</td><td>{expense.paymentMethod === 'cash' ? 'خزينة' : expense.paymentMethod === 'bank' ? 'بنك' : 'محفظة'}</td><td><StatusBadge label={expense.status === 'approved' ? 'معتمد' : 'معلق'} tone={expense.status === 'approved' ? 'success' : 'warning'} /></td></tr>)}
+                {driverAdjustments.map((item) => <tr key={item.id}><td>{formatDateTime(item.date)}</td><td>{adjustmentLabels[item.type]}</td><td>{item.driverName} - {item.description}</td><td>{formatCurrency(item.amount)}</td><td>حساب مندوب</td><td><StatusBadge label={item.status === 'approved' ? 'معتمد' : 'معلق'} tone={item.status === 'approved' ? 'success' : 'warning'} /></td></tr>)}
+              </tbody>
+            </table>
           </div>
-          <div className="report-kpi glass-card" style={{ borderColor: 'rgba(14,165,233,0.4)' }}>
-            <div>
-              <p className="report-kpi-label">شحنات محددة للتوريد الآن</p>
-              <p className="report-kpi-value" style={{ color: '#38BDF8' }}>{selectedIds.length.toLocaleString('ar-EG')}</p>
-            </div>
-          </div>
-          <div className="report-kpi glass-card">
-            <div>
-              <p className="report-kpi-label">إجمالي التحصيل المتبقي</p>
-              <p className="report-kpi-value">{formatCurrency(totalAllUnremitted)}</p>
-            </div>
-          </div>
-          <div className="report-kpi glass-card" style={{ borderColor: 'rgba(16,185,129,0.4)' }}>
-            <div>
-              <p className="report-kpi-label">المبلغ المستلم للتوريد</p>
-              <p className="report-kpi-value" style={{ color: '#34D399' }}>{formatCurrency(totalDue)}</p>
-            </div>
-          </div>
-        </div>
+        </section>
+      )}
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.2rem' }}>
-          <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            حدد الشحنات التي سلّم المندوب أموالها فعلياً للخزينة:
-          </span>
-          <button
-            type="button"
-            className="outline-btn"
-            style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem' }}
-            onClick={selectedIds.length === unremittedShipments.length ? deselectAll : selectAll}
-          >
-            {selectedIds.length === unremittedShipments.length ? 'إلغاء تحديد الكل' : 'تحديد كل الشحنات'}
-          </button>
-        </div>
+      {activeTab === 'ledger' && (
+        <section className="glass-card">
+          <div className="report-section-title">
+            <div><h3>مراجعة حركات الحسابات</h3><span className="report-muted">حركات التحصيل والتسويات والمصاريف والمدفوعات.</span></div>
+            <div className="toolbar-actions"><select className="input-glass" value={ledgerFilter} onChange={(event) => setLedgerFilter(event.target.value as typeof ledgerFilter)}><option value="all">كل الحالات</option><option value="pending">معلق</option><option value="posted">معتمد</option><option value="reversed">ملغي</option></select><button className="outline-btn" onClick={exportLedger}><Download size={15} /> تحميل المراجعة</button><button className="btn-primary" onClick={() => setPostPreviewOpen(true)} disabled={pendingLedger === 0}><CheckCircle2 size={15} /> اعتماد المعلق</button></div>
+          </div>
+          <div className="table-wrapper"><table className="data-table"><thead><tr><th>الحركة</th><th>التاريخ</th><th>الحساب</th><th>البيان</th><th>عليه</th><th>له</th><th>الحالة</th><th>المصدر</th></tr></thead><tbody>{ledger.map((entry) => <tr key={entry.id}><td>{entry.id}</td><td>{formatDateTime(entry.date)}</td><td>{entry.account}</td><td>{entry.description}</td><td>{formatCurrency(entry.debit)}</td><td>{formatCurrency(entry.credit)}</td><td><StatusBadge label={entry.status === 'posted' ? 'معتمد' : entry.status === 'pending' ? 'معلق' : 'ملغي'} tone={entry.status === 'posted' ? 'success' : entry.status === 'pending' ? 'warning' : 'danger'} /></td><td>{entry.sourceId}</td></tr>)}</tbody></table></div>
+        </section>
+      )}
 
-        <div className="table-wrapper" style={{ maxHeight: '280px', overflowY: 'auto' }}>
-          <table className="data-table compact-table">
-            <thead>
-              <tr>
-                <th style={{ width: '36px', textAlign: 'center' }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.length === unremittedShipments.length && unremittedShipments.length > 0}
-                    onChange={() => selectedIds.length === unremittedShipments.length ? deselectAll() : selectAll()}
-                  />
-                </th>
-                <th>رقم الشحنة</th>
-                <th>المستلم</th>
-                <th>التاجر</th>
-                <th>المحافظة</th>
-                <th>المحصل</th>
-                <th>المتبقي للتوريد</th>
-              </tr>
-            </thead>
-            <tbody>
-              {unremittedShipments.length ? unremittedShipments.map((s) => {
-                const isChecked = selectedIds.includes(s.id);
-                const due = s.collectedCash - s.remittedCash;
-                return (
-                  <tr
-                    key={s.id}
-                    onClick={() => toggle(s.id)}
-                    style={{ cursor: 'pointer', background: isChecked ? 'rgba(14, 165, 233, 0.08)' : undefined }}
-                  >
-                    <td style={{ textAlign: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {}}
-                      />
-                    </td>
-                    <td className="tracking-num">{s.id}</td>
-                    <td>{s.customerName || 'عميل'}</td>
-                    <td>{s.merchantName || '—'}</td>
-                    <td>{s.governorate || '—'}</td>
-                    <td>{formatCurrency(s.collectedCash)}</td>
-                    <td className="amount" style={{ color: '#10B981', fontWeight: 700 }}>{formatCurrency(due)}</td>
-                  </tr>
-                );
-              }) : (
-                <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)' }}>
-                    لا يوجد تحصيل معلق لهذا المندوب حالياً.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </Modal>
-  );
-}
+      {activeTab === 'close' && (
+        <section className="report-grid-2">
+          <div className="glass-card"><div className="report-section-title"><h3>شروط تقفيل {periodKey}</h3></div><div className="funnel-list"><CheckItem label="تحديثات مناديب معلقة" count={pendingUpdates} /><CheckItem label="فروقات تحصيل غير محسومة" count={discrepancies.length} /><CheckItem label="حركات حسابات غير معتمدة" count={pendingLedger} /><CheckItem label="مرتجعات تحتاج متابعة" count={pendingReturns} warningOnly /><CheckItem label="تسويات مفتوحة" count={openSettlements} warningOnly /></div></div>
+          <div className="glass-card"><LockKeyhole size={30} /><h3>تقفيل الفترة</h3><p className="report-muted">التقفيل يمنع التعديل المباشر على الفترة. أي تصحيح لاحق يدخل كحركة تصحيح في فترة مفتوحة.</p><button className="btn-primary full-width" disabled={isClosed} onClick={() => setClosePreviewOpen(true)}>{isClosed ? 'الفترة مغلقة' : 'مراجعة وتقفيل الفترة'}</button></div>
+        </section>
+      )}
 
-function FinanceCard({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) { return <article className="report-kpi glass-card"><div className="report-kpi-icon" style={{ background: 'linear-gradient(135deg,#0EA5E9,#4F46E5)' }}>{icon}</div><div><p className="report-kpi-label">{label}</p><p className="report-kpi-value">{value}</p></div></article>; }
-function CheckItem({
-  label,
-  count,
-  warningOnly = false,
-  onClick,
-}: {
-  label: string;
-  count: number;
-  warningOnly?: boolean;
-  onClick?: () => void;
-}) {
-  const done = count === 0;
-  return (
-    <div
-      className={`funnel-row checklist-row ${onClick && !done ? 'clickable' : ''}`}
-      onClick={!done && onClick ? onClick : undefined}
-      style={{
-        cursor: !done && onClick ? 'pointer' : 'default',
-        padding: '0.65rem 0.8rem',
-        borderRadius: '9px',
-        transition: 'all 0.2s ease',
-      }}
-      title={!done && onClick ? 'اضغط للانتقال وحل هذا البند المعلق' : undefined}
-    >
-      <span style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-        {label}
-        {!done && onClick && (
-          <small style={{ color: '#38BDF8', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '0.2rem', background: 'rgba(56, 189, 248, 0.12)', padding: '0.15rem 0.45rem', borderRadius: '6px' }}>
-            انتقال للحل ↗
-          </small>
-        )}
-      </span>
-      <StatusBadge label={done ? 'مكتمل' : `${fmt(count)} معلقة`} tone={done ? 'success' : warningOnly ? 'warning' : 'danger'} />
+      {expenseOpen && <ExpenseDialog onClose={() => setExpenseOpen(false)} onSubmit={async (expense) => { const response = await run({ type: 'finance/addOperationalExpense', expense }); if (response.ok) setExpenseOpen(false); }} />}
+      {driverAdjustmentOpen && <DriverAdjustmentDialog drivers={drivers} onClose={() => setDriverAdjustmentOpen(false)} onSubmit={async (adjustment) => { const response = await run({ type: 'finance/addDriverAdjustment', adjustment }); if (response.ok) setDriverAdjustmentOpen(false); }} />}
+      {batchRemittanceDriver !== null && <DriverRemittanceDialog driverName={batchRemittanceDriver} drivers={driversList} shipments={shipments} pricing={pricing} onClose={() => setBatchRemittanceDriver(null)} onSubmit={async (items, note) => { for (const item of items) await run({ type: 'finance/reconcileShipment', shipmentId: item.id, remittedCash: item.cash, note }); setBatchRemittanceDriver(null); }} />}
+      {postPreviewOpen && <Modal title="اعتماد الحركات المعلقة" description={`سيتم اعتماد ${fmt(pendingLedger)} حركة بعد التأكيد.`} onClose={() => setPostPreviewOpen(false)} footer={<><button className="outline-btn" onClick={() => setPostPreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={pendingLedger === 0} onClick={async () => { const response = await run({ type: 'ledger/postAll' }); if (response.ok) setPostPreviewOpen(false); }}><CheckCircle2 size={15} /> تأكيد الاعتماد</button></>}><p className="report-muted">راجع الحركات قبل الاعتماد. أي تعديل لاحق يتم بحركة تصحيح منفصلة.</p></Modal>}
+      {closePreviewOpen && <Modal title={`تقفيل الفترة ${periodKey}`} description="تأكد من البنود المعلقة قبل التقفيل." onClose={() => setClosePreviewOpen(false)} footer={<><button className="outline-btn" onClick={() => setClosePreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={!canClose} onClick={async () => { const response = await run({ type: 'period/close', period: periodKey }); if (response.ok) setClosePreviewOpen(false); }}><LockKeyhole size={15} /> تأكيد التقفيل</button></>}><div className="funnel-list"><CheckItem label="تحديثات معلقة" count={pendingUpdates} /><CheckItem label="فروقات تحصيل" count={discrepancies.length} /><CheckItem label="حركات معلقة" count={pendingLedger} /></div></Modal>}
     </div>
   );
 }
 
+function Toolbar({ partyType, partyName, partyOptions, datePreset, search, onPartyType, onPartyName, onDatePreset, onSearch, action }: { partyType: 'all' | PartyType; partyName: string; partyOptions: string[]; datePreset: DatePreset; search: string; onPartyType: (value: 'all' | PartyType) => void; onPartyName: (value: string) => void; onDatePreset: (value: DatePreset) => void; onSearch: (value: string) => void; action: React.ReactNode }) {
+  return <div className="statement-toolbar"><label><span>نوع الحساب</span><select className="input-glass" value={partyType} onChange={(event) => onPartyType(event.target.value as 'all' | PartyType)}><option value="all">الكل</option><option value="merchant">التجار</option><option value="driver">المناديب</option></select></label><label><span>الحساب</span><select className="input-glass" value={partyName} onChange={(event) => onPartyName(event.target.value)}><option value="all">كل الحسابات</option>{partyOptions.map((name) => <option key={name}>{name}</option>)}</select></label><label><span>الفترة</span><select className="input-glass" value={datePreset} onChange={(event) => onDatePreset(event.target.value as DatePreset)}><option value="all">كل الفترة</option><option value="today">اليوم</option><option value="this_week">الأسبوع الحالي</option><option value="this_month">الشهر الحالي</option></select></label><label className="statement-search"><span>بحث</span><div className="search-field"><Search size={15} /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="الشحنة أو الحساب أو البيان" /></div></label><div className="toolbar-actions">{action}</div></div>;
+}
 
+function ExpenseDialog({ onClose, onSubmit }: { onClose: () => void; onSubmit: (expense: OperationalExpense) => Promise<void> }) {
+  const [category, setCategory] = useState<OperationalExpenseCategory>('utilities');
+  const [amount, setAmount] = useState(500);
+  const [description, setDescription] = useState('كهرباء ومياه الفرع');
+  const [paymentMethod, setPaymentMethod] = useState<OperationalExpense['paymentMethod']>('cash');
+  return <Modal title="تسجيل مصروف تشغيلي" description="سجل أي مصروف شركة ليظهر في صافي التشغيل والتقارير." onClose={onClose} footer={<><button className="outline-btn" onClick={onClose}>إلغاء</button><button className="btn-primary" onClick={() => onSubmit({ id: `EXP-${Date.now()}`, date: today(), category, description, amount, paymentMethod, status: 'approved', createdBy: 'لوحة التحكم' })}>حفظ المصروف</button></>}><div className="statement-toolbar"><label><span>البند</span><select className="input-glass" value={category} onChange={(event) => setCategory(event.target.value as OperationalExpenseCategory)}>{Object.entries(expenseLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label><span>المبلغ</span><input className="input-glass" type="number" min="0" value={amount} onChange={(event) => setAmount(Number(event.target.value))} /></label><label><span>طريقة الدفع</span><select className="input-glass" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as OperationalExpense['paymentMethod'])}><option value="cash">خزينة</option><option value="bank">بنك</option><option value="wallet">محفظة</option></select></label><label className="statement-search"><span>الوصف</span><input className="input-glass" value={description} onChange={(event) => setDescription(event.target.value)} /></label></div></Modal>;
+}
+
+function DriverAdjustmentDialog({ drivers, onClose, onSubmit }: { drivers: Array<{ id: string; name: string }>; onClose: () => void; onSubmit: (adjustment: DriverFinancialAdjustment) => Promise<void> }) {
+  const first = drivers[0];
+  const [driverId, setDriverId] = useState(first?.id ?? '');
+  const [type, setType] = useState<DriverAdjustmentType>('bonus');
+  const [amount, setAmount] = useState(150);
+  const [description, setDescription] = useState('مكافأة تسليمات إضافية');
+  const driver = drivers.find((item) => item.id === driverId) ?? first;
+  return <Modal title="تسجيل حركة مندوب" description="إضافة أو خصم أو تعويض يظهر في حساب المندوب والتقارير." onClose={onClose} footer={<><button className="outline-btn" onClick={onClose}>إلغاء</button><button className="btn-primary" disabled={!driver} onClick={() => driver && onSubmit({ id: `DADJ-${Date.now()}`, driverId: driver.id, driverName: driver.name, date: today(), type, amount, description, status: 'approved', createdBy: 'لوحة التحكم' })}>حفظ الحركة</button></>}><div className="statement-toolbar"><label><span>المندوب</span><select className="input-glass" value={driverId} onChange={(event) => setDriverId(event.target.value)}>{drivers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label><span>نوع الحركة</span><select className="input-glass" value={type} onChange={(event) => setType(event.target.value as DriverAdjustmentType)}>{Object.entries(adjustmentLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label><span>المبلغ</span><input className="input-glass" type="number" min="0" value={amount} onChange={(event) => setAmount(Number(event.target.value))} /></label><label className="statement-search"><span>الوصف</span><input className="input-glass" value={description} onChange={(event) => setDescription(event.target.value)} /></label></div></Modal>;
+}
+
+function DriverRemittanceDialog({ driverName, drivers, shipments, pricing, onClose, onSubmit }: { driverName: string; drivers: string[]; shipments: Shipment[]; pricing: NonNullable<ReturnType<typeof useDeliveryData>['state']>['settings']['pricing']; onClose: () => void; onSubmit: (shipmentsToRemit: Array<{ id: string; cash: number }>, note: string) => Promise<void> }) {
+  const [selectedDriver, setSelectedDriver] = useState(driverName || drivers[0] || '');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [note, setNote] = useState('استلام وتوريد تحصيل المندوب');
+  const unremittedShipments = shipments.filter((shipment) => (shipment.driverName === selectedDriver || shipment.driverId === selectedDriver) && shipment.collectedCash > shipment.remittedCash);
+  const effectiveSelected = selectedIds.length ? selectedIds : unremittedShipments.map((shipment) => shipment.id);
+  const selectedRows = unremittedShipments.filter((shipment) => effectiveSelected.includes(shipment.id));
+  const totalDue = selectedRows.reduce((sum, shipment) => sum + shipment.collectedCash - shipment.remittedCash, 0);
+  const totalDriverCost = selectedRows.reduce((sum, shipment) => sum + driverDeliveryCost(shipment, pricing), 0);
+  const totalMerchantFee = selectedRows.reduce((sum, shipment) => sum + merchantShippingFee(shipment, pricing), 0);
+  const toggle = (id: string) => setSelectedIds(() => effectiveSelected.includes(id) ? effectiveSelected.filter((item) => item !== id) : [...effectiveSelected, id]);
+  return <Modal wide title="استلام وتوريد تحصيل المندوب" description="راجع الشحنات والمبلغ وتكلفة المندوب قبل تقفيل التحصيل." onClose={onClose} footer={<><button className="outline-btn" onClick={onClose}>إلغاء</button><button className="btn-primary" disabled={!selectedRows.length} onClick={() => onSubmit(selectedRows.map((shipment) => ({ id: shipment.id, cash: shipment.collectedCash })), note)}><CheckCircle2 size={15} /> تأكيد التوريد {formatCurrency(totalDue)}</button></>}><div className="statement-toolbar"><label><span>المندوب</span><select className="input-glass" value={selectedDriver} onChange={(event) => { setSelectedDriver(event.target.value); setSelectedIds([]); }}>{drivers.map((driver) => <option key={driver}>{driver}</option>)}</select></label><label className="statement-search"><span>البيان</span><input className="input-glass" value={note} onChange={(event) => setNote(event.target.value)} /></label></div><div className="report-kpi-grid"><FinanceCard label="المبلغ مع المندوب" value={formatCurrency(totalDue)} icon={<Wallet />} /><FinanceCard label="سعر الشحن للتاجر" value={formatCurrency(totalMerchantFee)} icon={<ReceiptText />} /><FinanceCard label="تكلفة توصيل المندوب" value={formatCurrency(totalDriverCost)} icon={<Banknote />} /></div><div className="table-wrapper" style={{ maxHeight: 280, overflowY: 'auto' }}><table className="data-table compact-table"><thead><tr><th>تحديد</th><th>الشحنة</th><th>التاجر</th><th>المحافظة</th><th>المحصل</th><th>تكلفة المندوب</th></tr></thead><tbody>{unremittedShipments.map((shipment) => <tr key={shipment.id} onClick={() => toggle(shipment.id)} style={{ cursor: 'pointer' }}><td><input type="checkbox" checked={effectiveSelected.includes(shipment.id)} onChange={() => toggle(shipment.id)} /></td><td>{shipment.id}</td><td>{shipment.merchantName}</td><td>{shipment.governorate}</td><td>{formatCurrency(shipment.collectedCash - shipment.remittedCash)}</td><td>{formatCurrency(driverDeliveryCost(shipment, pricing))}</td></tr>)}</tbody></table></div></Modal>;
+}
+
+function FinanceCard({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+  return <article className="report-kpi glass-card"><div className="report-kpi-icon" style={{ background: 'linear-gradient(135deg,#0EA5E9,#4F46E5)' }}>{icon}</div><div><p className="report-kpi-label">{label}</p><p className="report-kpi-value">{value}</p></div></article>;
+}
+
+function CheckItem({ label, count, warningOnly = false }: { label: string; count: number; warningOnly?: boolean }) {
+  const done = count === 0;
+  return <div className="funnel-row checklist-row"><span>{label}</span><StatusBadge label={done ? 'مكتمل' : `${fmt(count)} معلقة`} tone={done ? 'success' : warningOnly ? 'warning' : 'danger'} /></div>;
+}

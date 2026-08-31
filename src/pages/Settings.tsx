@@ -14,42 +14,28 @@ import {
   type ProofPolicySettings,
   type WhatsAppNotificationSettings,
 } from '../domain/settings/entities';
+import { formatCurrency } from '../utils/helpers';
 import './Settings.css';
 
-type SettingsTab = 'rates' | 'whatsapp' | 'weight_pickup' | 'pricing' | 'proof' | 'printing';
+type SettingsTab = 'rates' | 'weight_pickup' | 'pricing' | 'proof' | 'printing' | 'whatsapp';
 
-interface TabConfig {
-  id: SettingsTab;
-  label: string;
-  description: string;
-  icon: typeof Banknote;
-}
-
-const tabs: TabConfig[] = [
-  { id: 'rates', label: 'أسعار وتوقيتات المحافظات', description: 'جدول أسعار الشحن وتوقيت التوصيل لكل محافظة.', icon: MapPin },
-  { id: 'whatsapp', label: 'إشعارات الواتساب للعملاء', description: 'تخصيص قالب الرسائل المباشرة ورابط التتبع.', icon: MessageCircle },
-  { id: 'weight_pickup', label: 'الأوزان واستلام الشحنات (Pickup)', description: 'الكيلو الزائد، شروط البيك أب المجاني، وأجر المندوب.', icon: Scale },
-  { id: 'pricing', label: 'الرسوم والضرائب', description: 'المرتجع والمحاولات والتحصيل والضريبة.', icon: Banknote },
-  { id: 'proof', label: 'إثبات التسليم', description: 'الصورة واسم المستلم والموقع.', icon: Camera },
+const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: typeof Banknote }> = [
+  { id: 'rates', label: 'أسعار المحافظات', description: 'سعر التاجر، تكلفة المندوب، وربح الشحنة.', icon: MapPin },
+  { id: 'weight_pickup', label: 'الأوزان والاستلام', description: 'الكيلو الزائد، الاستلام من التاجر، ومكافأة المندوب.', icon: Scale },
+  { id: 'pricing', label: 'رسوم إضافية وضريبة', description: 'المرتجع، المحاولات، التحصيل، والضريبة.', icon: Banknote },
+  { id: 'proof', label: 'إثبات التسليم', description: 'الصورة، اسم المستلم، ودقة الموقع.', icon: Camera },
   { id: 'printing', label: 'الطباعة والبوليصة', description: 'المقاس والنسخ والبيانات الظاهرة.', icon: Printer },
+  { id: 'whatsapp', label: 'رسائل واتساب', description: 'اسم الشركة وقالب رسالة التتبع.', icon: MessageCircle },
 ];
 
 export function SettingsPage() {
   const { state, isLoading, error, refetch, execute } = useDeliveryData();
   const { showToast } = useWorkspace();
   const [activeTab, setActiveTab] = useState<SettingsTab>('rates');
-  const [pricing, setPricing] = useState<PricingPolicySettings>(
-    () => structuredClone(state?.settings.pricing ?? defaultTenantOperationalSettings.pricing)
-  );
-  const [proof, setProof] = useState<ProofPolicySettings>(
-    () => structuredClone(state?.settings.proof ?? defaultTenantOperationalSettings.proof)
-  );
-  const [printing, setPrinting] = useState<PrintingSettings>(
-    () => structuredClone(state?.settings.printing ?? defaultTenantOperationalSettings.printing)
-  );
-  const [whatsApp, setWhatsApp] = useState<WhatsAppNotificationSettings>(
-    () => structuredClone(state?.settings.notifications?.whatsApp ?? defaultTenantOperationalSettings.notifications.whatsApp)
-  );
+  const [pricing, setPricing] = useState<PricingPolicySettings>(() => structuredClone(state?.settings.pricing ?? defaultTenantOperationalSettings.pricing));
+  const [proof, setProof] = useState<ProofPolicySettings>(() => structuredClone(state?.settings.proof ?? defaultTenantOperationalSettings.proof));
+  const [printing, setPrinting] = useState<PrintingSettings>(() => structuredClone(state?.settings.printing ?? defaultTenantOperationalSettings.printing));
+  const [whatsApp, setWhatsApp] = useState<WhatsAppNotificationSettings>(() => structuredClone(state?.settings.notifications?.whatsApp ?? defaultTenantOperationalSettings.notifications.whatsApp));
   const [saving, setSaving] = useState(false);
 
   if (isLoading) return <PageSkeleton rows={5} />;
@@ -62,36 +48,30 @@ export function SettingsPage() {
       : activeTab === 'proof'
         ? { type: 'settings/updateProof' as const, policy: proof }
         : activeTab === 'whatsapp'
-          ? { type: 'settings/updateNotifications' as const, policy: { ...state?.settings.notifications, whatsApp } }
+          ? { type: 'settings/updateNotifications' as const, policy: { ...state.settings.notifications, whatsApp } }
           : { type: 'settings/updatePrinting' as const, policy: printing };
     const result = await execute(command);
     showToast(result.message, result.ok ? 'success' : 'danger');
     setSaving(false);
   };
 
+  const active = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
+
   return (
     <div className="settings-page">
       <div className="settings-layout">
-        {/* Right Side (in RTL) - Navigation Tabs */}
         <aside className="settings-tabs-sidebar" aria-label="أقسام الإعدادات">
           <div className="settings-tabs-header">
             <Settings2 size={20} className="settings-header-icon" />
             <div>
               <strong>سياسات الشركة</strong>
-              <span>إدارة قواعد التسعير والتشغيل</span>
+              <span>التسعير والتشغيل والمستندات</span>
             </div>
           </div>
           <div className="settings-tabs-list">
             {tabs.map(({ id, label, description, icon: Icon }) => (
-              <button
-                key={id}
-                type="button"
-                className={`settings-nav-btn ${activeTab === id ? 'active' : ''}`}
-                onClick={() => setActiveTab(id)}
-              >
-                <div className="nav-btn-icon">
-                  <Icon size={18} />
-                </div>
+              <button key={id} type="button" className={`settings-nav-btn ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id)}>
+                <div className="nav-btn-icon"><Icon size={18} /></div>
                 <div className="nav-btn-content">
                   <span className="nav-btn-title">{label}</span>
                   <span className="nav-btn-desc">{description}</span>
@@ -101,33 +81,26 @@ export function SettingsPage() {
           </div>
         </aside>
 
-        {/* Left Side (in RTL) - Content Area */}
         <main className="settings-content-wrapper">
           <div className="settings-panel-card">
-            {/* Top Toolbar with Save button inside the active panel */}
             <div className="panel-top-toolbar">
               <div className="panel-title-wrap">
-                <h2>{tabs.find((t) => t.id === activeTab)?.label}</h2>
-                <p>{tabs.find((t) => t.id === activeTab)?.description}</p>
+                <h2>{active.label}</h2>
+                <p>{active.description}</p>
               </div>
-              <button
-                type="button"
-                className="btn-primary settings-save-btn"
-                disabled={saving}
-                onClick={() => void save()}
-              >
+              <button type="button" className="btn-primary settings-save-btn" disabled={saving} onClick={() => void save()}>
                 <Save size={16} />
-                <span>{saving ? 'جارٍ الحفظ…' : 'حفظ التغييرات'}</span>
+                <span>{saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}</span>
               </button>
             </div>
 
             <div className="panel-body">
               {activeTab === 'rates' && <GovernorateRatesSettings value={pricing} onChange={setPricing} />}
-              {activeTab === 'whatsapp' && <WhatsAppSettingsPanel value={whatsApp} onChange={setWhatsApp} />}
               {activeTab === 'weight_pickup' && <WeightAndPickupSettings value={pricing} onChange={setPricing} />}
               {activeTab === 'pricing' && <PricingSettings value={pricing} onChange={setPricing} />}
               {activeTab === 'proof' && <ProofSettings value={proof} onChange={setProof} />}
               {activeTab === 'printing' && <PrintingSettingsPanel value={printing} onChange={setPrinting} />}
+              {activeTab === 'whatsapp' && <WhatsAppSettingsPanel value={whatsApp} onChange={setWhatsApp} />}
             </div>
           </div>
         </main>
@@ -136,17 +109,19 @@ export function SettingsPage() {
   );
 }
 
-function Toggle({
-  checked,
-  label,
-  description,
-  onChange,
-}: {
-  checked: boolean;
-  label: string;
-  description: string;
-  onChange: (value: boolean) => void;
-}) {
+function NumberField({ label, value, onChange, suffix, min = 0, max }: { label: string; value: number; onChange: (value: number) => void; suffix?: string; min?: number; max?: number }) {
+  return (
+    <label className="setting-field-card">
+      <span className="field-label">{label}</span>
+      <div className="field-input-box">
+        <input type="number" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+        {suffix && <em className="field-suffix">{suffix}</em>}
+      </div>
+    </label>
+  );
+}
+
+function Toggle({ checked, label, description, onChange }: { checked: boolean; label: string; description: string; onChange: (value: boolean) => void }) {
   return (
     <label className="setting-toggle-card">
       <div className="toggle-info">
@@ -159,51 +134,7 @@ function Toggle({
   );
 }
 
-function NumberField({
-  label,
-  value,
-  onChange,
-  suffix,
-  min = 0,
-  max,
-}: {
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-  suffix?: string;
-  min?: number;
-  max?: number;
-}) {
-  return (
-    <label className="setting-field-card">
-      <span className="field-label">{label}</span>
-      <div className="field-input-box">
-        <input
-          type="number"
-          min={min}
-          max={max}
-          value={value}
-          onChange={(event) => onChange(Number(event.target.value))}
-        />
-        {suffix && <em className="field-suffix">{suffix}</em>}
-      </div>
-    </label>
-  );
-}
-
-function FeeEditor({
-  title,
-  mode,
-  value,
-  onMode,
-  onValue,
-}: {
-  title: string;
-  mode: FeeMode;
-  value: number;
-  onMode: (mode: FeeMode) => void;
-  onValue: (value: number) => void;
-}) {
+function FeeEditor({ title, mode, value, onMode, onValue }: { title: string; mode: FeeMode; value: number; onMode: (mode: FeeMode) => void; onValue: (value: number) => void }) {
   return (
     <div className="fee-editor-card">
       <strong>{title}</strong>
@@ -214,31 +145,28 @@ function FeeEditor({
           <option value="percentage">نسبة مئوية</option>
         </select>
         <div className="fee-input-box">
-          <input
-            type="number"
-            min="0"
-            value={value}
-            disabled={mode === 'disabled'}
-            onChange={(event) => onValue(Number(event.target.value))}
-          />
-          <span>{mode === 'percentage' ? '٪' : 'ج.م'}</span>
+          <input type="number" min="0" value={value} disabled={mode === 'disabled'} onChange={(event) => onValue(Number(event.target.value))} />
+          <span>{mode === 'percentage' ? '%' : 'ج.م'}</span>
         </div>
       </div>
     </div>
   );
 }
 
-function GovernorateRatesSettings({
-  value,
-  onChange,
-}: {
-  value: PricingPolicySettings;
-  onChange: (value: PricingPolicySettings) => void;
-}) {
+function GovernorateRatesSettings({ value, onChange }: { value: PricingPolicySettings; onChange: (value: PricingPolicySettings) => void }) {
   const rates = value.governorateRates?.length ? value.governorateRates : defaultGovernorateRates;
+  const totalMerchant = rates.reduce((sum, rate) => sum + (rate.merchantDeliveryFee ?? rate.deliveryFee), 0);
+  const totalDriver = rates.reduce((sum, rate) => sum + (rate.driverDeliveryCost ?? 0), 0);
+  const avgProfit = rates.length ? Math.round((totalMerchant - totalDriver) / rates.length) : 0;
 
   const updateRate = (id: string, field: keyof GovernorateRate, val: string | number) => {
-    const next = rates.map((r) => (r.id === id ? { ...r, [field]: val } : r));
+    const next = rates.map((rate) => {
+      if (rate.id !== id) return rate;
+      const updated = { ...rate, [field]: val };
+      if (field === 'merchantDeliveryFee') updated.deliveryFee = Number(val);
+      if (field === 'deliveryFee') updated.merchantDeliveryFee = Number(val);
+      return updated;
+    });
     onChange({ ...value, governorateRates: next });
   };
 
@@ -246,34 +174,28 @@ function GovernorateRatesSettings({
     const newRate: GovernorateRate = {
       id: `gov-custom-${Date.now()}`,
       governorate: 'نطاق جديد',
-      deliveryFee: 50,
-      returnFee: 25,
+      merchantDeliveryFee: 60,
+      driverDeliveryCost: 40,
+      deliveryFee: 60,
+      returnFee: 30,
       estimatedDays: 1,
     };
     onChange({ ...value, governorateRates: [...rates, newRate] });
   };
 
-  const removeRate = (id: string) => {
-    onChange({ ...value, governorateRates: rates.filter((r) => r.id !== id) });
-  };
-
-  const resetToDefaults = () => {
-    onChange({ ...value, governorateRates: defaultGovernorateRates });
-  };
-
   return (
     <div className="rates-settings-section">
+      <div className="report-kpi-grid">
+        <div className="report-kpi glass-card"><div><p className="report-kpi-label">متوسط سعر التاجر</p><p className="report-kpi-value">{formatCurrency(Math.round(totalMerchant / Math.max(1, rates.length)))}</p></div></div>
+        <div className="report-kpi glass-card"><div><p className="report-kpi-label">متوسط تكلفة المندوب</p><p className="report-kpi-value">{formatCurrency(Math.round(totalDriver / Math.max(1, rates.length)))}</p></div></div>
+        <div className="report-kpi glass-card"><div><p className="report-kpi-label">متوسط ربح الشحنة</p><p className="report-kpi-value" style={{ color: avgProfit >= 0 ? '#34D399' : '#F87171' }}>{formatCurrency(avgProfit)}</p></div></div>
+      </div>
+
       <div className="rates-actions-bar">
-        <p className="rates-notice">
-          الأسعار العامة المعتمدة لشركة الشحن؛ تطبق افتراضيًا على الشحنات ما لم يُخصص للتاجر عقد أسعار خاص.
-        </p>
+        <p className="rates-notice">كل محافظة لها سعر يظهر للتاجر وتكلفة داخلية للمندوب. الفرق بينهم هو ربح الشحن قبل المصاريف التشغيلية.</p>
         <div className="rates-btn-group">
-          <button type="button" className="outline-btn" onClick={resetToDefaults} title="استعادة الأسعار الافتراضية">
-            <RotateCcw size={14} /> استعادة الافتراضي
-          </button>
-          <button type="button" className="btn-primary" onClick={addRate}>
-            <Plus size={14} /> إضافة نطاق جديد
-          </button>
+          <button type="button" className="outline-btn" onClick={() => onChange({ ...value, governorateRates: defaultGovernorateRates })}><RotateCcw size={14} /> استعادة الافتراضي</button>
+          <button type="button" className="btn-primary" onClick={addRate}><Plus size={14} /> إضافة نطاق</button>
         </div>
       </div>
 
@@ -281,521 +203,159 @@ function GovernorateRatesSettings({
         <table className="data-table rates-table">
           <thead>
             <tr>
-              <th>المحافظة / النطاق الجغرافي</th>
-              <th style={{ width: '140px' }}>سعر الشحن (ج.م)</th>
-              <th style={{ width: '140px' }}>رسوم المرتجع (ج.م)</th>
-              <th style={{ width: '140px' }}>المدة المتوقعة (أيام)</th>
-              <th style={{ width: '70px', textAlign: 'center' }}>إجراء</th>
+              <th>المحافظة / النطاق</th>
+              <th>سعر التاجر</th>
+              <th>تكلفة المندوب</th>
+              <th>ربح الشحنة</th>
+              <th>رسوم المرتجع</th>
+              <th>مدة التوصيل</th>
+              <th>إجراء</th>
             </tr>
           </thead>
           <tbody>
-            {rates.map((rate) => (
-              <tr key={rate.id}>
-                <td>
-                  <input
-                    className="rates-input"
-                    value={rate.governorate}
-                    onChange={(e) => updateRate(rate.id, 'governorate', e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="rates-input"
-                    type="number"
-                    min="0"
-                    value={rate.deliveryFee}
-                    onChange={(e) => updateRate(rate.id, 'deliveryFee', Number(e.target.value))}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="rates-input"
-                    type="number"
-                    min="0"
-                    value={rate.returnFee}
-                    onChange={(e) => updateRate(rate.id, 'returnFee', Number(e.target.value))}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="rates-input"
-                    type="number"
-                    min="1"
-                    max="14"
-                    value={rate.estimatedDays}
-                    onChange={(e) => updateRate(rate.id, 'estimatedDays', Number(e.target.value))}
-                  />
-                </td>
-                <td style={{ textAlign: 'center' }}>
-                  <button
-                    type="button"
-                    className="btn-icon sm danger-link"
-                    onClick={() => removeRate(rate.id)}
-                    title="حذف هذا النطاق"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {rates.map((rate) => {
+              const merchantFee = rate.merchantDeliveryFee ?? rate.deliveryFee;
+              const driverCost = rate.driverDeliveryCost ?? 0;
+              return (
+                <tr key={rate.id}>
+                  <td><input className="rates-input" value={rate.governorate} onChange={(event) => updateRate(rate.id, 'governorate', event.target.value)} /></td>
+                  <td><input className="rates-input" type="number" min="0" value={merchantFee} onChange={(event) => updateRate(rate.id, 'merchantDeliveryFee', Number(event.target.value))} /></td>
+                  <td><input className="rates-input" type="number" min="0" value={driverCost} onChange={(event) => updateRate(rate.id, 'driverDeliveryCost', Number(event.target.value))} /></td>
+                  <td><strong style={{ color: merchantFee - driverCost >= 0 ? '#34D399' : '#F87171' }}>{formatCurrency(merchantFee - driverCost)}</strong></td>
+                  <td><input className="rates-input" type="number" min="0" value={rate.returnFee} onChange={(event) => updateRate(rate.id, 'returnFee', Number(event.target.value))} /></td>
+                  <td><input className="rates-input" type="number" min="1" max="14" value={rate.estimatedDays} onChange={(event) => updateRate(rate.id, 'estimatedDays', Number(event.target.value))} /></td>
+                  <td><button type="button" className="btn-icon sm danger-link" onClick={() => onChange({ ...value, governorateRates: rates.filter((item) => item.id !== rate.id) })} title="حذف النطاق"><Trash2 size={14} /></button></td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-      <div className="settings-alert-box">
-        ℹ️ أي تعديل في هذه القائمة يطبّق على الشحنات المستقبلية، ولا يغيّر أسعار الشحنات أو التسويات المحسوبة مسبقًا.
-      </div>
+      <div className="settings-alert-box">أي شحنة جديدة تحتفظ بنسخة من السعر وقت الإنشاء. تغيير السعر هنا لا يعيد حساب الشحنات أو التسويات القديمة.</div>
     </div>
   );
 }
 
-function WeightAndPickupSettings({
-  value,
-  onChange,
-}: {
-  value: PricingPolicySettings;
-  onChange: (value: PricingPolicySettings) => void;
-}) {
-  const baseWeight = value.baseWeightKg ?? 3;
-  const extraKgFee = value.extraWeightKgFee ?? 10;
-  const freeThreshold = value.pickupFreeThreshold ?? 5;
-  const pickupFee = value.pickupFeeUnderThreshold ?? 30;
-  const driverReward = value.driverPickupReward ?? 20;
-
+function WeightAndPickupSettings({ value, onChange }: { value: PricingPolicySettings; onChange: (value: PricingPolicySettings) => void }) {
   return (
     <div className="policy-settings-section">
-      {/* 1. Weight Policy */}
       <div className="policy-block">
         <div className="policy-block-header">
           <Scale size={20} className="text-cyan" />
-          <div>
-            <h3>سياسة الأوزان والكيلو الزائد (Weight Policy)</h3>
-            <p>تحديد سقف الوزن الأساسي وتكلفة كل كيلو زائد إضافي.</p>
-          </div>
+          <div><h3>الأوزان والاستلام من التاجر</h3><p>اضبط تكلفة الوزن الزائد ومتى يدفع التاجر رسوم استلام صغيرة.</p></div>
         </div>
-
-        <div className="policy-grid-inputs">
-          <NumberField
-            label="الوزن الأساسي المسموح (شامل في سعر الشحن)"
-            value={baseWeight}
-            min={1}
-            max={50}
-            suffix="كجم"
-            onChange={(val) => onChange({ ...value, baseWeightKg: val })}
-          />
-          <NumberField
-            label="سعر الكيلو الزائد فوق الوزن المسموح"
-            value={extraKgFee}
-            min={0}
-            max={200}
-            suffix="ج.م / كجم"
-            onChange={(val) => onChange({ ...value, extraWeightKgFee: val })}
-          />
-        </div>
-
-        <div className="example-callout">
-          💡 <strong>مثال توضيحي:</strong> شحنة وزنها 5 كجم سيتم احتساب أول {baseWeight} كجم بالسعر الأساسي للوجهة، ويضاف ({5 - baseWeight} كجم × {extraKgFee} ج.م = {(5 - baseWeight) * extraKgFee} ج.م) تكلفة وزن إضافي.
-        </div>
-      </div>
-
-      {/* 2. Pickup Policy */}
-      <div className="policy-block">
-        <div className="policy-block-header">
-          <Scale size={20} className="text-indigo" />
-          <div>
-            <h3>سياسة استلام الشحنات من التاجر (Pickup Policy)</h3>
-            <p>شروط الاستلام المجاني للطلبات الكبيرة، ورسوم استلام الدفعات الصغيرة، وعمولة المندوب.</p>
-          </div>
-        </div>
-
         <div className="policy-grid-inputs three-cols">
-          <NumberField
-            label="الحد الأدنى لعدد الشحنات للبيك أب المجاني"
-            value={freeThreshold}
-            min={1}
-            max={100}
-            suffix="شحنة"
-            onChange={(val) => onChange({ ...value, pickupFreeThreshold: val })}
-          />
-          <NumberField
-            label="رسوم الاستلام للدفعات الصغيرة (أقل من الحد)"
-            value={pickupFee}
-            min={0}
-            max={500}
-            suffix="ج.م"
-            onChange={(val) => onChange({ ...value, pickupFeeUnderThreshold: val })}
-          />
-          <NumberField
-            label="أجر / مكافأة مندوب الاستلام عن المشوار"
-            value={driverReward}
-            min={0}
-            max={500}
-            suffix="ج.م"
-            onChange={(val) => onChange({ ...value, driverPickupReward: val })}
-          />
-        </div>
-
-        <div className="example-callout indigo-callout">
-          💡 <strong>آلية الحساب الذكية:</strong> إذا سلّم التاجر <strong>{freeThreshold} شحنات فأكثر</strong> فالاستلام مجاني تماماً له؛ وإذا سلّم أقل يُخصم <strong>{pickupFee} ج.م</strong> رسوم بيك أب من حسابه. ويتقاضى المندوب <strong>{driverReward} ج.م</strong> مكافأة عن المشوار في الحالتين.
+          <NumberField label="الوزن الأساسي داخل سعر الشحن" value={value.baseWeightKg} min={1} max={50} suffix="كجم" onChange={(baseWeightKg) => onChange({ ...value, baseWeightKg })} />
+          <NumberField label="سعر الكيلو الزائد" value={value.extraWeightKgFee} min={0} max={300} suffix="ج.م" onChange={(extraWeightKgFee) => onChange({ ...value, extraWeightKgFee })} />
+          <NumberField label="مكافأة مندوب الاستلام" value={value.driverPickupReward} min={0} max={500} suffix="ج.م" onChange={(driverPickupReward) => onChange({ ...value, driverPickupReward })} />
+          <NumberField label="الحد المجاني للاستلام" value={value.pickupFreeThreshold} min={1} max={100} suffix="شحنة" onChange={(pickupFreeThreshold) => onChange({ ...value, pickupFreeThreshold })} />
+          <NumberField label="رسوم الاستلام تحت الحد" value={value.pickupFeeUnderThreshold} min={0} max={500} suffix="ج.م" onChange={(pickupFeeUnderThreshold) => onChange({ ...value, pickupFeeUnderThreshold })} />
         </div>
       </div>
     </div>
   );
 }
 
-function PricingSettings({
-  value,
-  onChange,
-}: {
-  value: PricingPolicySettings;
-  onChange: (value: PricingPolicySettings) => void;
-}) {
+function PricingSettings({ value, onChange }: { value: PricingPolicySettings; onChange: (value: PricingPolicySettings) => void }) {
   return (
     <div className="policy-settings-section">
       <div className="policy-block">
         <div className="policy-block-header">
           <Banknote size={20} className="text-cyan" />
-          <div>
-            <h3>سياسة الرسوم والضرائب الإضافية</h3>
-            <p>القيم الافتراضية بلا رسوم إضافية وبلا ضريبة، ويمكن للشركة تفعيلها من هنا لاحقًا.</p>
-          </div>
+          <div><h3>الرسوم الإضافية والضريبة</h3><p>رسوم المرتجع والمحاولة الإضافية والتحصيل عند التسليم والضريبة.</p></div>
         </div>
-
         <div className="fee-grid-inputs">
-          <FeeEditor
-            title="رسوم المرتجع"
-            mode={value.returnFeeMode}
-            value={value.returnFeeValue}
-            onMode={(returnFeeMode) => onChange({ ...value, returnFeeMode })}
-            onValue={(returnFeeValue) => onChange({ ...value, returnFeeValue })}
-          />
-          <FeeEditor
-            title="رسوم المحاولة الإضافية"
-            mode={value.extraAttemptFeeMode}
-            value={value.extraAttemptFeeValue}
-            onMode={(extraAttemptFeeMode) => onChange({ ...value, extraAttemptFeeMode })}
-            onValue={(extraAttemptFeeValue) => onChange({ ...value, extraAttemptFeeValue })}
-          />
-          <FeeEditor
-            title="رسوم التحصيل Collection Fee"
-            mode={value.collectionFeeMode}
-            value={value.collectionFeeValue}
-            onMode={(collectionFeeMode) => onChange({ ...value, collectionFeeMode })}
-            onValue={(collectionFeeValue) => onChange({ ...value, collectionFeeValue })}
-          />
+          <FeeEditor title="رسوم المرتجع" mode={value.returnFeeMode} value={value.returnFeeValue} onMode={(returnFeeMode) => onChange({ ...value, returnFeeMode })} onValue={(returnFeeValue) => onChange({ ...value, returnFeeValue })} />
+          <FeeEditor title="رسوم المحاولة الإضافية" mode={value.extraAttemptFeeMode} value={value.extraAttemptFeeValue} onMode={(extraAttemptFeeMode) => onChange({ ...value, extraAttemptFeeMode })} onValue={(extraAttemptFeeValue) => onChange({ ...value, extraAttemptFeeValue })} />
+          <FeeEditor title="رسوم التحصيل عند التسليم" mode={value.collectionFeeMode} value={value.collectionFeeValue} onMode={(collectionFeeMode) => onChange({ ...value, collectionFeeMode })} onValue={(collectionFeeValue) => onChange({ ...value, collectionFeeValue })} />
         </div>
-
         <div className="policy-grid-inputs" style={{ marginTop: '1.25rem' }}>
-          <NumberField
-            label="الحد الأدنى لرسوم التحصيل"
-            value={value.collectionFeeMinimum}
-            suffix="ج.م"
-            onChange={(collectionFeeMinimum) => onChange({ ...value, collectionFeeMinimum })}
-          />
-          <NumberField
-            label="الحد الأقصى لرسوم التحصيل"
-            value={value.collectionFeeMaximum}
-            suffix="ج.م"
-            onChange={(collectionFeeMaximum) => onChange({ ...value, collectionFeeMaximum })}
-          />
+          <NumberField label="الحد الأدنى لرسوم التحصيل" value={value.collectionFeeMinimum} suffix="ج.م" onChange={(collectionFeeMinimum) => onChange({ ...value, collectionFeeMinimum })} />
+          <NumberField label="الحد الأقصى لرسوم التحصيل" value={value.collectionFeeMaximum} suffix="ج.م" onChange={(collectionFeeMaximum) => onChange({ ...value, collectionFeeMaximum })} />
+          <NumberField label="نسبة الضريبة" value={value.vatRate} min={0} max={100} suffix="%" onChange={(vatRate) => onChange({ ...value, vatRate })} />
         </div>
-
         <div className="toggle-grid-inputs" style={{ marginTop: '1.25rem' }}>
-          <Toggle
-            checked={value.vatEnabled}
-            label="تفعيل ضريبة القيمة المضافة"
-            description="مغلقة افتراضيًا، وتُحسب فقط على البنود المحددة أدناه."
-            onChange={(vatEnabled) => onChange({ ...value, vatEnabled })}
-          />
-          <Toggle
-            checked={value.pricesIncludeVat}
-            label="الأسعار شاملة الضريبة"
-            description="عند إيقافها تضاف الضريبة فوق الرسوم المسجلة."
-            onChange={(pricesIncludeVat) => onChange({ ...value, pricesIncludeVat })}
-          />
-        </div>
-
-        <div className="policy-grid-inputs" style={{ marginTop: '1.25rem' }}>
-          <NumberField
-            label="نسبة الضريبة العامة"
-            value={value.vatRate}
-            min={0}
-            max={100}
-            suffix="٪"
-            onChange={(vatRate) => onChange({ ...value, vatRate })}
-          />
-        </div>
-
-        <div className="toggle-grid-inputs" style={{ marginTop: '1.25rem' }}>
-          <Toggle
-            checked={value.taxableShippingFee}
-            label="رسوم الشحن خاضعة"
-            description="تطبيق الضريبة على رسوم الشحن الأساسية."
-            onChange={(taxableShippingFee) => onChange({ ...value, taxableShippingFee })}
-          />
-          <Toggle
-            checked={value.taxableReturnFee}
-            label="رسوم المرتجع خاضعة"
-            description="تطبيق الضريبة على رسوم المرتجع."
-            onChange={(taxableReturnFee) => onChange({ ...value, taxableReturnFee })}
-          />
-          <Toggle
-            checked={value.taxableExtraAttemptFee}
-            label="المحاولة الإضافية خاضعة"
-            description="تطبيق الضريبة على رسوم المحاولات الإضافية."
-            onChange={(taxableExtraAttemptFee) => onChange({ ...value, taxableExtraAttemptFee })}
-          />
-          <Toggle
-            checked={value.taxableCollectionFee}
-            label="رسوم التحصيل خاضعة"
-            description="تطبيق الضريبة على Collection Fee."
-            onChange={(taxableCollectionFee) => onChange({ ...value, taxableCollectionFee })}
-          />
-        </div>
-
-        <div className="settings-alert-box">
-          ℹ️ كل شحنة تحتفظ بنسخة Pricing Snapshot عند الإنشاء، لذلك تغيير هذه السياسة لا يعيد حساب شحنات أو تسويات قديمة.
+          <Toggle checked={value.vatEnabled} label="تفعيل ضريبة القيمة المضافة" description="تطبق فقط على البنود المحددة." onChange={(vatEnabled) => onChange({ ...value, vatEnabled })} />
+          <Toggle checked={value.pricesIncludeVat} label="الأسعار شاملة الضريبة" description="عند إيقافها تضاف الضريبة فوق الرسوم." onChange={(pricesIncludeVat) => onChange({ ...value, pricesIncludeVat })} />
+          <Toggle checked={value.taxableShippingFee} label="سعر الشحن خاضع للضريبة" description="تطبيق الضريبة على سعر الشحن الأساسي." onChange={(taxableShippingFee) => onChange({ ...value, taxableShippingFee })} />
+          <Toggle checked={value.taxableReturnFee} label="رسوم المرتجع خاضعة" description="تطبيق الضريبة على رسوم المرتجع." onChange={(taxableReturnFee) => onChange({ ...value, taxableReturnFee })} />
         </div>
       </div>
     </div>
   );
 }
 
-function ProofSettings({
-  value,
-  onChange,
-}: {
-  value: ProofPolicySettings;
-  onChange: (value: ProofPolicySettings) => void;
-}) {
+function ProofSettings({ value, onChange }: { value: ProofPolicySettings; onChange: (value: ProofPolicySettings) => void }) {
   return (
     <div className="policy-settings-section">
       <div className="policy-block">
-        <div className="policy-block-header">
-          <Camera size={20} className="text-cyan" />
-          <div>
-            <h3>سياسة إثبات التسليم</h3>
-            <p>إثبات التسليم الرسمي يعتمد الصورة واسم المستلم ولقطة GPS من تطبيق المندوب.</p>
-          </div>
-        </div>
-
+        <div className="policy-block-header"><Camera size={20} className="text-cyan" /><div><h3>سياسة إثبات التسليم</h3><p>تحدد ما يجب أن يرسله المندوب قبل اعتماد الحالة.</p></div></div>
         <div className="toggle-grid-inputs">
-          <Toggle
-            checked={value.photoRequired}
-            label="الصورة إلزامية عند التسليم"
-            description="يجب رفع صورة واضحة عند تأكيد تسليم الطرد."
-            onChange={(photoRequired) => onChange({ ...value, photoRequired })}
-          />
-          <Toggle
-            checked={value.photoFromCameraOnly}
-            label="التصوير المباشر بالكاميرا فقط"
-            description="منع اختيار صورة سابقة من المعرض لضمان المصداقية."
-            onChange={(photoFromCameraOnly) => onChange({ ...value, photoFromCameraOnly })}
-          />
-          <Toggle
-            checked={value.recipientNameRequired}
-            label="اسم المستلم الفعلي إلزامي"
-            description="تسجيل اسم الشخص الذي استلم الشحنة بيده."
-            onChange={(recipientNameRequired) => onChange({ ...value, recipientNameRequired })}
-          />
-          <Toggle
-            checked={value.gpsRequired}
-            label="تحديد الموقع الجغرافي GPS إلزامي"
-            description="تسجيل لقطة إحداثيات الموقع عند كل محاولة تسليم أو تعذر."
-            onChange={(gpsRequired) => onChange({ ...value, gpsRequired })}
-          />
+          <Toggle checked={value.photoRequired} label="الصورة إلزامية" description="يجب رفع صورة واضحة عند التسليم." onChange={(photoRequired) => onChange({ ...value, photoRequired })} />
+          <Toggle checked={value.photoFromCameraOnly} label="التصوير المباشر فقط" description="منع اختيار صورة قديمة من المعرض." onChange={(photoFromCameraOnly) => onChange({ ...value, photoFromCameraOnly })} />
+          <Toggle checked={value.recipientNameRequired} label="اسم المستلم إلزامي" description="تسجيل اسم الشخص الذي استلم الشحنة." onChange={(recipientNameRequired) => onChange({ ...value, recipientNameRequired })} />
+          <Toggle checked={value.gpsRequired} label="الموقع إلزامي" description="تسجيل لقطة GPS عند كل تسليم أو محاولة." onChange={(gpsRequired) => onChange({ ...value, gpsRequired })} />
         </div>
-
         <div className="policy-grid-inputs four-cols" style={{ marginTop: '1.25rem' }}>
-          <NumberField
-            label="الحد الأدنى للصور"
-            value={value.minimumPhotoCount}
-            min={0}
-            max={5}
-            suffix="صورة"
-            onChange={(minimumPhotoCount) => onChange({ ...value, minimumPhotoCount })}
-          />
-          <NumberField
-            label="الدقة المفضلة للـ GPS"
-            value={value.preferredAccuracyMeters}
-            min={1}
-            suffix="متر"
-            onChange={(preferredAccuracyMeters) => onChange({ ...value, preferredAccuracyMeters })}
-          />
-          <NumberField
-            label="أقصى دقة مقبولة"
-            value={value.maximumAccuracyMeters}
-            min={value.preferredAccuracyMeters}
-            suffix="متر"
-            onChange={(maximumAccuracyMeters) => onChange({ ...value, maximumAccuracyMeters })}
-          />
-          <NumberField
-            label="نطاق الوصول للعنوان (Geofence)"
-            value={value.deliveryGeofenceMeters}
-            min={20}
-            suffix="متر"
-            onChange={(deliveryGeofenceMeters) => onChange({ ...value, deliveryGeofenceMeters })}
-          />
-        </div>
-
-        <div className="settings-alert-box">
-          ℹ️ الموقع يؤكد أن المندوب وصل قرب العنوان، لكنه لا يثبت وحده تعذر التسليم. الحالات خارج النطاق تتحول تلقائيًا للمراجعة التشغيلية.
+          <NumberField label="عدد الصور" value={value.minimumPhotoCount} min={0} max={5} suffix="صورة" onChange={(minimumPhotoCount) => onChange({ ...value, minimumPhotoCount })} />
+          <NumberField label="دقة GPS المفضلة" value={value.preferredAccuracyMeters} min={1} suffix="متر" onChange={(preferredAccuracyMeters) => onChange({ ...value, preferredAccuracyMeters })} />
+          <NumberField label="أقصى دقة مقبولة" value={value.maximumAccuracyMeters} min={value.preferredAccuracyMeters} suffix="متر" onChange={(maximumAccuracyMeters) => onChange({ ...value, maximumAccuracyMeters })} />
+          <NumberField label="نطاق الوصول للعنوان" value={value.deliveryGeofenceMeters} min={20} suffix="متر" onChange={(deliveryGeofenceMeters) => onChange({ ...value, deliveryGeofenceMeters })} />
         </div>
       </div>
     </div>
   );
 }
 
-function PrintingSettingsPanel({
-  value,
-  onChange,
-}: {
-  value: PrintingSettings;
-  onChange: (value: PrintingSettings) => void;
-}) {
+function PrintingSettingsPanel({ value, onChange }: { value: PrintingSettings; onChange: (value: PrintingSettings) => void }) {
   return (
     <div className="policy-settings-section">
       <div className="policy-block">
-        <div className="policy-block-header">
-          <Printer size={20} className="text-cyan" />
-          <div>
-            <h3>إعدادات الطباعة والبوالص (Labels & Printing)</h3>
-            <p>تحدد المقاس والبيانات الافتراضية؛ ويظل المستخدم قادراً على تعديلها أثناء الطباعة.</p>
-          </div>
-        </div>
-
+        <div className="policy-block-header"><Printer size={20} className="text-cyan" /><div><h3>إعدادات الطباعة والبوليصة</h3><p>المقاس والنسخ والبيانات الافتراضية قبل الطباعة.</p></div></div>
         <div className="policy-grid-inputs">
-          <label className="setting-field-card">
-            <span className="field-label">المقاس الافتراضي للبوليصة</span>
-            <div className="field-input-box">
-              <select
-                value={value.defaultLabelFormat}
-                onChange={(event) =>
-                  onChange({ ...value, defaultLabelFormat: event.target.value as PrintingSettings['defaultLabelFormat'] })
-                }
-              >
-                <option value="thermal">حراري 10 × 15 سم (Thermal Roll)</option>
-                <option value="a4">ورق عادي A4 — 4 بوالص في الصفحة</option>
-              </select>
-            </div>
-          </label>
-          <NumberField
-            label="عدد النسخ الافتراضي"
-            value={value.defaultCopies}
-            min={1}
-            max={5}
-            suffix="نسخة"
-            onChange={(defaultCopies) => onChange({ ...value, defaultCopies })}
-          />
+          <label className="setting-field-card"><span className="field-label">مقاس البوليصة الافتراضي</span><div className="field-input-box"><select value={value.defaultLabelFormat} onChange={(event) => onChange({ ...value, defaultLabelFormat: event.target.value as PrintingSettings['defaultLabelFormat'] })}><option value="thermal">حراري 10 × 15 سم</option><option value="a4">ورق A4 - أربع بوالص في الصفحة</option></select></div></label>
+          <NumberField label="عدد النسخ الافتراضي" value={value.defaultCopies} min={1} max={5} suffix="نسخة" onChange={(defaultCopies) => onChange({ ...value, defaultCopies })} />
         </div>
-
         <div className="toggle-grid-inputs" style={{ marginTop: '1.25rem' }}>
-          <Toggle
-            checked={value.showCod}
-            label="إظهار مبلغ التحصيل عند التسليم على البوليصة"
-            description="طباعة المبلغ المطلوب تحصيله من العميل المستلم بشكل بارز."
-            onChange={(showCod) => onChange({ ...value, showCod })}
-          />
-          <Toggle
-            checked={value.showContents}
-            label="إظهار وصف ومحتويات الشحنة"
-            description="عرض وصف الأصناف والمنتجات داخل البوليصة."
-            onChange={(showContents) => onChange({ ...value, showContents })}
-          />
+          <Toggle checked={value.showCod} label="إظهار مبلغ التحصيل على البوليصة" description="طباعة المبلغ المطلوب من المستلم بشكل بارز." onChange={(showCod) => onChange({ ...value, showCod })} />
+          <Toggle checked={value.showContents} label="إظهار محتويات الشحنة" description="عرض المنتجات داخل البوليصة." onChange={(showContents) => onChange({ ...value, showContents })} />
         </div>
       </div>
     </div>
   );
 }
 
-function WhatsAppSettingsPanel({
-  value,
-  onChange,
-}: {
-  value: WhatsAppNotificationSettings;
-  onChange: (val: WhatsAppNotificationSettings) => void;
-}) {
+function WhatsAppSettingsPanel({ value, onChange }: { value: WhatsAppNotificationSettings; onChange: (val: WhatsAppNotificationSettings) => void }) {
+  const variables = ['{اسم_العميل}', '{رقم_الشحنة}', '{اسم_التاجر}', '{اسم_شركة_الشحن}', '{المحافظة}', '{مدة_التسليم}', '{المبلغ}', '{رابط_التتبع}'];
   const sampleText = (value.defaultTemplate || defaultWhatsAppTemplate)
     .replaceAll('{اسم_العميل}', 'محمد أحمد')
     .replaceAll('{رقم_الشحنة}', 'SHP-90812')
     .replaceAll('{اسم_التاجر}', 'متجر الأناقة')
-    .replaceAll('{اسم_شركة_الشحن}', value.companyName || 'تراست للشحن')
+    .replaceAll('{اسم_شركة_الشحن}', value.companyName || 'FIX 365')
     .replaceAll('{المحافظة}', 'الإسكندرية')
-    .replaceAll('{مدة_التسليم}', 'خلال 2 أيام عمل')
+    .replaceAll('{مدة_التسليم}', 'خلال يومين عمل')
     .replaceAll('{المبلغ}', '450 ج.م')
-    .replaceAll('{رابط_التتبع}', 'https://deliverit.app/track/SHP-90812');
-
-  const insertVariable = (varName: string) => {
-    onChange({ ...value, defaultTemplate: `${value.defaultTemplate || ''} ${varName}`.trim() });
-  };
+    .replaceAll('{رابط_التتبع}', 'https://fix365.app/track/SHP-90812');
 
   return (
     <div className="whatsapp-settings-section">
       <div className="toggle-grid-inputs">
-        <Toggle
-          checked={value.enabled}
-          label="تفعيل زر إشعارات الواتساب للعملاء"
-          description="إتاحة زر إرسال الواتساب السريع ببيانات التوصيل في شاشة الاستلام والشحنات."
-          onChange={(enabled) => onChange({ ...value, enabled })}
-        />
+        <Toggle checked={value.enabled} label="تفعيل رسائل واتساب" description="إظهار زر واتساب في مسارات الشحن والتواصل." onChange={(enabled) => onChange({ ...value, enabled })} />
       </div>
-
       <div className="policy-grid-inputs" style={{ marginTop: '1.25rem' }}>
-        <label className="setting-field-card">
-          <span className="field-label">اسم شركة الشحن (يظهر في الرسالة)</span>
-          <div className="field-input-box">
-            <input
-              type="text"
-              value={value.companyName}
-              placeholder="مثال: تراست للشحن"
-              onChange={(e) => onChange({ ...value, companyName: e.target.value })}
-            />
-          </div>
-        </label>
+        <label className="setting-field-card"><span className="field-label">اسم شركة الشحن في الرسالة</span><div className="field-input-box"><input type="text" value={value.companyName} onChange={(event) => onChange({ ...value, companyName: event.target.value })} /></div></label>
       </div>
-
       <div className="template-editor-card" style={{ marginTop: '1.25rem' }}>
-        <label className="field-label" style={{ fontWeight: 800, marginBottom: '0.4rem', display: 'block' }}>
-          قالب رسالة إشعار التوصيل (WhatsApp Template)
-        </label>
-        <p className="rates-notice" style={{ marginBottom: '0.65rem' }}>
-          انقر على المتغيرات التالية لإضافتها تلقائيًا إلى القالب. تُحسب مدة التسليم تلقائيًا حسب جدول المحافظة المحدد في الإعدادات:
-        </p>
-        <div className="variable-badges-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem' }}>
-          {[
-            '{اسم_العميل}',
-            '{رقم_الشحنة}',
-            '{اسم_التاجر}',
-            '{اسم_شركة_الشحن}',
-            '{المحافظة}',
-            '{مدة_التسليم}',
-            '{المبلغ}',
-            '{رابط_التتبع}',
-          ].map((v) => (
-            <button
-              key={v}
-              type="button"
-              className="chip-badge"
-              style={{ background: 'rgba(59,130,246,0.15)', color: '#60A5FA', border: '1px solid rgba(59,130,246,0.3)', padding: '0.25rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}
-              onClick={() => insertVariable(v)}
-            >
-              + {v}
-            </button>
-          ))}
+        <strong className="field-label">قالب الرسالة</strong>
+        <div className="variable-badges-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem', margin: '.75rem 0' }}>
+          {variables.map((variable) => <button key={variable} type="button" className="chip-badge" onClick={() => onChange({ ...value, defaultTemplate: `${value.defaultTemplate || ''} ${variable}`.trim() })}>+ {variable}</button>)}
         </div>
-        <textarea
-          className="input-glass"
-          rows={4}
-          style={{ width: '100%', fontFamily: 'inherit', padding: '0.75rem', lineHeight: '1.6' }}
-          value={value.defaultTemplate}
-          onChange={(e) => onChange({ ...value, defaultTemplate: e.target.value })}
-        />
+        <textarea className="input-glass" rows={4} style={{ width: '100%', fontFamily: 'inherit', padding: '.75rem', lineHeight: 1.7 }} value={value.defaultTemplate} onChange={(event) => onChange({ ...value, defaultTemplate: event.target.value })} />
       </div>
-
-      <div className="whatsapp-preview-box" style={{ marginTop: '1.25rem', padding: '1rem', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 'var(--radius-md)' }}>
-        <strong style={{ color: '#34D399', display: 'block', marginBottom: '0.4rem' }}>💬 معاينة حية لرسالة الواتساب:</strong>
-        <p style={{ whiteSpace: 'pre-wrap', fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: '1.6' }}>{sampleText}</p>
+      <div className="whatsapp-preview-box" style={{ marginTop: '1.25rem' }}>
+        <strong>معاينة الرسالة</strong>
+        <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{sampleText}</p>
       </div>
     </div>
   );
 }
-

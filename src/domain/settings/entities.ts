@@ -12,6 +12,8 @@ export interface DeliveryPolicySettings {
 export interface GovernorateRate {
   id: string;
   governorate: string;
+  merchantDeliveryFee: number;
+  driverDeliveryCost: number;
   deliveryFee: number;
   returnFee: number;
   estimatedDays: number;
@@ -42,15 +44,15 @@ export interface PricingPolicySettings {
 }
 
 export const defaultGovernorateRates: GovernorateRate[] = [
-  { id: 'gov-cairo', governorate: 'القاهرة', deliveryFee: 45, returnFee: 25, estimatedDays: 1 },
-  { id: 'gov-giza', governorate: 'الجيزة', deliveryFee: 45, returnFee: 25, estimatedDays: 1 },
-  { id: 'gov-alex', governorate: 'الإسكندرية', deliveryFee: 60, returnFee: 30, estimatedDays: 2 },
-  { id: 'gov-qalyubia', governorate: 'القليوبية', deliveryFee: 50, returnFee: 25, estimatedDays: 1 },
-  { id: 'gov-delta', governorate: 'الدلتا (المنوفية، الغربية، الشرقية، الدقهلية، البحيرة، كفر الشيخ)', deliveryFee: 65, returnFee: 35, estimatedDays: 2 },
-  { id: 'gov-canal', governorate: 'مدن القناة (السويس، الإسماعيلية، بورسعيد)', deliveryFee: 70, returnFee: 35, estimatedDays: 2 },
-  { id: 'gov-upper', governorate: 'شمال الصعيد (الفيوم، بني سويف، المنيا)', deliveryFee: 75, returnFee: 40, estimatedDays: 2 },
-  { id: 'gov-deep-upper', governorate: 'جنوب الصعيد (أسيوط، سوهاج، قنا، الأقصر، أسوان)', deliveryFee: 90, returnFee: 45, estimatedDays: 3 },
-  { id: 'gov-remote', governorate: 'المناطق النائية والحدودية (البحر الأحمر، الوادي الجديد، مطروح، سيناء)', deliveryFee: 110, returnFee: 55, estimatedDays: 4 },
+  { id: 'gov-cairo', governorate: 'القاهرة', merchantDeliveryFee: 45, driverDeliveryCost: 28, deliveryFee: 45, returnFee: 25, estimatedDays: 1 },
+  { id: 'gov-giza', governorate: 'الجيزة', merchantDeliveryFee: 45, driverDeliveryCost: 28, deliveryFee: 45, returnFee: 25, estimatedDays: 1 },
+  { id: 'gov-alex', governorate: 'الإسكندرية', merchantDeliveryFee: 60, driverDeliveryCost: 38, deliveryFee: 60, returnFee: 30, estimatedDays: 2 },
+  { id: 'gov-qalyubia', governorate: 'القليوبية', merchantDeliveryFee: 50, driverDeliveryCost: 32, deliveryFee: 50, returnFee: 25, estimatedDays: 1 },
+  { id: 'gov-delta', governorate: 'الدلتا', merchantDeliveryFee: 65, driverDeliveryCost: 42, deliveryFee: 65, returnFee: 35, estimatedDays: 2 },
+  { id: 'gov-canal', governorate: 'مدن القناة', merchantDeliveryFee: 70, driverDeliveryCost: 46, deliveryFee: 70, returnFee: 35, estimatedDays: 2 },
+  { id: 'gov-upper', governorate: 'شمال الصعيد', merchantDeliveryFee: 75, driverDeliveryCost: 50, deliveryFee: 75, returnFee: 40, estimatedDays: 2 },
+  { id: 'gov-deep-upper', governorate: 'جنوب الصعيد', merchantDeliveryFee: 90, driverDeliveryCost: 62, deliveryFee: 90, returnFee: 45, estimatedDays: 3 },
+  { id: 'gov-remote', governorate: 'المناطق النائية والحدودية', merchantDeliveryFee: 110, driverDeliveryCost: 78, deliveryFee: 110, returnFee: 55, estimatedDays: 4 },
 ];
 
 export interface ProofPolicySettings {
@@ -75,7 +77,6 @@ export interface DriverLocationPolicySettings {
   offlineBatchEnabled: boolean;
 }
 
-
 export interface PrintingSettings {
   defaultLabelFormat: 'thermal' | 'a4';
   defaultCopies: number;
@@ -92,7 +93,7 @@ export interface WhatsAppNotificationSettings {
 }
 
 export const defaultWhatsAppTemplate =
-  'أهلاً {اسم_العميل} 👋 تم استلام شحنتك رقم {رقم_الشحنة} من {اسم_التاجر} لدى شركة {اسم_شركة_الشحن}. سيتم التوصيل إلى {المحافظة} {مدة_التسليم}. المبلغ المطلوب عند الاستلام: {المبلغ}. تتبع شحنتك: {رابط_التتبع}';
+  'أهلًا {اسم_العميل}، تم استلام شحنتك رقم {رقم_الشحنة} من {اسم_التاجر} لدى شركة {اسم_شركة_الشحن}. سيتم التوصيل إلى {المحافظة} {مدة_التسليم}. المبلغ المطلوب عند الاستلام: {المبلغ}. تتبع شحنتك: {رابط_التتبع}';
 
 export interface NotificationSettings {
   inAppEnabled: boolean;
@@ -184,7 +185,7 @@ export const defaultTenantOperationalSettings: TenantOperationalSettings = {
     notifyDriverOnClarification: true,
     whatsApp: {
       enabled: true,
-      companyName: 'تراست للشحن',
+      companyName: 'FIX 365 — فيكس 365 للشحن',
       defaultTemplate: defaultWhatsAppTemplate,
     },
   },

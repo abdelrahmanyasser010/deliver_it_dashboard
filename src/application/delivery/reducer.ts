@@ -465,6 +465,39 @@ export function reduceDeliveryCommand(previous: DeliveryState, command: Delivery
       state = refreshDerivedPeople(audit({ ...state, ledgerEntries: [entry, ...state.ledgerEntries] }, command, 'shipment', shipment.id, command.note));
       return { state, result: result(true, 'تمت مطابقة الشحنة وتحديث العهدة والقيود.') };
     }
+    case 'finance/addOperationalExpense': {
+      const expense = { ...command.expense, id: command.expense.id || id('EXP'), createdBy: command.expense.createdBy || actor };
+      const entry: FinancialLedgerEntry = {
+        id: id('LED'),
+        date: expense.date,
+        account: 'مصاريف تشغيلية',
+        description: expense.description,
+        debit: expense.amount,
+        credit: 0,
+        status: expense.status === 'approved' ? 'posted' : 'pending',
+        sourceType: 'operationalExpense',
+        sourceId: expense.id,
+      };
+      state = audit({ ...state, operationalExpenses: [expense, ...(state.operationalExpenses ?? [])], ledgerEntries: [entry, ...state.ledgerEntries] }, command, 'operationalExpense', expense.id, expense.description);
+      return { state, result: result(true, 'تم تسجيل المصروف التشغيلي وظهوره في المحاسبة.') };
+    }
+    case 'finance/addDriverAdjustment': {
+      const adjustment = { ...command.adjustment, id: command.adjustment.id || id('DADJ'), createdBy: command.adjustment.createdBy || actor };
+      const isCompanyCost = ['bonus', 'reimbursement', 'advance'].includes(adjustment.type);
+      const entry: FinancialLedgerEntry = {
+        id: id('LED'),
+        date: adjustment.date,
+        account: `تسويات المناديب - ${adjustment.driverName}`,
+        description: adjustment.description,
+        debit: isCompanyCost ? adjustment.amount : 0,
+        credit: isCompanyCost ? 0 : adjustment.amount,
+        status: adjustment.status === 'approved' ? 'posted' : 'pending',
+        sourceType: 'driverAdjustment',
+        sourceId: adjustment.id,
+      };
+      state = audit({ ...state, driverAdjustments: [adjustment, ...(state.driverAdjustments ?? [])], ledgerEntries: [entry, ...state.ledgerEntries] }, command, 'driverAdjustment', adjustment.id, adjustment.description);
+      return { state, result: result(true, 'تم تسجيل حركة المندوب وظهورها في المحاسبة.') };
+    }
     case 'ledger/postAll': {
       const count = state.ledgerEntries.filter((entry) => entry.status === 'pending').length;
       state = audit({ ...state, ledgerEntries: state.ledgerEntries.map((entry) => entry.status === 'pending' ? { ...entry, status: 'posted' } : entry) }, command, 'ledger', 'all', `ترحيل ${count} قيد`);

@@ -5,6 +5,7 @@ export interface SettlementLine {
   merchantId: string;
   grossCollection: number;
   shippingFee: number;
+  driverDeliveryCost?: number;
   returnFee: number;
   discount: number;
   adjustment: number;
@@ -40,6 +41,33 @@ export interface FinancialLedgerEntry {
   debit: number;
   credit: number;
   status: 'pending' | 'posted' | 'reversed';
-  sourceType: 'shipment' | 'driverRemittance' | 'settlement' | 'adjustment';
+  sourceType: 'shipment' | 'driverRemittance' | 'settlement' | 'adjustment' | 'operationalExpense' | 'driverAdjustment';
   sourceId: string;
+}
+
+export type OperationalExpenseCategory = 'rent' | 'utilities' | 'salaries' | 'fuel' | 'maintenance' | 'packaging' | 'marketing' | 'software' | 'other';
+
+export interface OperationalExpense {
+  id: string;
+  date: string;
+  category: OperationalExpenseCategory;
+  description: string;
+  amount: number;
+  paymentMethod: 'cash' | 'bank' | 'wallet';
+  status: 'pending' | 'approved';
+  createdBy: string;
+}
+
+export type DriverAdjustmentType = 'bonus' | 'deduction' | 'reimbursement' | 'advance';
+
+export interface DriverFinancialAdjustment {
+  id: string;
+  driverId: string;
+  driverName: string;
+  date: string;
+  type: DriverAdjustmentType;
+  amount: number;
+  description: string;
+  status: 'pending' | 'approved';
+  createdBy: string;
 }

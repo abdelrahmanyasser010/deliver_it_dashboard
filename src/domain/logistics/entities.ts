@@ -144,6 +144,9 @@ export interface Shipment {
   originalDeliveryFee?: number;
   pricingSnapshot?: {
     shippingFee: number;
+    merchantDeliveryFee?: number;
+    driverDeliveryCost?: number;
+    grossShippingProfit?: number;
     returnFeeMode: 'disabled' | 'fixed' | 'percentage';
     returnFeeValue: number;
     freeAttempts: number;
@@ -206,6 +209,7 @@ export interface PricingRule {
   id: string;
   scope: string;
   deliveryFee: number;
+  driverDeliveryCost?: number;
   returnFee: number;
   collectionFee: number;
   estimatedDays: number;

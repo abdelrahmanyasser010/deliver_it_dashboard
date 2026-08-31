@@ -1,5 +1,6 @@
 import type { DeliveryGateway, GatewayCommandResponse } from '../../application/delivery/contracts';
 import type { DeliveryCommand, DeliveryState } from '../../application/delivery/types';
+import type { DriverFinancialAdjustment, OperationalExpense } from '../../domain/finance/entities';
 import { api } from '../api/client';
 import { ApiClientError, friendlyApiMessage } from '../api/errors';
 import { asRecord, auditFromApi, conversationFromApi, dispatchFromApi, driverFromApi, driverUpdateFromApi, intakeFromApi, ledgerFromApi, merchantFromApi, messageFromApi, notificationToApi, pickupFromApi, pricingToApi, printingToApi, proofToApi, returnFromApi, settlementFromApi, settingsFromApi, shipmentFromApi, deliveryToApi } from '../api/mappers';
@@ -45,11 +46,46 @@ async function loadMessages(conversationId: string): Promise<ReturnType<typeof m
   return rows.map(messageFromApi);
 }
 
+function moneyFromMinor(value: unknown) {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? amount / 100 : 0;
+}
+
+function operationalExpenseFromApi(input: unknown): OperationalExpense {
+  const row = asRecord(input);
+  return {
+    id: String(row.id ?? ''),
+    date: String(row.expense_date ?? row.date ?? row.created_at ?? ''),
+    category: String(row.category ?? 'other') as OperationalExpense['category'],
+    description: String(row.description ?? ''),
+    amount: moneyFromMinor(row.amount_minor),
+    paymentMethod: String(row.payment_method ?? 'cash') as OperationalExpense['paymentMethod'],
+    status: String(row.status ?? 'pending') === 'approved' ? 'approved' : 'pending',
+    createdBy: String(row.created_by ?? row.created_by_name ?? 'النظام'),
+  };
+}
+
+function driverAdjustmentFromApi(input: unknown): DriverFinancialAdjustment {
+  const row = asRecord(input);
+  const driver = asRecord(row.driver);
+  return {
+    id: String(row.id ?? ''),
+    driverId: String(row.driver_id ?? ''),
+    driverName: String(row.driver_name ?? driver.name ?? row.driver_id ?? 'مندوب'),
+    date: String(row.adjustment_date ?? row.date ?? row.created_at ?? ''),
+    type: String(row.type ?? 'bonus') as DriverFinancialAdjustment['type'],
+    amount: moneyFromMinor(row.amount_minor),
+    description: String(row.description ?? ''),
+    status: String(row.status ?? 'pending') === 'approved' ? 'approved' : 'pending',
+    createdBy: String(row.created_by ?? row.created_by_name ?? 'النظام'),
+  };
+}
+
 async function loadState(): Promise<DeliveryState> {
   const [
     shipmentRows, driverRows, merchantRows, pickupRows, dispatchRows, updateRows,
     returnRows, settlementRows, ledgerRows, intakeRows, conversationRows, auditRows,
-    periods, deliveryPolicy, pricingPolicy, proofPolicy, locationPolicy, printingPolicy, notificationPolicy,
+    periods, expenseRows, driverAdjustmentRows, deliveryPolicy, pricingPolicy, proofPolicy, locationPolicy, printingPolicy, notificationPolicy,
   ] = await Promise.all([
     allPages('/api/v1/shipments'),
     allPages('/api/v1/drivers'),
@@ -64,6 +100,8 @@ async function loadState(): Promise<DeliveryState> {
     allPages('/api/v1/conversations'),
     allPages('/api/v1/audit-logs'),
     allPages('/api/v1/accounting-periods'),
+    allPages('/api/v1/finance/operational-expenses'),
+    allPages('/api/v1/finance/driver-adjustments'),
     optionalObject('/api/v1/settings/delivery-policy'),
     optionalObject('/api/v1/settings/pricing-policy'),
     optionalObject('/api/v1/settings/proof-policy'),
@@ -94,6 +132,8 @@ async function loadState(): Promise<DeliveryState> {
     returnCases: returnRows.map(returnFromApi),
     settlements: settlementRows.map(settlementFromApi),
     ledgerEntries: ledgerRows.map(ledgerFromApi),
+    operationalExpenses: expenseRows.map(operationalExpenseFromApi),
+    driverAdjustments: driverAdjustmentRows.map(driverAdjustmentFromApi),
     barcodeBatches: intakeRows.map(intakeFromApi),
     chatRooms,
     auditEvents: auditRows.map(auditFromApi),
@@ -202,6 +242,8 @@ async function execute(command: DeliveryCommand): Promise<GatewayCommandResponse
       case 'settlement/approve': { const v = await versionOf(`/api/v1/settlements/${command.settlementId}`); await post(`/api/v1/settlements/${command.settlementId}/approve`, { note: 'اعتماد من لوحة التحكم', resource_version: v, client_action_id: action }); break; }
       case 'settlement/pay': { const v = await versionOf(`/api/v1/settlements/${command.settlementId}`); await post(`/api/v1/settlements/${command.settlementId}/pay`, { payment_reference: command.paymentReference, paid_at: new Date().toISOString(), payment_method: 'bank_transfer', resource_version: v, client_action_id: action }); break; }
       case 'finance/reconcileShipment': { const s = asRecord((await api.get(`/api/v1/shipments/${command.shipmentId}`)).data); await post(`/api/v1/finance/shipments/${command.shipmentId}/reconcile`, { remitted_minor: Math.round(command.remittedCash * 100), currency: s.currency ?? 'EGP', note: command.note, resource_version: Number(s.version ?? 1), client_action_id: action }); break; }
+      case 'finance/addOperationalExpense': await post('/api/v1/finance/operational-expenses', { category: command.expense.category, description: command.expense.description, amount_minor: Math.round(command.expense.amount * 100), payment_method: command.expense.paymentMethod, expense_date: command.expense.date, status: command.expense.status, client_action_id: action }); break;
+      case 'finance/addDriverAdjustment': await post('/api/v1/finance/driver-adjustments', { driver_id: command.adjustment.driverId, type: command.adjustment.type, amount_minor: Math.round(command.adjustment.amount * 100), description: command.adjustment.description, adjustment_date: command.adjustment.date, status: command.adjustment.status, client_action_id: action }); break;
       case 'ledger/postAll': { const entries = (await api.get<any[]>('/api/v1/ledger/entries', { query: { page: 1, per_page: 100, status: 'pending' } })).data; await post('/api/v1/ledger/post', { entry_ids: entries.map((x: any) => x.id), posting_date: new Date().toISOString().slice(0, 10), note: 'ترحيل من لوحة التحكم', client_action_id: action }); break; }
       case 'period/close': { const periods = (await api.get<any[]>('/api/v1/accounting-periods', { query: { page: 1, per_page: 100 } })).data; const p = periods.find((x: any) => String(x.starts_on ?? '').slice(0, 7) === command.period || String(x.id) === command.period); if (!p) return { result: { ok: false, message: 'الفترة غير موجودة على الخادم.' } }; const end = String(p.ends_on ?? ''); if (!end) return { result: { ok: false, message: 'الفترة لا تحتوي تاريخ نهاية صالحًا.' } }; await post(`/api/v1/accounting-periods/${p.id}/close`, { closed_through: end, note: 'إغلاق من لوحة التحكم', resource_version: Number(p.version ?? 1), client_action_id: action }); break; }
       case 'settings/updateDelivery': { const cur = asRecord((await api.get('/api/v1/settings/delivery-policy')).data); await put('/api/v1/settings/delivery-policy', deliveryToApi(command.policy, cur, Number(cur.version ?? 1))); break; }

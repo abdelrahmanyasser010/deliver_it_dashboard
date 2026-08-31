@@ -1,6 +1,6 @@
 import type { Driver, Merchant, Shipment } from '../../domain/logistics/entities';
 import type { DeliveryBatch, DriverShipmentUpdate, PickupTask, ReturnCase } from '../../domain/operations/entities';
-import type { FinancialLedgerEntry, MerchantSettlement } from '../../domain/finance/entities';
+import type { DriverFinancialAdjustment, FinancialLedgerEntry, MerchantSettlement, OperationalExpense } from '../../domain/finance/entities';
 import type { DeliveryPolicySettings, DriverLocationPolicySettings, NotificationSettings, PricingPolicySettings, PrintingSettings, ProofPolicySettings, TenantOperationalSettings } from '../../domain/settings/entities';
 
 export interface BarcodeBatch {
@@ -70,6 +70,8 @@ export interface DeliveryState {
   returnCases: ReturnCase[];
   settlements: MerchantSettlement[];
   ledgerEntries: FinancialLedgerEntry[];
+  operationalExpenses: OperationalExpense[];
+  driverAdjustments: DriverFinancialAdjustment[];
   barcodeBatches: BarcodeBatch[];
   chatRooms: ChatRoomRecord[];
   auditEvents: AuditEvent[];
@@ -110,6 +112,8 @@ export type DeliveryCommand =
   | { type: 'settlement/approve'; settlementId: string; actor?: string }
   | { type: 'settlement/pay'; settlementId: string; paymentReference: string; actor?: string }
   | { type: 'finance/reconcileShipment'; shipmentId: string; remittedCash: number; note: string; actor?: string }
+  | { type: 'finance/addOperationalExpense'; expense: OperationalExpense; actor?: string }
+  | { type: 'finance/addDriverAdjustment'; adjustment: DriverFinancialAdjustment; actor?: string }
   | { type: 'ledger/postAll'; actor?: string }
   | { type: 'period/close'; period: string; actor?: string }
   | { type: 'settings/updateDelivery'; policy: DeliveryPolicySettings; actor?: string }

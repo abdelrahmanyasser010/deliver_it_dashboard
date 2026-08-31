@@ -7113,6 +7113,158 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/FinancialReconciliationRequest'
+  /api/v1/finance/operational-expenses:
+    get:
+      summary: قائمة المصاريف التشغيلية
+      tags:
+      - Finance
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - success
+                - data
+                - request_id
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OperationalExpense'
+                  request_id:
+                    type: string
+        '401': *id002
+        '403': *id003
+      operationId: get_api_v1_finance_operational_expenses
+      security:
+      - sanctum: []
+      x-permission: finance.view
+    post:
+      summary: تسجيل مصروف تشغيلي
+      tags:
+      - Finance
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - success
+                - data
+                - request_id
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/OperationalExpense'
+                  request_id:
+                    type: string
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '409': *id004
+        '422': *id005
+      operationId: post_api_v1_finance_operational_expenses
+      security:
+      - sanctum: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperationalExpenseCreateRequest'
+      x-permission: finance.manage
+  /api/v1/finance/driver-adjustments:
+    get:
+      summary: قائمة حركات المناديب المالية
+      tags:
+      - Finance
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - success
+                - data
+                - request_id
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DriverAdjustment'
+                  request_id:
+                    type: string
+        '401': *id002
+        '403': *id003
+      operationId: get_api_v1_finance_driver_adjustments
+      security:
+      - sanctum: []
+      x-permission: finance.view
+    post:
+      summary: تسجيل حركة مالية لمندوب
+      tags:
+      - Finance
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - success
+                - data
+                - request_id
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/DriverAdjustment'
+                  request_id:
+                    type: string
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '409': *id004
+        '422': *id005
+      operationId: post_api_v1_finance_driver_adjustments
+      security:
+      - sanctum: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverAdjustmentCreateRequest'
+      x-permission: finance.manage
   /api/v1/settings/proof-policy:
     get:
       summary: قراءة سياسة إثبات التسليم
@@ -15045,11 +15197,45 @@ components:
           minimum: 1
           maximum: 10000
           default: 100
+    GovernorateRate:
+      type: object
+      required:
+      - id
+      - governorate
+      - merchant_delivery_fee_minor
+      - driver_delivery_cost_minor
+      - return_fee_minor
+      - estimated_days
+      properties:
+        id:
+          type: string
+        governorate:
+          type: string
+        merchant_delivery_fee_minor:
+          type: integer
+          minimum: 0
+          description: سعر الشحن الذي يحاسب به التاجر أو العميل.
+        driver_delivery_cost_minor:
+          type: integer
+          minimum: 0
+          description: تكلفة توصيل المندوب لنفس المحافظة.
+        delivery_fee_minor:
+          type: integer
+          minimum: 0
+          deprecated: true
+          description: حقل توافق قديم؛ استخدم merchant_delivery_fee_minor.
+        return_fee_minor:
+          type: integer
+          minimum: 0
+        estimated_days:
+          type: integer
+          minimum: 1
     PricingPolicy:
       type: object
       required:
       - currency
       - free_delivery_attempts
+      - governorate_rates
       - return_fee
       - extra_attempt_fee
       - collection_fee
@@ -15062,6 +15248,11 @@ components:
           type: integer
           minimum: 0
           default: 3
+        governorate_rates:
+          type: array
+          items:
+            $ref: '#/components/schemas/GovernorateRate'
+          description: أسعار المحافظات وفيها سعر التاجر وتكلفة المندوب لحساب ربح الشحن.
         return_fee:
           $ref: '#/components/schemas/PolicyFeeRule'
         extra_attempt_fee:
@@ -15103,6 +15294,174 @@ components:
         version:
           type: integer
           minimum: 1
+    OperationalExpense:
+      type: object
+      required:
+      - id
+      - expense_date
+      - category
+      - description
+      - amount_minor
+      - payment_method
+      - status
+      properties:
+        id:
+          type: string
+        expense_date:
+          type: string
+          format: date-time
+        category:
+          type: string
+          enum:
+          - rent
+          - utilities
+          - salaries
+          - fuel
+          - maintenance
+          - packaging
+          - marketing
+          - software
+          - other
+        description:
+          type: string
+        amount_minor:
+          type: integer
+          minimum: 0
+        payment_method:
+          type: string
+          enum:
+          - cash
+          - bank
+          - wallet
+        status:
+          type: string
+          enum:
+          - pending
+          - approved
+        created_by:
+          type:
+          - string
+          - 'null'
+    OperationalExpenseCreateRequest:
+      type: object
+      required:
+      - expense_date
+      - category
+      - description
+      - amount_minor
+      - payment_method
+      - status
+      properties:
+        expense_date:
+          type: string
+          format: date-time
+        category:
+          type: string
+          enum:
+          - rent
+          - utilities
+          - salaries
+          - fuel
+          - maintenance
+          - packaging
+          - marketing
+          - software
+          - other
+        description:
+          type: string
+        amount_minor:
+          type: integer
+          minimum: 0
+        payment_method:
+          type: string
+          enum:
+          - cash
+          - bank
+          - wallet
+        status:
+          type: string
+          enum:
+          - pending
+          - approved
+        client_action_id:
+          type: string
+    DriverAdjustment:
+      type: object
+      required:
+      - id
+      - driver_id
+      - adjustment_date
+      - type
+      - amount_minor
+      - description
+      - status
+      properties:
+        id:
+          type: string
+        driver_id:
+          type: string
+        driver_name:
+          type:
+          - string
+          - 'null'
+        adjustment_date:
+          type: string
+          format: date-time
+        type:
+          type: string
+          enum:
+          - bonus
+          - deduction
+          - reimbursement
+          - advance
+        amount_minor:
+          type: integer
+          minimum: 0
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+          - pending
+          - approved
+        created_by:
+          type:
+          - string
+          - 'null'
+    DriverAdjustmentCreateRequest:
+      type: object
+      required:
+      - driver_id
+      - adjustment_date
+      - type
+      - amount_minor
+      - description
+      - status
+      properties:
+        driver_id:
+          type: string
+        adjustment_date:
+          type: string
+          format: date-time
+        type:
+          type: string
+          enum:
+          - bonus
+          - deduction
+          - reimbursement
+          - advance
+        amount_minor:
+          type: integer
+          minimum: 0
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+          - pending
+          - approved
+        client_action_id:
+          type: string
     DeliveryPolicy:
       type: object
       required:
