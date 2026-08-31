@@ -82,7 +82,7 @@ export function Drawer({ title, description, children, footer, onClose, classNam
   const descriptionId = useId();
   const ref = useAccessibleLayer(onClose);
   return <div className="ui-drawer-overlay" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-    <aside ref={ref} tabIndex={-1} className={`ui-drawer glass-panel ${className}`.trim()} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined}>
+    <aside ref={ref} tabIndex={-1} className={`ui-drawer ${className}`.trim()} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined}>
       <header><div><h3 id={titleId}>{title}</h3>{description && <p id={descriptionId}>{description}</p>}</div><button type="button" className="btn-icon" onClick={onClose} aria-label="إغلاق"><X size={18} /></button></header>
       <div className="ui-drawer-body">{children}</div>{footer && <footer>{footer}</footer>}
     </aside>
