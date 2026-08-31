@@ -236,6 +236,9 @@ function DriverRemittanceDialog({
   }, [shipments, selectedDriver]);
 
   const [selectedIds, setSelectedIds] = useState<string[]>(() => unremittedShipments.map((s) => s.id));
+  const [method, setMethod] = useState<'cash' | 'vodafone_cash' | 'instapay' | 'bank_transfer'>('cash');
+  const [receiptRef, setReceiptRef] = useState('REC-89021');
+  const [walletOrTxnRef, setWalletOrTxnRef] = useState('');
   const [note, setNote] = useState('استلام ومطابقة تحصيل المندوب وتقفيل حسابه');
   const [submitting, setSubmitting] = useState(false);
 
@@ -251,10 +254,11 @@ function DriverRemittanceDialog({
   const handleConfirm = async () => {
     if (!selectedRows.length) return;
     setSubmitting(true);
+    const fullNoteText = `${method === 'vodafone_cash' ? '📱 فودافون كاش' : method === 'cash' ? '💵 نقداً في الخزينة' : '🏦 تحويل / انستا باي'} · إيصال: ${receiptRef || 'بدون'} ${walletOrTxnRef ? `· مرجع/محفظة: ${walletOrTxnRef}` : ''} ${note ? `· ${note}` : ''}`.trim();
     try {
       await onSubmit(
         selectedRows.map((s) => ({ id: s.id, cash: s.collectedCash })),
-        note
+        fullNoteText
       );
     } finally {
       setSubmitting(false);
@@ -265,7 +269,7 @@ function DriverRemittanceDialog({
     <Modal
       wide
       title="استلام ومطابقة تحصيل المندوب"
-      description="تصفية ومطابقة تحصيل الشحنات المسلمة مع المندوب في أي وقت (شحنة واحدة، مجموعة شحنات، أو كل الشحنات دفعة واحدة)."
+      description="تصفية ومطابقة تحصيل الشحنات المسلمة مع المندوب وتسجيل إيصال التوريد الخزينة."
       onClose={onClose}
       footer={<>
         <button className="outline-btn" onClick={onClose} disabled={submitting}>إلغاء</button>
@@ -275,7 +279,7 @@ function DriverRemittanceDialog({
       </>}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.8rem', alignItems: 'flex-end' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.9rem 1.1rem', alignItems: 'flex-end' }}>
           <label className="form-field">
             <span>اختر المندوب</span>
             <select
@@ -297,21 +301,50 @@ function DriverRemittanceDialog({
               ))}
             </select>
           </label>
+
           <label className="form-field">
             <span>طريقة التوريد</span>
-            <select className="input-glass">
+            <select
+              className="input-glass"
+              value={method}
+              onChange={(e) => setMethod(e.target.value as typeof method)}
+            >
               <option value="cash">💵 نقداً في خزينة الشركة</option>
-              <option value="bank">🏦 تحويل بنكي / انستا باي</option>
-              <option value="wallet">📱 محفظة إلكترونية</option>
+              <option value="vodafone_cash">📱 فودافون كاش / محفظة إلكترونية</option>
+              <option value="instapay">⚡ انستا باي (InstaPay)</option>
+              <option value="bank_transfer">🏦 تحويل بنكي</option>
             </select>
           </label>
+
           <label className="form-field">
-            <span>رقم إيصال الاستلام / البيان</span>
+            <span>{method === 'cash' ? 'رقم إيصال الخزينة الورقي' : 'رقم الإيصال / المرجع'}</span>
+            <input
+              className="input-glass"
+              value={receiptRef}
+              onChange={(e) => setReceiptRef(e.target.value)}
+              placeholder={method === 'cash' ? 'مثال: REC-90812' : 'مثال: REF-5401'}
+            />
+          </label>
+
+          {method === 'vodafone_cash' && (
+            <label className="form-field">
+              <span>رقم محفظة فودافون كاش / رقم العملية</span>
+              <input
+                className="input-glass"
+                value={walletOrTxnRef}
+                onChange={(e) => setWalletOrTxnRef(e.target.value)}
+                placeholder="مثال: 01099887766 أو VF-88412"
+              />
+            </label>
+          )}
+
+          <label className="form-field">
+            <span>ملاحظات إضافية على البيان</span>
             <input
               className="input-glass"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="مثال: إيصال رقم REC-89021"
+              placeholder="مثال: تم الاستلام وتقفيل الحساب..."
             />
           </label>
         </div>
