@@ -31,6 +31,7 @@ export function AccountingPage() {
   const [activeTab, setActiveTab] = useState<AccountingTab>('overview');
   const [partyType, setPartyType] = useState<'all' | PartyType>('all');
   const [partyName, setPartyName] = useState('all');
+  const [datePreset, setDatePreset] = useState<'all' | 'today' | 'this_week' | 'this_month'>('all');
   const [search, setSearch] = useState('');
   const [ledgerFilter, setLedgerFilter] = useState<'all' | 'pending' | 'posted' | 'reversed'>('all');
   const [closePreviewOpen, setClosePreviewOpen] = useState(false);
@@ -39,7 +40,28 @@ export function AccountingPage() {
   const shipments = useMemo(() => state?.shipments ?? [], [state?.shipments]);
   const statements = useMemo(() => buildStatementRows(shipments), [shipments]);
   const partyOptions = useMemo(() => [...new Set(statements.filter((row) => partyType === 'all' || row.partyType === partyType).map((row) => row.partyName))], [statements, partyType]);
-  const filteredStatements = statements.filter((row) => (partyType === 'all' || row.partyType === partyType) && (partyName === 'all' || row.partyName === partyName) && (!search || `${row.id} ${row.shipmentId} ${row.partyName} ${row.description}`.toLocaleLowerCase('ar-EG').includes(search.toLocaleLowerCase('ar-EG'))));
+  
+  const filteredStatements = statements.filter((row) => {
+    if (partyType !== 'all' && row.partyType !== partyType) return false;
+    if (partyName !== 'all' && row.partyName !== partyName) return false;
+    if (search && !`${row.id} ${row.shipmentId} ${row.partyName} ${row.description}`.toLocaleLowerCase('ar-EG').includes(search.toLocaleLowerCase('ar-EG'))) return false;
+
+    if (datePreset !== 'all') {
+      const rowDate = new Date(row.date).getTime();
+      const now = new Date();
+      if (datePreset === 'today') {
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        if (rowDate < startOfDay) return false;
+      } else if (datePreset === 'this_week') {
+        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay())).getTime();
+        if (rowDate < startOfWeek) return false;
+      } else if (datePreset === 'this_month') {
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        if (rowDate < startOfMonth) return false;
+      }
+    }
+    return true;
+  });
   const ledger = (state?.ledgerEntries ?? []).filter((entry) => ledgerFilter === 'all' || entry.status === ledgerFilter);
   const settlements = state?.settlements ?? [];
   const totalCollected = shipments.reduce((sum, shipment) => sum + shipment.collectedCash, 0);
@@ -189,7 +211,126 @@ export function AccountingPage() {
       </div>
     </>}
 
-    {activeTab === 'statements' && <section className="glass-card"><div className="statement-toolbar"><label><span>نوع الحساب</span><select className="input-glass" value={partyType} onChange={(event) => { setPartyType(event.target.value as typeof partyType); setPartyName('all'); }}><option value="all">الكل</option><option value="merchant">التجار</option><option value="driver">المناديب</option></select></label><label><span>الحساب</span><select className="input-glass" value={partyName} onChange={(event) => setPartyName(event.target.value)}><option value="all">كل الحسابات</option>{partyOptions.map((name) => <option key={name}>{name}</option>)}</select></label><label className="statement-search"><span>بحث</span><div className="search-field"><Search size={15}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="الشحنة أو الحساب أو البيان"/></div></label><div className="toolbar-actions">{partyType === 'driver' && partyName !== 'all' && <button className="btn-primary" onClick={() => setBatchRemittanceDriver(partyName)}><Wallet size={15}/> تقفيل تحصيل {partyName}</button>}<button className="outline-btn" onClick={exportStatements}><Download size={15}/> تحميل كشف الحساب</button></div></div><div className="statement-summary"><FinanceCard label="عليه" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.debit, 0))} icon={<Wallet/>}/><FinanceCard label="له" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.credit, 0))} icon={<Banknote/>}/><FinanceCard label="صافي الرصيد" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.debit - row.credit, 0))} icon={<ReceiptText/>}/></div><div className="table-wrapper"><table className="data-table"><thead><tr><th>التاريخ</th><th>الحساب</th><th>الشحنة</th><th>البيان</th><th>عليه</th><th>له</th><th>إجراء</th></tr></thead><tbody>{filteredStatements.map((row) => { const shipment = shipments.find((item) => item.id === row.shipmentId); return <tr key={row.id}><td>{formatDateTime(row.date)}</td><td><div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}><strong style={{ color: '#F8FAFC', fontSize: '0.86rem' }}>{row.partyName}</strong><span style={{ fontSize: '0.7rem', color: row.partyType === 'merchant' ? '#38BDF8' : '#818CF8' }}>{row.partyType === 'merchant' ? 'تاجر' : 'مندوب'}</span></div></td><td><button className="tracking-link" onClick={() => navigate(`/shipments?shipment=${row.shipmentId}`)}>{row.shipmentId}</button></td><td>{row.description}</td><td>{formatCurrency(row.debit)}</td><td>{formatCurrency(row.credit)}</td><td>{row.partyType === 'driver' && shipment && shipment.collectedCash > shipment.remittedCash && <button className="outline-btn" onClick={() => setBatchRemittanceDriver(row.partyName)}>استلام التوريد</button>}</td></tr>; })}</tbody></table></div></section>}
+    {activeTab === 'statements' && (
+      <section className="glass-card">
+        <div className="statement-toolbar">
+          <label>
+            <span>نوع الحساب</span>
+            <select
+              className="input-glass"
+              value={partyType}
+              onChange={(event) => {
+                setPartyType(event.target.value as typeof partyType);
+                setPartyName('all');
+              }}
+            >
+              <option value="all">الكل</option>
+              <option value="merchant">التجار</option>
+              <option value="driver">المناديب</option>
+            </select>
+          </label>
+
+          <label>
+            <span>الحساب</span>
+            <select
+              className="input-glass"
+              value={partyName}
+              onChange={(event) => setPartyName(event.target.value)}
+            >
+              <option value="all">كل الحسابات</option>
+              {partyOptions.map((name) => (
+                <option key={name}>{name}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>الفترة الزمنية</span>
+            <select
+              className="input-glass"
+              value={datePreset}
+              onChange={(event) => setDatePreset(event.target.value as typeof datePreset)}
+            >
+              <option value="all">كل الأوقات</option>
+              <option value="today">اليوم فقط</option>
+              <option value="this_week">هذا الأسبوع</option>
+              <option value="this_month">هذا الشهر</option>
+            </select>
+          </label>
+
+          <label className="statement-search">
+            <span>بحث</span>
+            <div className="search-field">
+              <Search size={15} />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="الشحنة أو الحساب أو البيان"
+              />
+            </div>
+          </label>
+
+          <div className="toolbar-actions">
+            <button className="outline-btn" onClick={exportStatements}>
+              <Download size={15} /> تحميل كشف الحساب
+            </button>
+          </div>
+        </div>
+        <div className="statement-summary">
+          <FinanceCard label="عليه" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.debit, 0))} icon={<Wallet/>}/>
+          <FinanceCard label="له" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.credit, 0))} icon={<Banknote/>}/>
+          <FinanceCard label="صافي الرصيد" value={formatCurrency(filteredStatements.reduce((sum, row) => sum + row.debit - row.credit, 0))} icon={<ReceiptText/>}/>
+        </div>
+        <div className="table-wrapper">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>التاريخ</th>
+                <th>الحساب</th>
+                <th>الشحنة</th>
+                <th>البيان</th>
+                <th>عليه</th>
+                <th>له</th>
+                <th>إجراء</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredStatements.map((row) => {
+                const shipment = shipments.find((item) => item.id === row.shipmentId);
+                return (
+                  <tr key={row.id}>
+                    <td>{formatDateTime(row.date)}</td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                        <strong style={{ color: '#F8FAFC', fontSize: '0.86rem' }}>{row.partyName}</strong>
+                        <span style={{ fontSize: '0.7rem', color: row.partyType === 'merchant' ? '#38BDF8' : '#818CF8' }}>
+                          {row.partyType === 'merchant' ? 'تاجر' : 'مندوب'}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <button className="tracking-link" onClick={() => navigate(`/shipments?shipment=${row.shipmentId}`)}>
+                        {row.shipmentId}
+                      </button>
+                    </td>
+                    <td>{row.description}</td>
+                    <td>{formatCurrency(row.debit)}</td>
+                    <td>{formatCurrency(row.credit)}</td>
+                    <td>
+                      {row.partyType === 'driver' && shipment && shipment.collectedCash > shipment.remittedCash && (
+                        <button className="outline-btn" onClick={() => setBatchRemittanceDriver(row.partyName)}>
+                          استلام التوريد
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    )}
 
     {activeTab === 'ledger' && <section className="glass-card"><div className="report-section-title"><div><h3>مراجعة حركات الحسابات</h3><span className="report-muted">كل صف حركة مالية مرتبطة بشحنة أو تسوية. اعتمد الحركات المعلقة بعد المراجعة.</span></div><div className="toolbar-actions"><select className="input-glass" value={ledgerFilter} onChange={(event) => setLedgerFilter(event.target.value as typeof ledgerFilter)}><option value="all">كل الحالات</option><option value="pending">معلق</option><option value="posted">معتمد</option><option value="reversed">ملغي</option></select><button className="outline-btn" onClick={exportLedger}><Download size={15}/> تحميل ملف المراجعة</button><button className="btn-primary" onClick={() => setPostPreviewOpen(true)} disabled={pendingLedger === 0}><CheckCircle2 size={15}/> اعتماد الحركات المعلقة</button></div></div><div className="table-wrapper"><table className="data-table"><thead><tr><th>الحركة</th><th>التاريخ</th><th>الحساب</th><th>البيان</th><th>عليه</th><th>له</th><th>الحالة</th><th>المصدر</th></tr></thead><tbody>{ledger.map((entry) => <tr key={entry.id}><td>{entry.id}</td><td>{formatDateTime(entry.date)}</td><td>{entry.account}</td><td>{entry.description}</td><td>{formatCurrency(entry.debit)}</td><td>{formatCurrency(entry.credit)}</td><td><StatusBadge label={entry.status === 'posted' ? 'معتمد' : entry.status === 'pending' ? 'معلق' : 'ملغي'} tone={entry.status === 'posted' ? 'success' : entry.status === 'pending' ? 'warning' : 'danger'}/></td><td><button className="tracking-link" onClick={() => entry.sourceType === 'settlement' ? navigate(`/settlements?settlement=${entry.sourceId}`) : navigate(`/shipments?shipment=${entry.sourceId}`)}>{entry.sourceId}</button></td></tr>)}</tbody></table></div></section>}
 
