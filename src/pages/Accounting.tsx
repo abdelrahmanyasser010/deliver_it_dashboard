@@ -14,6 +14,7 @@ import './Reports.css';
 type AccountingTab = 'overview' | 'statements' | 'expenses' | 'ledger' | 'close';
 type PartyType = 'merchant' | 'driver';
 type DatePreset = 'all' | 'today' | 'this_week' | 'this_month';
+type AccountingDetailKind = 'revenue' | 'courierCost' | 'grossProfit' | 'netOperatingProfit' | 'totalCollected' | 'totalRemitted' | 'cashWithDrivers' | 'merchantPayables';
 
 interface StatementRow {
   id: string;
@@ -116,6 +117,7 @@ export function AccountingPage() {
   const [driverAdjustmentOpen, setDriverAdjustmentOpen] = useState(false);
   const [postPreviewOpen, setPostPreviewOpen] = useState(false);
   const [closePreviewOpen, setClosePreviewOpen] = useState(false);
+  const [detailKind, setDetailKind] = useState<AccountingDetailKind | null>(null);
 
   const shipments = useMemo(() => state?.shipments ?? [], [state?.shipments]);
   const pricing = state?.settings.pricing;
@@ -220,16 +222,16 @@ export function AccountingPage() {
       {activeTab === 'overview' && (
         <>
           <div className="report-kpi-grid">
-            <FinanceCard label="إيراد الشحن من التجار" value={formatCurrency(revenue)} icon={<ReceiptText />} />
-            <FinanceCard label="تكلفة توصيل المناديب" value={formatCurrency(courierCost)} icon={<Wallet />} />
-            <FinanceCard label="ربح الشحن قبل المصاريف" value={formatCurrency(grossProfit)} icon={<Banknote />} />
-            <FinanceCard label="صافي التشغيل" value={formatCurrency(netOperatingProfit)} icon={<Landmark />} />
+            <FinanceCard label="إيراد الشحن من التجار" value={formatCurrency(revenue)} icon={<ReceiptText />} onClick={() => navigate('/reports')} />
+            <FinanceCard label="تكلفة توصيل المناديب" value={formatCurrency(courierCost)} icon={<Wallet />} onClick={() => navigate('/reports')} />
+            <FinanceCard label="ربح الشحن قبل المصاريف" value={formatCurrency(grossProfit)} icon={<Banknote />} onClick={() => navigate('/reports')} />
+            <FinanceCard label="صافي التشغيل" value={formatCurrency(netOperatingProfit)} icon={<Landmark />} onClick={() => navigate('/reports')} />
           </div>
           <div className="report-kpi-grid">
-            <FinanceCard label="إجمالي المحصل" value={formatCurrency(totalCollected)} icon={<Banknote />} />
-            <FinanceCard label="تم توريده" value={formatCurrency(totalRemitted)} icon={<Landmark />} />
-            <FinanceCard label="تحصيل لم يورد" value={formatCurrency(cashWithDrivers)} icon={<Wallet />} />
-            <FinanceCard label="مستحقات التجار" value={formatCurrency(merchantPayables)} icon={<ReceiptText />} />
+            <FinanceCard label="إجمالي المحصل" value={formatCurrency(totalCollected)} icon={<Banknote />} onClick={() => setActiveTab('statements')} />
+            <FinanceCard label="تم توريده" value={formatCurrency(totalRemitted)} icon={<Landmark />} onClick={() => setActiveTab('statements')} />
+            <FinanceCard label="تحصيل لم يورد" value={formatCurrency(cashWithDrivers)} icon={<Wallet />} onClick={() => setBatchRemittanceDriver(driversList[0] || '')} />
+            <FinanceCard label="مستحقات التجار" value={formatCurrency(merchantPayables)} icon={<ReceiptText />} onClick={() => navigate('/settlements')} />
           </div>
           <div className="accounting-alert-grid">
             <button className="accounting-action-card glass-card" onClick={() => setBatchRemittanceDriver(driversList[0] || '')}><Wallet /><span><strong>استلام تحصيل مندوب</strong><small>{formatCurrency(cashWithDrivers)} جاهزة للتوريد والتقفيل</small></span></button>
@@ -302,6 +304,7 @@ export function AccountingPage() {
       {expenseOpen && <ExpenseDialog onClose={() => setExpenseOpen(false)} onSubmit={async (expense) => { const response = await run({ type: 'finance/addOperationalExpense', expense }); if (response.ok) setExpenseOpen(false); }} />}
       {driverAdjustmentOpen && <DriverAdjustmentDialog drivers={drivers} onClose={() => setDriverAdjustmentOpen(false)} onSubmit={async (adjustment) => { const response = await run({ type: 'finance/addDriverAdjustment', adjustment }); if (response.ok) setDriverAdjustmentOpen(false); }} />}
       {batchRemittanceDriver !== null && <DriverRemittanceDialog driverName={batchRemittanceDriver} drivers={driversList} shipments={shipments} pricing={pricing} onClose={() => setBatchRemittanceDriver(null)} onSubmit={async (items, note) => { for (const item of items) await run({ type: 'finance/reconcileShipment', shipmentId: item.id, remittedCash: item.cash, note }); setBatchRemittanceDriver(null); }} />}
+      {detailKind && <AccountingDetailModal kind={detailKind} shipments={shipments} pricing={pricing} expenses={expenses} driverAdjustments={driverAdjustments} onClose={() => setDetailKind(null)} onOpenShipment={(id) => navigate(`/shipments?shipment=${id}`)} />}
       {postPreviewOpen && <Modal title="اعتماد الحركات المعلقة" description={`سيتم اعتماد ${fmt(pendingLedger)} حركة بعد التأكيد.`} onClose={() => setPostPreviewOpen(false)} footer={<><button className="outline-btn" onClick={() => setPostPreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={pendingLedger === 0} onClick={async () => { const response = await run({ type: 'ledger/postAll' }); if (response.ok) setPostPreviewOpen(false); }}><CheckCircle2 size={15} /> تأكيد الاعتماد</button></>}><p className="report-muted">راجع الحركات قبل الاعتماد. أي تعديل لاحق يتم بحركة تصحيح منفصلة.</p></Modal>}
       {closePreviewOpen && <Modal title={`تقفيل الفترة ${periodKey}`} description="تأكد من البنود المعلقة قبل التقفيل." onClose={() => setClosePreviewOpen(false)} footer={<><button className="outline-btn" onClick={() => setClosePreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={!canClose} onClick={async () => { const response = await run({ type: 'period/close', period: periodKey }); if (response.ok) setClosePreviewOpen(false); }}><LockKeyhole size={15} /> تأكيد التقفيل</button></>}><div className="funnel-list"><CheckItem label="تحديثات معلقة" count={pendingUpdates} /><CheckItem label="فروقات تحصيل" count={discrepancies.length} /><CheckItem label="حركات معلقة" count={pendingLedger} /></div></Modal>}
     </div>
@@ -317,7 +320,42 @@ function ExpenseDialog({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
   const [amount, setAmount] = useState(500);
   const [description, setDescription] = useState('كهرباء ومياه الفرع');
   const [paymentMethod, setPaymentMethod] = useState<OperationalExpense['paymentMethod']>('cash');
-  return <Modal title="تسجيل مصروف تشغيلي" description="سجل أي مصروف شركة ليظهر في صافي التشغيل والتقارير." onClose={onClose} footer={<><button className="outline-btn" onClick={onClose}>إلغاء</button><button className="btn-primary" onClick={() => onSubmit({ id: `EXP-${Date.now()}`, date: today(), category, description, amount, paymentMethod, status: 'approved', createdBy: 'لوحة التحكم' })}>حفظ المصروف</button></>}><div className="statement-toolbar"><label><span>البند</span><select className="input-glass" value={category} onChange={(event) => setCategory(event.target.value as OperationalExpenseCategory)}>{Object.entries(expenseLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label><span>المبلغ</span><input className="input-glass" type="number" min="0" value={amount} onChange={(event) => setAmount(Number(event.target.value))} /></label><label><span>طريقة الدفع</span><select className="input-glass" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as OperationalExpense['paymentMethod'])}><option value="cash">خزينة</option><option value="bank">بنك</option><option value="wallet">محفظة</option></select></label><label className="statement-search"><span>الوصف</span><input className="input-glass" value={description} onChange={(event) => setDescription(event.target.value)} /></label></div></Modal>;
+  return (
+    <Modal
+      title="تسجيل مصروف تشغيلي"
+      description="سجل أي مصروف شركة ليظهر في صافي التشغيل والتقارير."
+      onClose={onClose}
+      footer={<>
+        <button className="outline-btn" onClick={onClose}>إلغاء</button>
+        <button className="btn-primary" onClick={() => onSubmit({ id: `EXP-${Date.now()}`, date: today(), category, description, amount, paymentMethod, status: 'approved', createdBy: 'لوحة التحكم' })}>حفظ المصروف</button>
+      </>}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.9rem 1.1rem', padding: '0.4rem 0' }}>
+        <label className="form-field">
+          <span>البند</span>
+          <select className="input-glass" value={category} onChange={(event) => setCategory(event.target.value as OperationalExpenseCategory)}>
+            {Object.entries(expenseLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+        </label>
+        <label className="form-field">
+          <span>المبلغ</span>
+          <input className="input-glass" type="number" min="0" value={amount} onChange={(event) => setAmount(Number(event.target.value))} />
+        </label>
+        <label className="form-field">
+          <span>طريقة الدفع</span>
+          <select className="input-glass" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as OperationalExpense['paymentMethod'])}>
+            <option value="cash">💵 خزينة</option>
+            <option value="bank">🏦 بنك</option>
+            <option value="wallet">📱 محفظة</option>
+          </select>
+        </label>
+        <label className="form-field" style={{ gridColumn: '1 / -1' }}>
+          <span>الوصف / البيان</span>
+          <input className="input-glass" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="مثال: فاتورة كهرباء وصيانة الفرع..." />
+        </label>
+      </div>
+    </Modal>
+  );
 }
 
 function DriverAdjustmentDialog({ drivers, onClose, onSubmit }: { drivers: Array<{ id: string; name: string }>; onClose: () => void; onSubmit: (adjustment: DriverFinancialAdjustment) => Promise<void> }) {
@@ -327,7 +365,40 @@ function DriverAdjustmentDialog({ drivers, onClose, onSubmit }: { drivers: Array
   const [amount, setAmount] = useState(150);
   const [description, setDescription] = useState('مكافأة تسليمات إضافية');
   const driver = drivers.find((item) => item.id === driverId) ?? first;
-  return <Modal title="تسجيل حركة مندوب" description="إضافة أو خصم أو تعويض يظهر في حساب المندوب والتقارير." onClose={onClose} footer={<><button className="outline-btn" onClick={onClose}>إلغاء</button><button className="btn-primary" disabled={!driver} onClick={() => driver && onSubmit({ id: `DADJ-${Date.now()}`, driverId: driver.id, driverName: driver.name, date: today(), type, amount, description, status: 'approved', createdBy: 'لوحة التحكم' })}>حفظ الحركة</button></>}><div className="statement-toolbar"><label><span>المندوب</span><select className="input-glass" value={driverId} onChange={(event) => setDriverId(event.target.value)}>{drivers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label><span>نوع الحركة</span><select className="input-glass" value={type} onChange={(event) => setType(event.target.value as DriverAdjustmentType)}>{Object.entries(adjustmentLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label><span>المبلغ</span><input className="input-glass" type="number" min="0" value={amount} onChange={(event) => setAmount(Number(event.target.value))} /></label><label className="statement-search"><span>الوصف</span><input className="input-glass" value={description} onChange={(event) => setDescription(event.target.value)} /></label></div></Modal>;
+  return (
+    <Modal
+      title="تسجيل حركة مندوب"
+      description="إضافة أو خصم أو تعويض يظهر في حساب المندوب والتقارير."
+      onClose={onClose}
+      footer={<>
+        <button className="outline-btn" onClick={onClose}>إلغاء</button>
+        <button className="btn-primary" disabled={!driver} onClick={() => driver && onSubmit({ id: `DADJ-${Date.now()}`, driverId: driver.id, driverName: driver.name, date: today(), type, amount, description, status: 'approved', createdBy: 'لوحة التحكم' })}>حفظ الحركة</button>
+      </>}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.9rem 1.1rem', padding: '0.4rem 0' }}>
+        <label className="form-field">
+          <span>المندوب</span>
+          <select className="input-glass" value={driverId} onChange={(event) => setDriverId(event.target.value)}>
+            {drivers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </label>
+        <label className="form-field">
+          <span>نوع الحركة</span>
+          <select className="input-glass" value={type} onChange={(event) => setType(event.target.value as DriverAdjustmentType)}>
+            {Object.entries(adjustmentLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+        </label>
+        <label className="form-field">
+          <span>المبلغ</span>
+          <input className="input-glass" type="number" min="0" value={amount} onChange={(event) => setAmount(Number(event.target.value))} />
+        </label>
+        <label className="form-field" style={{ gridColumn: '1 / -1' }}>
+          <span>الوصف / البيان</span>
+          <input className="input-glass" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="مثال: مكافأة تسليمات إضافية..." />
+        </label>
+      </div>
+    </Modal>
+  );
 }
 
 function DriverRemittanceDialog({ driverName, drivers, shipments, pricing, onClose, onSubmit }: { driverName: string; drivers: string[]; shipments: Shipment[]; pricing: NonNullable<ReturnType<typeof useDeliveryData>['state']>['settings']['pricing']; onClose: () => void; onSubmit: (shipmentsToRemit: Array<{ id: string; cash: number }>, note: string) => Promise<void> }) {
@@ -341,11 +412,126 @@ function DriverRemittanceDialog({ driverName, drivers, shipments, pricing, onClo
   const totalDriverCost = selectedRows.reduce((sum, shipment) => sum + driverDeliveryCost(shipment, pricing), 0);
   const totalMerchantFee = selectedRows.reduce((sum, shipment) => sum + merchantShippingFee(shipment, pricing), 0);
   const toggle = (id: string) => setSelectedIds(() => effectiveSelected.includes(id) ? effectiveSelected.filter((item) => item !== id) : [...effectiveSelected, id]);
-  return <Modal wide title="استلام وتوريد تحصيل المندوب" description="راجع الشحنات والمبلغ وتكلفة المندوب قبل تقفيل التحصيل." onClose={onClose} footer={<><button className="outline-btn" onClick={onClose}>إلغاء</button><button className="btn-primary" disabled={!selectedRows.length} onClick={() => onSubmit(selectedRows.map((shipment) => ({ id: shipment.id, cash: shipment.collectedCash })), note)}><CheckCircle2 size={15} /> تأكيد التوريد {formatCurrency(totalDue)}</button></>}><div className="statement-toolbar"><label><span>المندوب</span><select className="input-glass" value={selectedDriver} onChange={(event) => { setSelectedDriver(event.target.value); setSelectedIds([]); }}>{drivers.map((driver) => <option key={driver}>{driver}</option>)}</select></label><label className="statement-search"><span>البيان</span><input className="input-glass" value={note} onChange={(event) => setNote(event.target.value)} /></label></div><div className="report-kpi-grid"><FinanceCard label="المبلغ مع المندوب" value={formatCurrency(totalDue)} icon={<Wallet />} /><FinanceCard label="سعر الشحن للتاجر" value={formatCurrency(totalMerchantFee)} icon={<ReceiptText />} /><FinanceCard label="تكلفة توصيل المندوب" value={formatCurrency(totalDriverCost)} icon={<Banknote />} /></div><div className="table-wrapper" style={{ maxHeight: 280, overflowY: 'auto' }}><table className="data-table compact-table"><thead><tr><th>تحديد</th><th>الشحنة</th><th>التاجر</th><th>المحافظة</th><th>المحصل</th><th>تكلفة المندوب</th></tr></thead><tbody>{unremittedShipments.map((shipment) => <tr key={shipment.id} onClick={() => toggle(shipment.id)} style={{ cursor: 'pointer' }}><td><input type="checkbox" checked={effectiveSelected.includes(shipment.id)} onChange={() => toggle(shipment.id)} /></td><td>{shipment.id}</td><td>{shipment.merchantName}</td><td>{shipment.governorate}</td><td>{formatCurrency(shipment.collectedCash - shipment.remittedCash)}</td><td>{formatCurrency(driverDeliveryCost(shipment, pricing))}</td></tr>)}</tbody></table></div></Modal>;
+  return (
+    <Modal
+      wide
+      title="استلام وتوريد تحصيل المندوب"
+      description="راجع الشحنات والمبلغ وتكلفة المندوب قبل تقفيل التحصيل."
+      onClose={onClose}
+      footer={<>
+        <button className="outline-btn" onClick={onClose}>إلغاء</button>
+        <button className="btn-primary" disabled={!selectedRows.length} onClick={() => onSubmit(selectedRows.map((shipment) => ({ id: shipment.id, cash: shipment.collectedCash })), note)}>
+          <CheckCircle2 size={15} /> تأكيد التوريد {formatCurrency(totalDue)}
+        </button>
+      </>}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '0.9rem 1.1rem', marginBottom: '1rem' }}>
+        <label className="form-field">
+          <span>المندوب</span>
+          <select className="input-glass" value={selectedDriver} onChange={(event) => { setSelectedDriver(event.target.value); setSelectedIds([]); }}>
+            {drivers.map((driver) => <option key={driver}>{driver}</option>)}
+          </select>
+        </label>
+        <label className="form-field">
+          <span>البيان / ملاحظات التوريد</span>
+          <input className="input-glass" value={note} onChange={(event) => setNote(event.target.value)} placeholder="مثال: استلام وتوريد تحصيل المندوب..." />
+        </label>
+      </div>
+      <div className="report-kpi-grid">
+        <FinanceCard label="المبلغ مع المندوب" value={formatCurrency(totalDue)} icon={<Wallet />} />
+        <FinanceCard label="سعر الشحن للتاجر" value={formatCurrency(totalMerchantFee)} icon={<ReceiptText />} />
+        <FinanceCard label="تكلفة توصيل المندوب" value={formatCurrency(totalDriverCost)} icon={<Banknote />} />
+      </div>
+      <div className="table-wrapper" style={{ maxHeight: 280, overflowY: 'auto' }}>
+        <table className="data-table compact-table">
+          <thead>
+            <tr>
+              <th>تحديد</th>
+              <th>الشحنة</th>
+              <th>التاجر</th>
+              <th>المحافظة</th>
+              <th>المحصل</th>
+              <th>تكلفة المندوب</th>
+            </tr>
+          </thead>
+          <tbody>
+            {unremittedShipments.map((shipment) => (
+              <tr key={shipment.id} onClick={() => toggle(shipment.id)} style={{ cursor: 'pointer' }}>
+                <td><input type="checkbox" checked={effectiveSelected.includes(shipment.id)} onChange={() => toggle(shipment.id)} /></td>
+                <td>{shipment.id}</td>
+                <td>{shipment.merchantName}</td>
+                <td>{shipment.governorate}</td>
+                <td>{formatCurrency(shipment.collectedCash - shipment.remittedCash)}</td>
+                <td>{formatCurrency(driverDeliveryCost(shipment, pricing))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Modal>
+  );
 }
 
-function FinanceCard({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
-  return <article className="report-kpi glass-card"><div className="report-kpi-icon" style={{ background: 'linear-gradient(135deg,#0EA5E9,#4F46E5)' }}>{icon}</div><div><p className="report-kpi-label">{label}</p><p className="report-kpi-value">{value}</p></div></article>;
+function AccountingDetailModal({ kind, shipments, pricing, expenses, driverAdjustments, onClose, onOpenShipment }: { kind: AccountingDetailKind; shipments: Shipment[]; pricing: NonNullable<ReturnType<typeof useDeliveryData>['state']>['settings']['pricing']; expenses: OperationalExpense[]; driverAdjustments: DriverFinancialAdjustment[]; onClose: () => void; onOpenShipment: (id: string) => void }) {
+  const titles: Record<AccountingDetailKind, string> = {
+    revenue: 'تفاصيل إيراد الشحن',
+    courierCost: 'تفاصيل تكلفة المناديب',
+    grossProfit: 'تفاصيل ربح الشحن قبل المصاريف',
+    netOperatingProfit: 'تفاصيل صافي التشغيل',
+    totalCollected: 'تفاصيل إجمالي المحصل',
+    totalRemitted: 'تفاصيل المبالغ الموردة',
+    cashWithDrivers: 'تفاصيل التحصيل غير المورد',
+    merchantPayables: 'تفاصيل مستحقات التجار',
+  };
+  const shipmentRows = shipments.map((shipment) => {
+    const merchantFee = merchantShippingFee(shipment, pricing);
+    const driverCost = driverDeliveryCost(shipment, pricing);
+    return { shipment, merchantFee, driverCost, profit: merchantFee - driverCost, unremitted: Math.max(0, shipment.collectedCash - shipment.remittedCash), merchantPayable: Math.max(0, shipment.collectedCash - shipment.deliveryFee - shipment.discount) };
+  });
+  const visibleRows = shipmentRows.filter((row) => {
+    if (kind === 'cashWithDrivers') return row.unremitted > 0;
+    if (kind === 'merchantPayables') return ['remitted', 'inSettlement'].includes(row.shipment.financialStatus) && row.shipment.settlementStatus === 'unsettled';
+    if (kind === 'totalCollected') return row.shipment.collectedCash > 0;
+    if (kind === 'totalRemitted') return row.shipment.remittedCash > 0;
+    return true;
+  });
+  const expenseTotal = approvedOperationalExpenses(expenses);
+  const driverExtraCost = approvedDriverAdjustmentCost(driverAdjustments);
+  const total = kind === 'revenue' ? shippingRevenue(shipments, pricing)
+    : kind === 'courierCost' ? deliveryCost(shipments, pricing)
+    : kind === 'grossProfit' ? shippingRevenue(shipments, pricing) - deliveryCost(shipments, pricing)
+    : kind === 'netOperatingProfit' ? shippingRevenue(shipments, pricing) - deliveryCost(shipments, pricing) - expenseTotal - driverExtraCost
+    : kind === 'totalCollected' ? shipments.reduce((sum, shipment) => sum + shipment.collectedCash, 0)
+    : kind === 'totalRemitted' ? shipments.reduce((sum, shipment) => sum + shipment.remittedCash, 0)
+    : kind === 'cashWithDrivers' ? visibleRows.reduce((sum, row) => sum + row.unremitted, 0)
+    : visibleRows.reduce((sum, row) => sum + row.merchantPayable, 0);
+  const rowsForExport: Array<Record<string, string | number>> = kind === 'netOperatingProfit'
+    ? [
+        ...shipmentRows.map((row) => ({ النوع: 'شحنة', المرجع: row.shipment.id, الحساب: row.shipment.merchantName, سعر_التاجر: row.merchantFee, تكلفة_المندوب: row.driverCost, الأثر: row.profit })),
+        ...expenses.map((item) => ({ النوع: 'مصروف تشغيلي', المرجع: item.id, الحساب: item.category, سعر_التاجر: 0, تكلفة_المندوب: item.amount, الأثر: -item.amount })),
+        ...driverAdjustments.map((item) => ({ النوع: 'حركة مندوب', المرجع: item.id, الحساب: item.driverName, سعر_التاجر: 0, تكلفة_المندوب: item.amount, الأثر: -item.amount })),
+      ]
+    : visibleRows.map((row) => ({ الشحنة: row.shipment.id, التاجر: row.shipment.merchantName, المندوب: row.shipment.driverName ?? 'غير معين', المحافظة: row.shipment.governorate, المحصل: row.shipment.collectedCash, المورد: row.shipment.remittedCash, سعر_التاجر: row.merchantFee, تكلفة_المندوب: row.driverCost, ربح_الشحن: row.profit, مستحق_التاجر: row.merchantPayable }));
+
+  return (
+    <Modal wide title={titles[kind]} description={`إجمالي الرقم: ${formatCurrency(total)}`} onClose={onClose} footer={<><button className="outline-btn" onClick={onClose}>إغلاق</button><button className="btn-primary" onClick={() => downloadXlsx({ filename: `accounting-details-${kind}.xlsx`, sheetName: titles[kind], rows: rowsForExport })}><Download size={15} /> تحميل التفاصيل</button></>}>
+      {kind === 'netOperatingProfit' && <div className="report-kpi-grid"><FinanceCard label="إيراد الشحن" value={formatCurrency(shippingRevenue(shipments, pricing))} icon={<ReceiptText />} /><FinanceCard label="تكلفة المناديب" value={formatCurrency(deliveryCost(shipments, pricing))} icon={<Wallet />} /><FinanceCard label="مصاريف تشغيلية" value={formatCurrency(expenseTotal)} icon={<AlertTriangle />} /><FinanceCard label="حركات مناديب" value={formatCurrency(driverExtraCost)} icon={<Banknote />} /></div>}
+      <div className="table-wrapper" style={{ maxHeight: 420, overflowY: 'auto' }}><table className="data-table compact-table"><thead><tr><th>الشحنة</th><th>التاجر</th><th>المندوب</th><th>المحافظة</th><th>المحصل</th><th>المورد</th><th>سعر التاجر</th><th>تكلفة المندوب</th><th>ربح الشحن</th><th>إجراء</th></tr></thead><tbody>{visibleRows.map((row) => <tr key={row.shipment.id}><td>{row.shipment.id}</td><td>{row.shipment.merchantName}</td><td>{row.shipment.driverName ?? 'غير معين'}</td><td>{row.shipment.governorate}</td><td>{formatCurrency(row.shipment.collectedCash)}</td><td>{formatCurrency(row.shipment.remittedCash)}</td><td>{formatCurrency(row.merchantFee)}</td><td>{formatCurrency(row.driverCost)}</td><td>{formatCurrency(row.profit)}</td><td><button className="outline-btn" onClick={() => onOpenShipment(row.shipment.id)}>فتح</button></td></tr>)}</tbody></table></div>
+    </Modal>
+  );
+}
+
+function FinanceCard({ label, value, icon, onClick }: { label: string; value: string; icon: React.ReactNode; onClick?: () => void }) {
+  const Tag = onClick ? 'button' : 'article';
+  return (
+    <Tag className={`report-kpi glass-card ${onClick ? 'clickable' : ''}`} onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default', textAlign: 'right', border: 0 }}>
+      <div className="report-kpi-icon" style={{ background: 'linear-gradient(135deg,#0EA5E9,#4F46E5)' }}>{icon}</div>
+      <div>
+        <p className="report-kpi-label">{label}</p>
+        <p className="report-kpi-value">{value}</p>
+      </div>
+    </Tag>
+  );
 }
 
 function CheckItem({ label, count, warningOnly = false }: { label: string; count: number; warningOnly?: boolean }) {

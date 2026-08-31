@@ -4,7 +4,9 @@ import { ArrowDownRight, ArrowUpRight, BarChart3, Banknote, Bell, Eye, FileSprea
 import { Modal } from '../components/ui/Ui';
 import type { ReportTab } from '../domain/reports/entities';
 import type { Shipment } from '../domain/logistics/entities';
-import { approvedDriverAdjustmentCost, approvedOperationalExpenses, deliveryCost, shipmentShippingProfit, shippingRevenue } from '../domain/finance/calculations';
+import type { DriverFinancialAdjustment, OperationalExpense } from '../domain/finance/entities';
+import type { PricingPolicySettings } from '../domain/settings/entities';
+import { approvedDriverAdjustmentCost, approvedOperationalExpenses, deliveryCost, driverDeliveryCost, merchantShippingFee, shipmentShippingProfit, shippingRevenue } from '../domain/finance/calculations';
 import { useDeliveryData } from '../context/DeliveryDataContext';
 import { downloadXlsx } from '../utils/exportSpreadsheet';
 import { formatCurrency } from '../utils/helpers';
@@ -21,6 +23,19 @@ const reportTabs: { id: ReportTab; label: string; icon: ReactNode }[] = [
 ];
 
 type Period = 'today' | 'week' | 'month' | 'custom';
+type FinancialDetailKind = 'shippingIncome' | 'courierCost' | 'shippingProfit' | 'expenses' | 'driverAdjustments' | 'netOperatingProfit';
+type ReportSummary = {
+  start: Date;
+  end: Date;
+  current: Shipment[];
+  currentExpenses: OperationalExpense[];
+  currentAdjustments: DriverFinancialAdjustment[];
+  pricing?: PricingPolicySettings;
+  totals: { shippingIncome: number; courierCost: number; shippingProfit: number };
+  expenseTotal: number;
+  driverExtraCost: number;
+  netOperatingProfit: number;
+};
 const periodOptions: Array<{ id: Period; label: string }> = [
   { id: 'today', label: 'اليوم' },
   { id: 'week', label: 'آخر 7 أيام' },
@@ -70,6 +85,7 @@ export function ReportsPage() {
   const [governorateDetails, setGovernorateDetails] = useState<string | null>(null);
   const [delayNotifyOpen, setDelayNotifyOpen] = useState(false);
   const [delayNotifyBusy, setDelayNotifyBusy] = useState(false);
+  const [financialDetail, setFinancialDetail] = useState<FinancialDetailKind | null>(null);
   const [now] = useState(() => Date.now());
 
   const report = useMemo(() => {
@@ -175,7 +191,7 @@ export function ReportsPage() {
       .map((item) => ({ shipment: item, lateByHours: Math.max(1, Math.round((now - new Date(item.expectedDeliveryAt!).getTime()) / 3600000)) }))
       .sort((a, b) => b.lateByHours - a.lateByHours);
 
-    return { start, end, current, totals, previousTotals, expenseTotal, driverExtraCost, netOperatingProfit, successRate, previousSuccessRate, trend, statuses, driverPerformance, governorates, delays };
+    return { start, end, current, currentExpenses, currentAdjustments, totals, previousTotals, expenseTotal, driverExtraCost, netOperatingProfit, successRate, previousSuccessRate, trend, statuses, driverPerformance, governorates, delays, pricing };
   }, [state, period, customStart, customEnd, now]);
 
   const sendDelayNotifications = async () => {
@@ -229,7 +245,7 @@ export function ReportsPage() {
     {actionMessage && <div className="ops-feedback">{actionMessage}</div>}
     <div className="reports-tabs glass-card">{reportTabs.map((tab) => <button key={tab.id} className={`reports-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>{tab.icon}{tab.label}</button>)}</div>
 
-    {activeTab === 'orderValue' && <><div className="report-kpi-grid"><Kpi label="إيراد الشحن من التجار" value={formatCurrency(report.totals.shippingIncome)} change={percentChange(report.totals.shippingIncome, report.previousTotals.shippingIncome)} definition="سعر الشحن المحاسب به التاجر حسب إعدادات كل محافظة." icon={<ReceiptText size={20} />} gradient="linear-gradient(135deg,#0EA5E9,#0284C7)" /><Kpi label="تكلفة توصيل المناديب" value={formatCurrency(report.totals.courierCost)} change={percentChange(report.totals.courierCost, report.previousTotals.courierCost)} inverse definition="المبلغ المستحق للمناديب مقابل التوصيل حسب المحافظة." icon={<Truck size={20} />} gradient="linear-gradient(135deg,#8B5CF6,#6D28D9)" /><Kpi label="ربح الشحن" value={formatCurrency(report.totals.shippingProfit)} change={percentChange(report.totals.shippingProfit, report.previousTotals.shippingProfit)} definition="إيراد الشحن ناقص تكلفة المندوب قبل المصاريف التشغيلية." icon={<Banknote size={20} />} gradient="linear-gradient(135deg,#10B981,#059669)" /><Kpi label="صافي التشغيل" value={formatCurrency(report.netOperatingProfit)} definition="ربح الشحن بعد المصاريف التشغيلية وحركات المناديب الإضافية." icon={<Wallet size={20} />} gradient="linear-gradient(135deg,#F59E0B,#D97706)" /></div><div className="report-kpi-grid"><Kpi label="إجمالي الأوردرات" value={fmt(report.totals.orders)} change={percentChange(report.totals.orders, report.previousTotals.orders)} definition="عدد الشحنات التي أُنشئت داخل الفترة." icon={<BarChart3 size={20} />} gradient="linear-gradient(135deg,#4F46E5,#7C3AED)" onClick={() => navigate(withDates('/shipments'))} /><Kpi label="قيمة أوردرات التجار" value={formatCurrency(report.totals.orderValue)} change={percentChange(report.totals.orderValue, report.previousTotals.orderValue)} definition="مجموع قيمة المنتجات داخل الشحنات." icon={<TrendingUp size={20} />} gradient="linear-gradient(135deg,#14B8A6,#0F766E)" /><Kpi label="مصاريف تشغيلية" value={formatCurrency(report.expenseTotal)} inverse definition="بنود مثل كهرباء، إيجار، صيانة، تغليف، وبرامج." icon={<ReceiptText size={20} />} gradient="linear-gradient(135deg,#EF4444,#B91C1C)" /><Kpi label="حركات مناديب إضافية" value={formatCurrency(report.driverExtraCost)} inverse definition="مكافآت وتعويضات وسلف، مع استبعاد الخصومات من التكلفة." icon={<Users size={20} />} gradient="linear-gradient(135deg,#64748B,#334155)" /></div><div className="report-grid-2"><section className="glass-card"><div className="report-section-title"><h3>ربح الشحن اليومي</h3><span className="report-muted">{report.start.toLocaleDateString('ar-EG')} - {report.end.toLocaleDateString('ar-EG')}</span></div><BarChart values={report.trend.map((item) => ({ label: item.day, value: item.shippingProfit }))} /></section><section className="glass-card"><div className="report-section-title"><h3>حجم الأوردرات يوميا</h3><button className="outline-btn" onClick={() => navigate(withDates('/shipments'))}><Eye size={15} /> التفاصيل</button></div><div className="funnel-list">{report.trend.map((item) => <ProgressRow key={item.day} label={item.day} value={item.orders} max={Math.max(1, ...report.trend.map((point) => point.orders))} suffix="أوردر" />)}</div></section></div></>}
+    {activeTab === 'orderValue' && <><div className="report-kpi-grid"><Kpi label="إيراد الشحن من التجار" value={formatCurrency(report.totals.shippingIncome)} change={percentChange(report.totals.shippingIncome, report.previousTotals.shippingIncome)} definition="سعر الشحن المحاسب به التاجر حسب إعدادات كل محافظة." icon={<ReceiptText size={20} />} gradient="linear-gradient(135deg,#0EA5E9,#0284C7)" onClick={() => setFinancialDetail('shippingIncome')} /><Kpi label="تكلفة توصيل المناديب" value={formatCurrency(report.totals.courierCost)} change={percentChange(report.totals.courierCost, report.previousTotals.courierCost)} inverse definition="المبلغ المستحق للمناديب مقابل التوصيل حسب المحافظة." icon={<Truck size={20} />} gradient="linear-gradient(135deg,#8B5CF6,#6D28D9)" onClick={() => setFinancialDetail('courierCost')} /><Kpi label="ربح الشحن" value={formatCurrency(report.totals.shippingProfit)} change={percentChange(report.totals.shippingProfit, report.previousTotals.shippingProfit)} definition="إيراد الشحن ناقص تكلفة المندوب قبل المصاريف التشغيلية." icon={<Banknote size={20} />} gradient="linear-gradient(135deg,#10B981,#059669)" onClick={() => setFinancialDetail('shippingProfit')} /><Kpi label="صافي التشغيل" value={formatCurrency(report.netOperatingProfit)} definition="ربح الشحن بعد المصاريف التشغيلية وحركات المناديب الإضافية." icon={<Wallet size={20} />} gradient="linear-gradient(135deg,#F59E0B,#D97706)" onClick={() => setFinancialDetail('netOperatingProfit')} /></div><div className="report-kpi-grid"><Kpi label="إجمالي الأوردرات" value={fmt(report.totals.orders)} change={percentChange(report.totals.orders, report.previousTotals.orders)} definition="عدد الشحنات التي أُنشئت داخل الفترة." icon={<BarChart3 size={20} />} gradient="linear-gradient(135deg,#4F46E5,#7C3AED)" onClick={() => navigate(withDates('/shipments'))} /><Kpi label="قيمة أوردرات التجار" value={formatCurrency(report.totals.orderValue)} change={percentChange(report.totals.orderValue, report.previousTotals.orderValue)} definition="مجموع قيمة المنتجات داخل الشحنات." icon={<TrendingUp size={20} />} gradient="linear-gradient(135deg,#14B8A6,#0F766E)" onClick={() => navigate(withDates('/shipments'))} /><Kpi label="مصاريف تشغيلية" value={formatCurrency(report.expenseTotal)} inverse definition="بنود مثل كهرباء، إيجار، صيانة، تغليف، وبرامج." icon={<ReceiptText size={20} />} gradient="linear-gradient(135deg,#EF4444,#B91C1C)" onClick={() => setFinancialDetail('expenses')} /><Kpi label="حركات مناديب إضافية" value={formatCurrency(report.driverExtraCost)} inverse definition="مكافآت وتعويضات وسلف، مع استبعاد الخصومات من التكلفة." icon={<Users size={20} />} gradient="linear-gradient(135deg,#64748B,#334155)" onClick={() => setFinancialDetail('driverAdjustments')} /></div><div className="report-grid-2"><section className="glass-card"><div className="report-section-title"><h3>ربح الشحن اليومي</h3><span className="report-muted">{report.start.toLocaleDateString('ar-EG')} - {report.end.toLocaleDateString('ar-EG')}</span></div><BarChart values={report.trend.map((item) => ({ label: item.day, value: item.shippingProfit }))} /></section><section className="glass-card"><div className="report-section-title"><h3>حجم الأوردرات يوميا</h3><button className="outline-btn" onClick={() => navigate(withDates('/shipments'))}><Eye size={15} /> التفاصيل</button></div><div className="funnel-list">{report.trend.map((item) => <ProgressRow key={item.day} label={item.day} value={item.orders} max={Math.max(1, ...report.trend.map((point) => point.orders))} suffix="أوردر" />)}</div></section></div></>}
 
     {activeTab === 'operations' && <div className="report-grid-2"><section className="glass-card"><div className="report-section-title"><h3>مسار حالات الشحنات</h3><span className="report-muted" title="الشحنات المسلمة ÷ الشحنات التي وصلت لمحاولة توصيل">نسبة نجاح المحاولات {pct(report.successRate)} ({report.successRate - report.previousSuccessRate >= 0 ? '+' : ''}{pct(report.successRate - report.previousSuccessRate)})</span></div><div className="funnel-list">{report.statuses.map((step) => <button key={step.label} className="funnel-row" onClick={() => navigate(withDates(`/shipments?status=${step.query}`))}><ProgressRow label={step.label} value={step.count} max={Math.max(1, report.current.length)} suffix="شحنة" /></button>)}</div></section><section className="glass-card"><div className="report-section-title"><h3>قراءة المؤشر</h3></div><p className="report-muted">نسبة النجاح تشمل التسليم الكامل والجزئي من الشحنات التي وصلت لمحاولة توصيل. أي تكدس في بانتظار الاستلام أو مع المندوب يظهر هنا بسرعة قبل ما يتحول لتأخير.</p><div className="report-kpi-grid one-column"><Kpi label="وصل مكتب الشحن" value={fmt(report.statuses[1].count)} icon={<PackageCheck size={20} />} gradient="linear-gradient(135deg,#0EA5E9,#0284C7)" /><Kpi label="تسليم جزئي" value={fmt(report.totals.partialDelivered)} icon={<PackageCheck size={20} />} gradient="linear-gradient(135deg,#14B8A6,#0F766E)" onClick={() => navigate(withDates('/shipments?status=partiallyDelivered'))} /><Kpi label="مع المندوب أو في الطريق" value={fmt(report.statuses[2].count + report.statuses[3].count)} icon={<Truck size={20} />} gradient="linear-gradient(135deg,#8B5CF6,#6D28D9)" /></div></section></div>}
 
@@ -244,6 +260,7 @@ export function ReportsPage() {
     {selectedGovernorateDetails && <Modal wide title={`تفاصيل محافظة ${selectedGovernorateDetails.governorate}`} description={`${report.start.toLocaleDateString('ar-EG')} - ${report.end.toLocaleDateString('ar-EG')}`} onClose={() => setGovernorateDetails(null)} footer={<><button className="outline-btn" onClick={() => setGovernorateDetails(null)}>إغلاق</button><button className="btn-primary" onClick={() => navigate(withDates(`/shipments?governorate=${encodeURIComponent(selectedGovernorateDetails.governorate)}`))}><Eye size={15} /> فتح الشحنات بنفس الفلتر</button></>}><div className="report-kpi-grid"><Kpi label="إجمالي الشحنات" value={fmt(selectedGovernorateDetails.total)} icon={<BarChart3 size={18} />} gradient="linear-gradient(135deg,#4F46E5,#7C3AED)" /><Kpi label="تم التسليم" value={fmt(selectedGovernorateDetails.delivered)} icon={<PackageCheck size={18} />} gradient="linear-gradient(135deg,#10B981,#059669)" /><Kpi label="إيراد الشحن" value={formatCurrency(selectedGovernorateDetails.revenue)} icon={<ReceiptText size={18} />} gradient="linear-gradient(135deg,#0EA5E9,#0284C7)" /><Kpi label="تكلفة المندوب" value={formatCurrency(selectedGovernorateDetails.cost)} icon={<Truck size={18} />} gradient="linear-gradient(135deg,#8B5CF6,#6D28D9)" /></div><p className="report-muted">في الطريق: {fmt(selectedGovernorateDetails.inTransit)} · مرتجع: {fmt(selectedGovernorateDetails.returned)} · متأخر: {fmt(selectedGovernorateDetails.delayed)}.</p></Modal>}
 
     {delayNotifyOpen && <Modal wide title="مراجعة تنبيهات التأخير" description={`سيتم تجهيز ${fmt(report.delays.length)} حالة وإرسالها للتاجر والمندوب حسب إعدادات الشركة.`} onClose={() => { if (!delayNotifyBusy) setDelayNotifyOpen(false); }} footer={<><button className="outline-btn" disabled={delayNotifyBusy} onClick={() => setDelayNotifyOpen(false)}>إلغاء</button><button className="btn-primary" disabled={delayNotifyBusy} onClick={() => void sendDelayNotifications()}><Bell size={15} /> {delayNotifyBusy ? 'جاري الإرسال...' : 'إرسال بعد المراجعة'}</button></>}><div className="delay-list">{report.delays.slice(0, 12).map(({ shipment, lateByHours }) => <div className="delay-row" key={`notify-${shipment.id}`}><div className="funnel-row-top"><strong>{shipment.id}</strong><span className="tone-badge medium">{fmt(lateByHours)} ساعة</span></div><p className="report-muted">المندوب: {shipment.driverName ?? 'غير معين'} · التاجر: {shipment.merchantName}</p><button className="outline-btn" onClick={() => navigate(`/shipments?shipment=${shipment.id}`)}><Eye size={14} /> فتح تفاصيل الشحنة</button></div>)}</div></Modal>}
+    {financialDetail && <FinancialDetailModal kind={financialDetail} report={report} onClose={() => setFinancialDetail(null)} onOpenShipment={(id: string) => navigate(`/shipments?shipment=${id}`)} />}
   </div>;
 }
 
@@ -264,4 +281,42 @@ function ProgressRow({ label, value, max, suffix }: { label: string; value: numb
 
 function ProgressInline({ value }: { value: number }) {
   return <div style={{ minWidth: 120 }}><div className="funnel-row-top" style={{ marginBottom: 4 }}><span>{pct(value)}</span></div><div className="progress-track"><div className="progress-fill" style={{ width: `${value}%` }} /></div></div>;
+}
+
+function FinancialDetailModal({ kind, report, onClose, onOpenShipment }: { kind: FinancialDetailKind; report: ReportSummary; onClose: () => void; onOpenShipment: (id: string) => void }) {
+  const shipmentRows = report.current.map((shipment) => ({
+    shipment,
+    merchantFee: report.pricing ? merchantShippingFee(shipment, report.pricing) : shipment.deliveryFee,
+    driverCost: report.pricing ? driverDeliveryCost(shipment, report.pricing) : 0,
+    profit: report.pricing ? shipmentShippingProfit(shipment, report.pricing) : shipment.deliveryFee,
+  }));
+  const titles: Record<FinancialDetailKind, string> = {
+    shippingIncome: 'تفاصيل إيراد الشحن',
+    courierCost: 'تفاصيل تكلفة المناديب',
+    shippingProfit: 'تفاصيل ربح الشحن',
+    expenses: 'تفاصيل المصاريف التشغيلية',
+    driverAdjustments: 'تفاصيل حركات المناديب',
+    netOperatingProfit: 'تفاصيل صافي التشغيل',
+  };
+  const rowsForExport = () => {
+    if (kind === 'expenses') return report.currentExpenses.map((item) => ({ التاريخ: item.date, البند: item.category, البيان: item.description, المبلغ: item.amount, الحالة: item.status }));
+    if (kind === 'driverAdjustments') return report.currentAdjustments.map((item) => ({ التاريخ: item.date, المندوب: item.driverName, النوع: item.type, البيان: item.description, المبلغ: item.amount, الحالة: item.status }));
+    return shipmentRows.map((row) => ({ الشحنة: row.shipment.id, التاجر: row.shipment.merchantName, المندوب: row.shipment.driverName ?? 'غير معين', المحافظة: row.shipment.governorate, سعر_التاجر: row.merchantFee, تكلفة_المندوب: row.driverCost, ربح_الشحن: row.profit }));
+  };
+  const exportDetails = () => downloadXlsx({ filename: `financial-details-${kind}.xlsx`, sheetName: titles[kind], rows: rowsForExport() as Record<string, unknown>[] });
+
+  return (
+    <Modal
+      wide
+      title={titles[kind]}
+      description={`${report.start.toLocaleDateString('ar-EG')} - ${report.end.toLocaleDateString('ar-EG')}`}
+      onClose={onClose}
+      footer={<><button className="outline-btn" onClick={onClose}>إغلاق</button><button className="btn-primary" onClick={exportDetails}><FileSpreadsheet size={15} /> تحميل التفاصيل</button></>}
+    >
+      {kind === 'netOperatingProfit' && <div className="report-kpi-grid"><Kpi label="ربح الشحن" value={formatCurrency(report.totals.shippingProfit)} icon={<Banknote size={18} />} gradient="linear-gradient(135deg,#10B981,#059669)" /><Kpi label="المصاريف التشغيلية" value={formatCurrency(report.expenseTotal)} icon={<ReceiptText size={18} />} gradient="linear-gradient(135deg,#EF4444,#B91C1C)" /><Kpi label="حركات المناديب" value={formatCurrency(report.driverExtraCost)} icon={<Users size={18} />} gradient="linear-gradient(135deg,#64748B,#334155)" /><Kpi label="صافي التشغيل" value={formatCurrency(report.netOperatingProfit)} icon={<Wallet size={18} />} gradient="linear-gradient(135deg,#F59E0B,#D97706)" /></div>}
+      {['shippingIncome', 'courierCost', 'shippingProfit', 'netOperatingProfit'].includes(kind) && <div className="table-wrapper" style={{ maxHeight: 420, overflowY: 'auto' }}><table className="data-table compact-table"><thead><tr><th>الشحنة</th><th>التاجر</th><th>المندوب</th><th>المحافظة</th><th>سعر التاجر</th><th>تكلفة المندوب</th><th>ربح الشحن</th><th>إجراء</th></tr></thead><tbody>{shipmentRows.map((row) => <tr key={row.shipment.id}><td>{row.shipment.id}</td><td>{row.shipment.merchantName}</td><td>{row.shipment.driverName ?? 'غير معين'}</td><td>{row.shipment.governorate}</td><td>{formatCurrency(row.merchantFee)}</td><td>{formatCurrency(row.driverCost)}</td><td>{formatCurrency(row.profit)}</td><td><button className="outline-btn" onClick={() => onOpenShipment(row.shipment.id)}><Eye size={14} /> الشحنة</button></td></tr>)}</tbody></table></div>}
+      {kind === 'expenses' && <div className="table-wrapper" style={{ maxHeight: 420, overflowY: 'auto' }}><table className="data-table compact-table"><thead><tr><th>التاريخ</th><th>البند</th><th>البيان</th><th>المبلغ</th><th>طريقة الدفع</th><th>الحالة</th></tr></thead><tbody>{report.currentExpenses.map((item) => <tr key={item.id}><td>{new Date(item.date).toLocaleString('ar-EG')}</td><td>{item.category}</td><td>{item.description}</td><td>{formatCurrency(item.amount)}</td><td>{item.paymentMethod}</td><td>{item.status === 'approved' ? 'معتمد' : 'معلق'}</td></tr>)}</tbody></table></div>}
+      {kind === 'driverAdjustments' && <div className="table-wrapper" style={{ maxHeight: 420, overflowY: 'auto' }}><table className="data-table compact-table"><thead><tr><th>التاريخ</th><th>المندوب</th><th>النوع</th><th>البيان</th><th>المبلغ</th><th>الحالة</th></tr></thead><tbody>{report.currentAdjustments.map((item) => <tr key={item.id}><td>{new Date(item.date).toLocaleString('ar-EG')}</td><td>{item.driverName}</td><td>{item.type}</td><td>{item.description}</td><td>{formatCurrency(item.amount)}</td><td>{item.status === 'approved' ? 'معتمد' : 'معلق'}</td></tr>)}</tbody></table></div>}
+    </Modal>
+  );
 }
