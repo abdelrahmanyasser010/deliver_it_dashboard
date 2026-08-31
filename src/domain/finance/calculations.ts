@@ -8,19 +8,41 @@ export function rateForShipment(shipment: Shipment, pricing: PricingPolicySettin
     ?? rates[0];
 }
 
+export function merchantRateForShipment(shipment: Shipment, pricing: PricingPolicySettings) {
+  return (pricing.merchantSpecificRates ?? []).find((rate) =>
+    rate.active &&
+    rate.merchantId === shipment.merchantId &&
+    (shipment.governorate.includes(rate.governorate) || rate.governorate.includes(shipment.governorate))
+  );
+}
+
+export function weightTierForShipment(shipment: Shipment, pricing: PricingPolicySettings) {
+  const weight = shipment.weightKg ?? 0;
+  if (weight <= (pricing.baseWeightKg ?? 0)) return undefined;
+  return (pricing.weightTiers ?? []).find((tier) => weight > tier.fromKg && (tier.toKg === undefined || weight <= tier.toKg));
+}
+
 export function merchantShippingFee(shipment: Shipment, pricing: PricingPolicySettings) {
-  return shipment.pricingSnapshot?.merchantDeliveryFee
+  const merchantRate = merchantRateForShipment(shipment, pricing);
+  const weightTier = weightTierForShipment(shipment, pricing);
+  const baseFee = shipment.pricingSnapshot?.merchantDeliveryFee
     ?? shipment.pricingSnapshot?.shippingFee
+    ?? merchantRate?.merchantDeliveryFee
     ?? shipment.deliveryFee
     ?? rateForShipment(shipment, pricing)?.merchantDeliveryFee
     ?? rateForShipment(shipment, pricing)?.deliveryFee
     ?? 0;
+  return baseFee + (weightTier?.merchantExtraFee ?? 0);
 }
 
 export function driverDeliveryCost(shipment: Shipment, pricing: PricingPolicySettings) {
-  return shipment.pricingSnapshot?.driverDeliveryCost
+  const merchantRate = merchantRateForShipment(shipment, pricing);
+  const weightTier = weightTierForShipment(shipment, pricing);
+  const baseCost = shipment.pricingSnapshot?.driverDeliveryCost
+    ?? merchantRate?.driverDeliveryCost
     ?? rateForShipment(shipment, pricing)?.driverDeliveryCost
     ?? Math.round(merchantShippingFee(shipment, pricing) * 0.65);
+  return baseCost + (weightTier?.driverExtraCost ?? 0);
 }
 
 export function shipmentShippingProfit(shipment: Shipment, pricing: PricingPolicySettings) {

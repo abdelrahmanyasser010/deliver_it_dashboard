@@ -498,6 +498,30 @@ export function reduceDeliveryCommand(previous: DeliveryState, command: Delivery
       state = audit({ ...state, driverAdjustments: [adjustment, ...(state.driverAdjustments ?? [])], ledgerEntries: [entry, ...state.ledgerEntries] }, command, 'driverAdjustment', adjustment.id, adjustment.description);
       return { state, result: result(true, 'تم تسجيل حركة المندوب وظهورها في المحاسبة.') };
     }
+    case 'finance/reviewOperationalExpense': {
+      const expense = state.operationalExpenses.find((item) => item.id === command.expenseId);
+      if (!expense) return { state, result: result(false, 'المصروف غير موجود.') };
+      const updated = { ...expense, status: command.status, reviewedBy: actor, reviewedAt: nowIso(), reviewNote: command.note };
+      const ledgerStatus = command.status === 'approved' ? 'posted' : command.status === 'pending' ? 'pending' : 'reversed';
+      state = audit({
+        ...state,
+        operationalExpenses: state.operationalExpenses.map((item) => item.id === expense.id ? updated : item),
+        ledgerEntries: state.ledgerEntries.map((entry) => entry.sourceType === 'operationalExpense' && entry.sourceId === expense.id ? { ...entry, status: ledgerStatus } : entry),
+      }, command, 'operationalExpense', expense.id, command.note);
+      return { state, result: result(true, command.status === 'approved' ? 'تم اعتماد المصروف.' : command.status === 'rejected' ? 'تم رفض المصروف.' : command.status === 'cancelled' ? 'تم إلغاء المصروف.' : 'تمت إعادة المصروف للمراجعة.') };
+    }
+    case 'finance/reviewDriverAdjustment': {
+      const adjustment = state.driverAdjustments.find((item) => item.id === command.adjustmentId);
+      if (!adjustment) return { state, result: result(false, 'حركة المندوب غير موجودة.') };
+      const updated = { ...adjustment, status: command.status, reviewedBy: actor, reviewedAt: nowIso(), reviewNote: command.note };
+      const ledgerStatus = command.status === 'approved' ? 'posted' : command.status === 'pending' ? 'pending' : 'reversed';
+      state = audit({
+        ...state,
+        driverAdjustments: state.driverAdjustments.map((item) => item.id === adjustment.id ? updated : item),
+        ledgerEntries: state.ledgerEntries.map((entry) => entry.sourceType === 'driverAdjustment' && entry.sourceId === adjustment.id ? { ...entry, status: ledgerStatus } : entry),
+      }, command, 'driverAdjustment', adjustment.id, command.note);
+      return { state, result: result(true, command.status === 'approved' ? 'تم اعتماد حركة المندوب.' : command.status === 'rejected' ? 'تم رفض حركة المندوب.' : command.status === 'cancelled' ? 'تم إلغاء حركة المندوب.' : 'تمت إعادة حركة المندوب للمراجعة.') };
+    }
     case 'ledger/postAll': {
       const count = state.ledgerEntries.filter((entry) => entry.status === 'pending').length;
       state = audit({ ...state, ledgerEntries: state.ledgerEntries.map((entry) => entry.status === 'pending' ? { ...entry, status: 'posted' } : entry) }, command, 'ledger', 'all', `ترحيل ${count} قيد`);

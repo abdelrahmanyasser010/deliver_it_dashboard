@@ -14,7 +14,6 @@ import './Reports.css';
 type AccountingTab = 'overview' | 'statements' | 'expenses' | 'ledger' | 'close';
 type PartyType = 'merchant' | 'driver';
 type DatePreset = 'all' | 'today' | 'this_week' | 'this_month';
-type AccountingDetailKind = 'revenue' | 'courierCost' | 'grossProfit' | 'netOperatingProfit' | 'totalCollected' | 'totalRemitted' | 'cashWithDrivers' | 'merchantPayables';
 
 interface StatementRow {
   id: string;
@@ -56,6 +55,9 @@ const adjustmentLabels: Record<DriverAdjustmentType, string> = {
   reimbursement: 'تعويض مصروف',
   advance: 'سلفة',
 };
+
+const reviewStatusLabel = (status: OperationalExpense['status']) => status === 'approved' ? 'معتمد' : status === 'rejected' ? 'مرفوض' : status === 'cancelled' ? 'ملغي' : 'معلق';
+const reviewStatusTone = (status: OperationalExpense['status']) => status === 'approved' ? 'success' : status === 'pending' ? 'warning' : 'danger';
 
 function inDatePreset(date: string, preset: DatePreset) {
   if (preset === 'all') return true;
@@ -117,7 +119,6 @@ export function AccountingPage() {
   const [driverAdjustmentOpen, setDriverAdjustmentOpen] = useState(false);
   const [postPreviewOpen, setPostPreviewOpen] = useState(false);
   const [closePreviewOpen, setClosePreviewOpen] = useState(false);
-  const [detailKind, setDetailKind] = useState<AccountingDetailKind | null>(null);
 
   const shipments = useMemo(() => state?.shipments ?? [], [state?.shipments]);
   const pricing = state?.settings.pricing;
@@ -199,6 +200,12 @@ export function AccountingPage() {
     showToast('تم تجهيز ملف مراجعة الحسابات.');
   };
 
+  const reviewExpense = (expenseId: string, status: OperationalExpense['status'], note: string) =>
+    run({ type: 'finance/reviewOperationalExpense', expenseId, status, note });
+
+  const reviewDriverAdjustment = (adjustmentId: string, status: DriverFinancialAdjustment['status'], note: string) =>
+    run({ type: 'finance/reviewDriverAdjustment', adjustmentId, status, note });
+
   if (isLoading || !pricing) return <div className="reports-page"><section className="glass-card">جاري تحميل البيانات المالية...</section></div>;
 
   return (
@@ -274,10 +281,10 @@ export function AccountingPage() {
           </div>
           <div className="table-wrapper">
             <table className="data-table">
-              <thead><tr><th>التاريخ</th><th>النوع</th><th>البند</th><th>المبلغ</th><th>الدفع</th><th>الحالة</th></tr></thead>
+              <thead><tr><th>التاريخ</th><th>النوع</th><th>البند</th><th>المبلغ</th><th>الدفع</th><th>الحالة</th><th>مراجعة</th></tr></thead>
               <tbody>
-                {expenses.map((expense) => <tr key={expense.id}><td>{formatDateTime(expense.date)}</td><td>{expenseLabels[expense.category]}</td><td>{expense.description}</td><td>{formatCurrency(expense.amount)}</td><td>{expense.paymentMethod === 'cash' ? 'خزينة' : expense.paymentMethod === 'bank' ? 'بنك' : 'محفظة'}</td><td><StatusBadge label={expense.status === 'approved' ? 'معتمد' : 'معلق'} tone={expense.status === 'approved' ? 'success' : 'warning'} /></td></tr>)}
-                {driverAdjustments.map((item) => <tr key={item.id}><td>{formatDateTime(item.date)}</td><td>{adjustmentLabels[item.type]}</td><td>{item.driverName} - {item.description}</td><td>{formatCurrency(item.amount)}</td><td>حساب مندوب</td><td><StatusBadge label={item.status === 'approved' ? 'معتمد' : 'معلق'} tone={item.status === 'approved' ? 'success' : 'warning'} /></td></tr>)}
+                {expenses.map((expense) => <tr key={expense.id}><td>{formatDateTime(expense.date)}</td><td>{expenseLabels[expense.category]}</td><td>{expense.description}</td><td>{formatCurrency(expense.amount)}</td><td>{expense.paymentMethod === 'cash' ? 'خزينة' : expense.paymentMethod === 'bank' ? 'بنك' : 'محفظة'}</td><td><StatusBadge label={reviewStatusLabel(expense.status)} tone={reviewStatusTone(expense.status)} /></td><td><ReviewActions status={expense.status} onApprove={() => void reviewExpense(expense.id, 'approved', 'اعتماد من المحاسبة')} onReject={() => void reviewExpense(expense.id, 'rejected', 'رفض بعد المراجعة')} onCancel={() => void reviewExpense(expense.id, 'cancelled', 'إلغاء البند')} onReset={() => void reviewExpense(expense.id, 'pending', 'إعادة للمراجعة')} /></td></tr>)}
+                {driverAdjustments.map((item) => <tr key={item.id}><td>{formatDateTime(item.date)}</td><td>{adjustmentLabels[item.type]}</td><td>{item.driverName} - {item.description}</td><td>{formatCurrency(item.amount)}</td><td>حساب مندوب</td><td><StatusBadge label={reviewStatusLabel(item.status)} tone={reviewStatusTone(item.status)} /></td><td><ReviewActions status={item.status} onApprove={() => void reviewDriverAdjustment(item.id, 'approved', 'اعتماد من المحاسبة')} onReject={() => void reviewDriverAdjustment(item.id, 'rejected', 'رفض بعد المراجعة')} onCancel={() => void reviewDriverAdjustment(item.id, 'cancelled', 'إلغاء الحركة')} onReset={() => void reviewDriverAdjustment(item.id, 'pending', 'إعادة للمراجعة')} /></td></tr>)}
               </tbody>
             </table>
           </div>
@@ -304,7 +311,6 @@ export function AccountingPage() {
       {expenseOpen && <ExpenseDialog onClose={() => setExpenseOpen(false)} onSubmit={async (expense) => { const response = await run({ type: 'finance/addOperationalExpense', expense }); if (response.ok) setExpenseOpen(false); }} />}
       {driverAdjustmentOpen && <DriverAdjustmentDialog drivers={drivers} onClose={() => setDriverAdjustmentOpen(false)} onSubmit={async (adjustment) => { const response = await run({ type: 'finance/addDriverAdjustment', adjustment }); if (response.ok) setDriverAdjustmentOpen(false); }} />}
       {batchRemittanceDriver !== null && <DriverRemittanceDialog driverName={batchRemittanceDriver} drivers={driversList} shipments={shipments} pricing={pricing} onClose={() => setBatchRemittanceDriver(null)} onSubmit={async (items, note) => { for (const item of items) await run({ type: 'finance/reconcileShipment', shipmentId: item.id, remittedCash: item.cash, note }); setBatchRemittanceDriver(null); }} />}
-      {detailKind && <AccountingDetailModal kind={detailKind} shipments={shipments} pricing={pricing} expenses={expenses} driverAdjustments={driverAdjustments} onClose={() => setDetailKind(null)} onOpenShipment={(id) => navigate(`/shipments?shipment=${id}`)} />}
       {postPreviewOpen && <Modal title="اعتماد الحركات المعلقة" description={`سيتم اعتماد ${fmt(pendingLedger)} حركة بعد التأكيد.`} onClose={() => setPostPreviewOpen(false)} footer={<><button className="outline-btn" onClick={() => setPostPreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={pendingLedger === 0} onClick={async () => { const response = await run({ type: 'ledger/postAll' }); if (response.ok) setPostPreviewOpen(false); }}><CheckCircle2 size={15} /> تأكيد الاعتماد</button></>}><p className="report-muted">راجع الحركات قبل الاعتماد. أي تعديل لاحق يتم بحركة تصحيح منفصلة.</p></Modal>}
       {closePreviewOpen && <Modal title={`تقفيل الفترة ${periodKey}`} description="تأكد من البنود المعلقة قبل التقفيل." onClose={() => setClosePreviewOpen(false)} footer={<><button className="outline-btn" onClick={() => setClosePreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={!canClose} onClick={async () => { const response = await run({ type: 'period/close', period: periodKey }); if (response.ok) setClosePreviewOpen(false); }}><LockKeyhole size={15} /> تأكيد التقفيل</button></>}><div className="funnel-list"><CheckItem label="تحديثات معلقة" count={pendingUpdates} /><CheckItem label="فروقات تحصيل" count={discrepancies.length} /><CheckItem label="حركات معلقة" count={pendingLedger} /></div></Modal>}
     </div>
@@ -327,7 +333,7 @@ function ExpenseDialog({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
       onClose={onClose}
       footer={<>
         <button className="outline-btn" onClick={onClose}>إلغاء</button>
-        <button className="btn-primary" onClick={() => onSubmit({ id: `EXP-${Date.now()}`, date: today(), category, description, amount, paymentMethod, status: 'approved', createdBy: 'لوحة التحكم' })}>حفظ المصروف</button>
+        <button className="btn-primary" onClick={() => onSubmit({ id: `EXP-${Date.now()}`, date: today(), category, description, amount, paymentMethod, status: 'pending', createdBy: 'لوحة التحكم' })}>حفظ للمراجعة</button>
       </>}
     >
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.9rem 1.1rem', padding: '0.4rem 0' }}>
@@ -372,7 +378,7 @@ function DriverAdjustmentDialog({ drivers, onClose, onSubmit }: { drivers: Array
       onClose={onClose}
       footer={<>
         <button className="outline-btn" onClick={onClose}>إلغاء</button>
-        <button className="btn-primary" disabled={!driver} onClick={() => driver && onSubmit({ id: `DADJ-${Date.now()}`, driverId: driver.id, driverName: driver.name, date: today(), type, amount, description, status: 'approved', createdBy: 'لوحة التحكم' })}>حفظ الحركة</button>
+        <button className="btn-primary" disabled={!driver} onClick={() => driver && onSubmit({ id: `DADJ-${Date.now()}`, driverId: driver.id, driverName: driver.name, date: today(), type, amount, description, status: 'pending', createdBy: 'لوحة التحكم' })}>حفظ للمراجعة</button>
       </>}
     >
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.9rem 1.1rem', padding: '0.4rem 0' }}>
@@ -472,54 +478,7 @@ function DriverRemittanceDialog({ driverName, drivers, shipments, pricing, onClo
   );
 }
 
-function AccountingDetailModal({ kind, shipments, pricing, expenses, driverAdjustments, onClose, onOpenShipment }: { kind: AccountingDetailKind; shipments: Shipment[]; pricing: NonNullable<ReturnType<typeof useDeliveryData>['state']>['settings']['pricing']; expenses: OperationalExpense[]; driverAdjustments: DriverFinancialAdjustment[]; onClose: () => void; onOpenShipment: (id: string) => void }) {
-  const titles: Record<AccountingDetailKind, string> = {
-    revenue: 'تفاصيل إيراد الشحن',
-    courierCost: 'تفاصيل تكلفة المناديب',
-    grossProfit: 'تفاصيل ربح الشحن قبل المصاريف',
-    netOperatingProfit: 'تفاصيل صافي التشغيل',
-    totalCollected: 'تفاصيل إجمالي المحصل',
-    totalRemitted: 'تفاصيل المبالغ الموردة',
-    cashWithDrivers: 'تفاصيل التحصيل غير المورد',
-    merchantPayables: 'تفاصيل مستحقات التجار',
-  };
-  const shipmentRows = shipments.map((shipment) => {
-    const merchantFee = merchantShippingFee(shipment, pricing);
-    const driverCost = driverDeliveryCost(shipment, pricing);
-    return { shipment, merchantFee, driverCost, profit: merchantFee - driverCost, unremitted: Math.max(0, shipment.collectedCash - shipment.remittedCash), merchantPayable: Math.max(0, shipment.collectedCash - shipment.deliveryFee - shipment.discount) };
-  });
-  const visibleRows = shipmentRows.filter((row) => {
-    if (kind === 'cashWithDrivers') return row.unremitted > 0;
-    if (kind === 'merchantPayables') return ['remitted', 'inSettlement'].includes(row.shipment.financialStatus) && row.shipment.settlementStatus === 'unsettled';
-    if (kind === 'totalCollected') return row.shipment.collectedCash > 0;
-    if (kind === 'totalRemitted') return row.shipment.remittedCash > 0;
-    return true;
-  });
-  const expenseTotal = approvedOperationalExpenses(expenses);
-  const driverExtraCost = approvedDriverAdjustmentCost(driverAdjustments);
-  const total = kind === 'revenue' ? shippingRevenue(shipments, pricing)
-    : kind === 'courierCost' ? deliveryCost(shipments, pricing)
-    : kind === 'grossProfit' ? shippingRevenue(shipments, pricing) - deliveryCost(shipments, pricing)
-    : kind === 'netOperatingProfit' ? shippingRevenue(shipments, pricing) - deliveryCost(shipments, pricing) - expenseTotal - driverExtraCost
-    : kind === 'totalCollected' ? shipments.reduce((sum, shipment) => sum + shipment.collectedCash, 0)
-    : kind === 'totalRemitted' ? shipments.reduce((sum, shipment) => sum + shipment.remittedCash, 0)
-    : kind === 'cashWithDrivers' ? visibleRows.reduce((sum, row) => sum + row.unremitted, 0)
-    : visibleRows.reduce((sum, row) => sum + row.merchantPayable, 0);
-  const rowsForExport: Array<Record<string, string | number>> = kind === 'netOperatingProfit'
-    ? [
-        ...shipmentRows.map((row) => ({ النوع: 'شحنة', المرجع: row.shipment.id, الحساب: row.shipment.merchantName, سعر_التاجر: row.merchantFee, تكلفة_المندوب: row.driverCost, الأثر: row.profit })),
-        ...expenses.map((item) => ({ النوع: 'مصروف تشغيلي', المرجع: item.id, الحساب: item.category, سعر_التاجر: 0, تكلفة_المندوب: item.amount, الأثر: -item.amount })),
-        ...driverAdjustments.map((item) => ({ النوع: 'حركة مندوب', المرجع: item.id, الحساب: item.driverName, سعر_التاجر: 0, تكلفة_المندوب: item.amount, الأثر: -item.amount })),
-      ]
-    : visibleRows.map((row) => ({ الشحنة: row.shipment.id, التاجر: row.shipment.merchantName, المندوب: row.shipment.driverName ?? 'غير معين', المحافظة: row.shipment.governorate, المحصل: row.shipment.collectedCash, المورد: row.shipment.remittedCash, سعر_التاجر: row.merchantFee, تكلفة_المندوب: row.driverCost, ربح_الشحن: row.profit, مستحق_التاجر: row.merchantPayable }));
 
-  return (
-    <Modal wide title={titles[kind]} description={`إجمالي الرقم: ${formatCurrency(total)}`} onClose={onClose} footer={<><button className="outline-btn" onClick={onClose}>إغلاق</button><button className="btn-primary" onClick={() => downloadXlsx({ filename: `accounting-details-${kind}.xlsx`, sheetName: titles[kind], rows: rowsForExport })}><Download size={15} /> تحميل التفاصيل</button></>}>
-      {kind === 'netOperatingProfit' && <div className="report-kpi-grid"><FinanceCard label="إيراد الشحن" value={formatCurrency(shippingRevenue(shipments, pricing))} icon={<ReceiptText />} /><FinanceCard label="تكلفة المناديب" value={formatCurrency(deliveryCost(shipments, pricing))} icon={<Wallet />} /><FinanceCard label="مصاريف تشغيلية" value={formatCurrency(expenseTotal)} icon={<AlertTriangle />} /><FinanceCard label="حركات مناديب" value={formatCurrency(driverExtraCost)} icon={<Banknote />} /></div>}
-      <div className="table-wrapper" style={{ maxHeight: 420, overflowY: 'auto' }}><table className="data-table compact-table"><thead><tr><th>الشحنة</th><th>التاجر</th><th>المندوب</th><th>المحافظة</th><th>المحصل</th><th>المورد</th><th>سعر التاجر</th><th>تكلفة المندوب</th><th>ربح الشحن</th><th>إجراء</th></tr></thead><tbody>{visibleRows.map((row) => <tr key={row.shipment.id}><td>{row.shipment.id}</td><td>{row.shipment.merchantName}</td><td>{row.shipment.driverName ?? 'غير معين'}</td><td>{row.shipment.governorate}</td><td>{formatCurrency(row.shipment.collectedCash)}</td><td>{formatCurrency(row.shipment.remittedCash)}</td><td>{formatCurrency(row.merchantFee)}</td><td>{formatCurrency(row.driverCost)}</td><td>{formatCurrency(row.profit)}</td><td><button className="outline-btn" onClick={() => onOpenShipment(row.shipment.id)}>فتح</button></td></tr>)}</tbody></table></div>
-    </Modal>
-  );
-}
 
 function FinanceCard({ label, value, icon, onClick }: { label: string; value: string; icon: React.ReactNode; onClick?: () => void }) {
   const Tag = onClick ? 'button' : 'article';
@@ -532,6 +491,13 @@ function FinanceCard({ label, value, icon, onClick }: { label: string; value: st
       </div>
     </Tag>
   );
+}
+
+function ReviewActions({ status, onApprove, onReject, onCancel, onReset }: { status: OperationalExpense['status']; onApprove: () => void; onReject: () => void; onCancel: () => void; onReset: () => void }) {
+  if (status === 'pending') {
+    return <div className="toolbar-actions"><button className="btn-primary" onClick={onApprove}>اعتماد</button><button className="outline-btn" onClick={onReject}>رفض</button><button className="outline-btn" onClick={onCancel}>إلغاء</button></div>;
+  }
+  return <button className="outline-btn" onClick={onReset}>إرجاع للمراجعة</button>;
 }
 
 function CheckItem({ label, count, warningOnly = false }: { label: string; count: number; warningOnly?: boolean }) {

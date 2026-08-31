@@ -60,7 +60,7 @@ function operationalExpenseFromApi(input: unknown): OperationalExpense {
     description: String(row.description ?? ''),
     amount: moneyFromMinor(row.amount_minor),
     paymentMethod: String(row.payment_method ?? 'cash') as OperationalExpense['paymentMethod'],
-    status: String(row.status ?? 'pending') === 'approved' ? 'approved' : 'pending',
+    status: ['approved', 'rejected', 'cancelled'].includes(String(row.status)) ? String(row.status) as OperationalExpense['status'] : 'pending',
     createdBy: String(row.created_by ?? row.created_by_name ?? 'النظام'),
   };
 }
@@ -76,7 +76,7 @@ function driverAdjustmentFromApi(input: unknown): DriverFinancialAdjustment {
     type: String(row.type ?? 'bonus') as DriverFinancialAdjustment['type'],
     amount: moneyFromMinor(row.amount_minor),
     description: String(row.description ?? ''),
-    status: String(row.status ?? 'pending') === 'approved' ? 'approved' : 'pending',
+    status: ['approved', 'rejected', 'cancelled'].includes(String(row.status)) ? String(row.status) as DriverFinancialAdjustment['status'] : 'pending',
     createdBy: String(row.created_by ?? row.created_by_name ?? 'النظام'),
   };
 }
@@ -244,6 +244,8 @@ async function execute(command: DeliveryCommand): Promise<GatewayCommandResponse
       case 'finance/reconcileShipment': { const s = asRecord((await api.get(`/api/v1/shipments/${command.shipmentId}`)).data); await post(`/api/v1/finance/shipments/${command.shipmentId}/reconcile`, { remitted_minor: Math.round(command.remittedCash * 100), currency: s.currency ?? 'EGP', note: command.note, resource_version: Number(s.version ?? 1), client_action_id: action }); break; }
       case 'finance/addOperationalExpense': await post('/api/v1/finance/operational-expenses', { category: command.expense.category, description: command.expense.description, amount_minor: Math.round(command.expense.amount * 100), payment_method: command.expense.paymentMethod, expense_date: command.expense.date, status: command.expense.status, client_action_id: action }); break;
       case 'finance/addDriverAdjustment': await post('/api/v1/finance/driver-adjustments', { driver_id: command.adjustment.driverId, type: command.adjustment.type, amount_minor: Math.round(command.adjustment.amount * 100), description: command.adjustment.description, adjustment_date: command.adjustment.date, status: command.adjustment.status, client_action_id: action }); break;
+      case 'finance/reviewOperationalExpense': await post(`/api/v1/finance/operational-expenses/${command.expenseId}/review`, { status: command.status, note: command.note, client_action_id: action }); break;
+      case 'finance/reviewDriverAdjustment': await post(`/api/v1/finance/driver-adjustments/${command.adjustmentId}/review`, { status: command.status, note: command.note, client_action_id: action }); break;
       case 'ledger/postAll': { const entries = (await api.get<any[]>('/api/v1/ledger/entries', { query: { page: 1, per_page: 100, status: 'pending' } })).data; await post('/api/v1/ledger/post', { entry_ids: entries.map((x: any) => x.id), posting_date: new Date().toISOString().slice(0, 10), note: 'ترحيل من لوحة التحكم', client_action_id: action }); break; }
       case 'period/close': { const periods = (await api.get<any[]>('/api/v1/accounting-periods', { query: { page: 1, per_page: 100 } })).data; const p = periods.find((x: any) => String(x.starts_on ?? '').slice(0, 7) === command.period || String(x.id) === command.period); if (!p) return { result: { ok: false, message: 'الفترة غير موجودة على الخادم.' } }; const end = String(p.ends_on ?? ''); if (!end) return { result: { ok: false, message: 'الفترة لا تحتوي تاريخ نهاية صالحًا.' } }; await post(`/api/v1/accounting-periods/${p.id}/close`, { closed_through: end, note: 'إغلاق من لوحة التحكم', resource_version: Number(p.version ?? 1), client_action_id: action }); break; }
       case 'settings/updateDelivery': { const cur = asRecord((await api.get('/api/v1/settings/delivery-policy')).data); await put('/api/v1/settings/delivery-policy', deliveryToApi(command.policy, cur, Number(cur.version ?? 1))); break; }

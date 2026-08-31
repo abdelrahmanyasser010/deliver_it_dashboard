@@ -19,6 +19,26 @@ export interface GovernorateRate {
   estimatedDays: number;
 }
 
+export interface MerchantSpecificRate {
+  id: string;
+  merchantId: string;
+  merchantName: string;
+  governorate: string;
+  merchantDeliveryFee: number;
+  driverDeliveryCost: number;
+  returnFee: number;
+  effectiveFrom: string;
+  active: boolean;
+}
+
+export interface WeightTierRate {
+  id: string;
+  fromKg: number;
+  toKg?: number;
+  merchantExtraFee: number;
+  driverExtraCost: number;
+}
+
 export interface PricingPolicySettings {
   returnFeeMode: FeeMode;
   returnFeeValue: number;
@@ -41,6 +61,8 @@ export interface PricingPolicySettings {
   pickupFeeUnderThreshold: number;
   driverPickupReward: number;
   governorateRates: GovernorateRate[];
+  merchantSpecificRates: MerchantSpecificRate[];
+  weightTiers: WeightTierRate[];
 }
 
 export const defaultGovernorateRates: GovernorateRate[] = [
@@ -53,6 +75,17 @@ export const defaultGovernorateRates: GovernorateRate[] = [
   { id: 'gov-upper', governorate: 'شمال الصعيد', merchantDeliveryFee: 75, driverDeliveryCost: 50, deliveryFee: 75, returnFee: 40, estimatedDays: 2 },
   { id: 'gov-deep-upper', governorate: 'جنوب الصعيد', merchantDeliveryFee: 90, driverDeliveryCost: 62, deliveryFee: 90, returnFee: 45, estimatedDays: 3 },
   { id: 'gov-remote', governorate: 'المناطق النائية والحدودية', merchantDeliveryFee: 110, driverDeliveryCost: 78, deliveryFee: 110, returnFee: 55, estimatedDays: 4 },
+];
+
+export const defaultMerchantSpecificRates: MerchantSpecificRate[] = [
+  { id: 'mrate-fashion-cairo', merchantId: 'M-1001', merchantName: 'Fashion Store', governorate: 'القاهرة', merchantDeliveryFee: 42, driverDeliveryCost: 28, returnFee: 25, effectiveFrom: new Date().toISOString().slice(0, 10), active: true },
+  { id: 'mrate-home-alex', merchantId: 'M-1002', merchantName: 'Home Brand', governorate: 'الإسكندرية', merchantDeliveryFee: 58, driverDeliveryCost: 38, returnFee: 30, effectiveFrom: new Date().toISOString().slice(0, 10), active: true },
+];
+
+export const defaultWeightTiers: WeightTierRate[] = [
+  { id: 'weight-3-5', fromKg: 3, toKg: 5, merchantExtraFee: 10, driverExtraCost: 6 },
+  { id: 'weight-5-10', fromKg: 5, toKg: 10, merchantExtraFee: 20, driverExtraCost: 12 },
+  { id: 'weight-10-plus', fromKg: 10, merchantExtraFee: 35, driverExtraCost: 22 },
 ];
 
 export interface ProofPolicySettings {
@@ -147,6 +180,8 @@ export const defaultTenantOperationalSettings: TenantOperationalSettings = {
     pickupFeeUnderThreshold: 30,
     driverPickupReward: 20,
     governorateRates: defaultGovernorateRates,
+    merchantSpecificRates: defaultMerchantSpecificRates,
+    weightTiers: defaultWeightTiers,
   },
   proof: {
     recipientNameRequired: true,

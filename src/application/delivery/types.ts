@@ -114,6 +114,8 @@ export type DeliveryCommand =
   | { type: 'finance/reconcileShipment'; shipmentId: string; remittedCash: number; note: string; actor?: string }
   | { type: 'finance/addOperationalExpense'; expense: OperationalExpense; actor?: string }
   | { type: 'finance/addDriverAdjustment'; adjustment: DriverFinancialAdjustment; actor?: string }
+  | { type: 'finance/reviewOperationalExpense'; expenseId: string; status: OperationalExpense['status']; note: string; actor?: string }
+  | { type: 'finance/reviewDriverAdjustment'; adjustmentId: string; status: DriverFinancialAdjustment['status']; note: string; actor?: string }
   | { type: 'ledger/postAll'; actor?: string }
   | { type: 'period/close'; period: string; actor?: string }
   | { type: 'settings/updateDelivery'; policy: DeliveryPolicySettings; actor?: string }

@@ -46,6 +46,7 @@ export interface FinancialLedgerEntry {
 }
 
 export type OperationalExpenseCategory = 'rent' | 'utilities' | 'salaries' | 'fuel' | 'maintenance' | 'packaging' | 'marketing' | 'software' | 'other';
+export type FinancialReviewStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 export interface OperationalExpense {
   id: string;
@@ -54,8 +55,11 @@ export interface OperationalExpense {
   description: string;
   amount: number;
   paymentMethod: 'cash' | 'bank' | 'wallet';
-  status: 'pending' | 'approved';
+  status: FinancialReviewStatus;
   createdBy: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
 }
 
 export type DriverAdjustmentType = 'bonus' | 'deduction' | 'reimbursement' | 'advance';
@@ -68,6 +72,9 @@ export interface DriverFinancialAdjustment {
   type: DriverAdjustmentType;
   amount: number;
   description: string;
-  status: 'pending' | 'approved';
+  status: FinancialReviewStatus;
   createdBy: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
 }

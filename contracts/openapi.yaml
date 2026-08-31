@@ -7265,6 +7265,106 @@ paths:
             schema:
               $ref: '#/components/schemas/DriverAdjustmentCreateRequest'
       x-permission: finance.manage
+  /api/v1/finance/operational-expenses/{expense}/review:
+    post:
+      summary: مراجعة مصروف تشغيلي
+      tags:
+      - Finance
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - success
+                - data
+                - request_id
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/OperationalExpense'
+                  request_id:
+                    type: string
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '409': *id004
+        '422': *id005
+      operationId: post_api_v1_finance_operational_expenses_expense_review
+      security:
+      - sanctum: []
+      parameters:
+      - name: expense
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinanceReviewRequest'
+      x-permission: finance.approve
+  /api/v1/finance/driver-adjustments/{adjustment}/review:
+    post:
+      summary: مراجعة حركة مالية لمندوب
+      tags:
+      - Finance
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - success
+                - data
+                - request_id
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/DriverAdjustment'
+                  request_id:
+                    type: string
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '409': *id004
+        '422': *id005
+      operationId: post_api_v1_finance_driver_adjustments_adjustment_review
+      security:
+      - sanctum: []
+      parameters:
+      - name: adjustment
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinanceReviewRequest'
+      x-permission: finance.approve
   /api/v1/settings/proof-policy:
     get:
       summary: قراءة سياسة إثبات التسليم
@@ -15230,6 +15330,67 @@ components:
         estimated_days:
           type: integer
           minimum: 1
+    MerchantSpecificRate:
+      type: object
+      required:
+      - id
+      - merchant_id
+      - governorate
+      - merchant_delivery_fee_minor
+      - driver_delivery_cost_minor
+      - return_fee_minor
+      - effective_from
+      - active
+      properties:
+        id:
+          type: string
+        merchant_id:
+          type: string
+        merchant_name:
+          type:
+          - string
+          - 'null'
+        governorate:
+          type: string
+        merchant_delivery_fee_minor:
+          type: integer
+          minimum: 0
+        driver_delivery_cost_minor:
+          type: integer
+          minimum: 0
+        return_fee_minor:
+          type: integer
+          minimum: 0
+        effective_from:
+          type: string
+          format: date
+        active:
+          type: boolean
+          default: true
+    WeightTierRate:
+      type: object
+      required:
+      - id
+      - from_kg
+      - merchant_extra_fee_minor
+      - driver_extra_cost_minor
+      properties:
+        id:
+          type: string
+        from_kg:
+          type: number
+          minimum: 0
+        to_kg:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+        merchant_extra_fee_minor:
+          type: integer
+          minimum: 0
+        driver_extra_cost_minor:
+          type: integer
+          minimum: 0
     PricingPolicy:
       type: object
       required:
@@ -15253,6 +15414,16 @@ components:
           items:
             $ref: '#/components/schemas/GovernorateRate'
           description: أسعار المحافظات وفيها سعر التاجر وتكلفة المندوب لحساب ربح الشحن.
+        merchant_specific_rates:
+          type: array
+          items:
+            $ref: '#/components/schemas/MerchantSpecificRate'
+          description: اتفاقات تسعير خاصة تسبق سعر المحافظة العام.
+        weight_tiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeightTierRate'
+          description: شرائح الوزن الزائد وسعرها على التاجر وتكلفتها على المندوب.
         return_fee:
           $ref: '#/components/schemas/PolicyFeeRule'
         extra_attempt_fee:
@@ -15338,6 +15509,8 @@ components:
           enum:
           - pending
           - approved
+          - rejected
+          - cancelled
         created_by:
           type:
           - string
@@ -15383,6 +15556,8 @@ components:
           enum:
           - pending
           - approved
+          - rejected
+          - cancelled
         client_action_id:
           type: string
     DriverAdjustment:
@@ -15424,6 +15599,8 @@ components:
           enum:
           - pending
           - approved
+          - rejected
+          - cancelled
         created_by:
           type:
           - string
@@ -15460,6 +15637,25 @@ components:
           enum:
           - pending
           - approved
+          - rejected
+          - cancelled
+        client_action_id:
+          type: string
+    FinanceReviewRequest:
+      type: object
+      required:
+      - status
+      - note
+      properties:
+        status:
+          type: string
+          enum:
+          - pending
+          - approved
+          - rejected
+          - cancelled
+        note:
+          type: string
         client_action_id:
           type: string
     DeliveryPolicy:

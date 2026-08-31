@@ -36,6 +36,10 @@ type ReportSummary = {
   driverExtraCost: number;
   netOperatingProfit: number;
 };
+
+const expenseLabels: Record<string, string> = { rent: 'إيجار', utilities: 'كهرباء ومياه', salaries: 'رواتب', fuel: 'بنزين ومشاوير', maintenance: 'صيانة', packaging: 'تغليف ومطبوعات', marketing: 'تسويق', software: 'أنظمة وبرامج', other: 'أخرى' };
+const adjustmentLabels: Record<string, string> = { bonus: 'إضافة / مكافأة', deduction: 'خصم', reimbursement: 'تعويض مصروف', advance: 'سلفة' };
+const reviewLabels: Record<string, string> = { pending: 'معلق', approved: 'معتمد', rejected: 'مرفوض', cancelled: 'ملغي' };
 const periodOptions: Array<{ id: Period; label: string }> = [
   { id: 'today', label: 'اليوم' },
   { id: 'week', label: 'آخر 7 أيام' },
@@ -299,8 +303,8 @@ function FinancialDetailModal({ kind, report, onClose, onOpenShipment }: { kind:
     netOperatingProfit: 'تفاصيل صافي التشغيل',
   };
   const rowsForExport = () => {
-    if (kind === 'expenses') return report.currentExpenses.map((item) => ({ التاريخ: item.date, البند: item.category, البيان: item.description, المبلغ: item.amount, الحالة: item.status }));
-    if (kind === 'driverAdjustments') return report.currentAdjustments.map((item) => ({ التاريخ: item.date, المندوب: item.driverName, النوع: item.type, البيان: item.description, المبلغ: item.amount, الحالة: item.status }));
+    if (kind === 'expenses') return report.currentExpenses.map((item) => ({ التاريخ: item.date, البند: expenseLabels[item.category] ?? item.category, البيان: item.description, المبلغ: item.amount, الحالة: reviewLabels[item.status] ?? item.status }));
+    if (kind === 'driverAdjustments') return report.currentAdjustments.map((item) => ({ التاريخ: item.date, المندوب: item.driverName, النوع: adjustmentLabels[item.type] ?? item.type, البيان: item.description, المبلغ: item.amount, الحالة: reviewLabels[item.status] ?? item.status }));
     return shipmentRows.map((row) => ({ الشحنة: row.shipment.id, التاجر: row.shipment.merchantName, المندوب: row.shipment.driverName ?? 'غير معين', المحافظة: row.shipment.governorate, سعر_التاجر: row.merchantFee, تكلفة_المندوب: row.driverCost, ربح_الشحن: row.profit }));
   };
   const exportDetails = () => downloadXlsx({ filename: `financial-details-${kind}.xlsx`, sheetName: titles[kind], rows: rowsForExport() as Record<string, unknown>[] });
@@ -315,8 +319,8 @@ function FinancialDetailModal({ kind, report, onClose, onOpenShipment }: { kind:
     >
       {kind === 'netOperatingProfit' && <div className="report-kpi-grid"><Kpi label="ربح الشحن" value={formatCurrency(report.totals.shippingProfit)} icon={<Banknote size={18} />} gradient="linear-gradient(135deg,#10B981,#059669)" /><Kpi label="المصاريف التشغيلية" value={formatCurrency(report.expenseTotal)} icon={<ReceiptText size={18} />} gradient="linear-gradient(135deg,#EF4444,#B91C1C)" /><Kpi label="حركات المناديب" value={formatCurrency(report.driverExtraCost)} icon={<Users size={18} />} gradient="linear-gradient(135deg,#64748B,#334155)" /><Kpi label="صافي التشغيل" value={formatCurrency(report.netOperatingProfit)} icon={<Wallet size={18} />} gradient="linear-gradient(135deg,#F59E0B,#D97706)" /></div>}
       {['shippingIncome', 'courierCost', 'shippingProfit', 'netOperatingProfit'].includes(kind) && <div className="table-wrapper" style={{ maxHeight: 420, overflowY: 'auto' }}><table className="data-table compact-table"><thead><tr><th>الشحنة</th><th>التاجر</th><th>المندوب</th><th>المحافظة</th><th>سعر التاجر</th><th>تكلفة المندوب</th><th>ربح الشحن</th><th>إجراء</th></tr></thead><tbody>{shipmentRows.map((row) => <tr key={row.shipment.id}><td>{row.shipment.id}</td><td>{row.shipment.merchantName}</td><td>{row.shipment.driverName ?? 'غير معين'}</td><td>{row.shipment.governorate}</td><td>{formatCurrency(row.merchantFee)}</td><td>{formatCurrency(row.driverCost)}</td><td>{formatCurrency(row.profit)}</td><td><button className="outline-btn" onClick={() => onOpenShipment(row.shipment.id)}><Eye size={14} /> الشحنة</button></td></tr>)}</tbody></table></div>}
-      {kind === 'expenses' && <div className="table-wrapper" style={{ maxHeight: 420, overflowY: 'auto' }}><table className="data-table compact-table"><thead><tr><th>التاريخ</th><th>البند</th><th>البيان</th><th>المبلغ</th><th>طريقة الدفع</th><th>الحالة</th></tr></thead><tbody>{report.currentExpenses.map((item) => <tr key={item.id}><td>{new Date(item.date).toLocaleString('ar-EG')}</td><td>{item.category}</td><td>{item.description}</td><td>{formatCurrency(item.amount)}</td><td>{item.paymentMethod}</td><td>{item.status === 'approved' ? 'معتمد' : 'معلق'}</td></tr>)}</tbody></table></div>}
-      {kind === 'driverAdjustments' && <div className="table-wrapper" style={{ maxHeight: 420, overflowY: 'auto' }}><table className="data-table compact-table"><thead><tr><th>التاريخ</th><th>المندوب</th><th>النوع</th><th>البيان</th><th>المبلغ</th><th>الحالة</th></tr></thead><tbody>{report.currentAdjustments.map((item) => <tr key={item.id}><td>{new Date(item.date).toLocaleString('ar-EG')}</td><td>{item.driverName}</td><td>{item.type}</td><td>{item.description}</td><td>{formatCurrency(item.amount)}</td><td>{item.status === 'approved' ? 'معتمد' : 'معلق'}</td></tr>)}</tbody></table></div>}
+      {kind === 'expenses' && <div className="table-wrapper" style={{ maxHeight: 420, overflowY: 'auto' }}><table className="data-table compact-table"><thead><tr><th>التاريخ</th><th>البند</th><th>البيان</th><th>المبلغ</th><th>طريقة الدفع</th><th>الحالة</th></tr></thead><tbody>{report.currentExpenses.map((item) => <tr key={item.id}><td>{new Date(item.date).toLocaleString('ar-EG')}</td><td>{expenseLabels[item.category] ?? item.category}</td><td>{item.description}</td><td>{formatCurrency(item.amount)}</td><td>{item.paymentMethod === 'cash' ? 'خزينة' : item.paymentMethod === 'bank' ? 'بنك' : 'محفظة'}</td><td>{reviewLabels[item.status] ?? item.status}</td></tr>)}</tbody></table></div>}
+      {kind === 'driverAdjustments' && <div className="table-wrapper" style={{ maxHeight: 420, overflowY: 'auto' }}><table className="data-table compact-table"><thead><tr><th>التاريخ</th><th>المندوب</th><th>النوع</th><th>البيان</th><th>المبلغ</th><th>الحالة</th></tr></thead><tbody>{report.currentAdjustments.map((item) => <tr key={item.id}><td>{new Date(item.date).toLocaleString('ar-EG')}</td><td>{item.driverName}</td><td>{adjustmentLabels[item.type] ?? item.type}</td><td>{item.description}</td><td>{formatCurrency(item.amount)}</td><td>{reviewLabels[item.status] ?? item.status}</td></tr>)}</tbody></table></div>}
     </Modal>
   );
 }

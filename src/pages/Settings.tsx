@@ -9,18 +9,21 @@ import {
   defaultWhatsAppTemplate,
   type FeeMode,
   type GovernorateRate,
+  type MerchantSpecificRate,
   type PricingPolicySettings,
   type PrintingSettings,
   type ProofPolicySettings,
+  type WeightTierRate,
   type WhatsAppNotificationSettings,
 } from '../domain/settings/entities';
 import { formatCurrency } from '../utils/helpers';
 import './Settings.css';
 
-type SettingsTab = 'rates' | 'weight_pickup' | 'pricing' | 'proof' | 'printing' | 'whatsapp';
+type SettingsTab = 'rates' | 'merchant_rates' | 'weight_pickup' | 'pricing' | 'proof' | 'printing' | 'whatsapp';
 
 const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: typeof Banknote }> = [
   { id: 'rates', label: 'أسعار المحافظات', description: 'سعر التاجر، تكلفة المندوب، وربح الشحنة.', icon: MapPin },
+  { id: 'merchant_rates', label: 'أسعار التجار الخاصة', description: 'اتفاقات خاصة حسب التاجر والمحافظة.', icon: Banknote },
   { id: 'weight_pickup', label: 'الأوزان والاستلام', description: 'الكيلو الزائد، الاستلام من التاجر، ومكافأة المندوب.', icon: Scale },
   { id: 'pricing', label: 'رسوم إضافية وضريبة', description: 'المرتجع، المحاولات، التحصيل، والضريبة.', icon: Banknote },
   { id: 'proof', label: 'إثبات التسليم', description: 'الصورة، اسم المستلم، ودقة الموقع.', icon: Camera },
@@ -96,6 +99,7 @@ export function SettingsPage() {
 
             <div className="panel-body">
               {activeTab === 'rates' && <GovernorateRatesSettings value={pricing} onChange={setPricing} />}
+              {activeTab === 'merchant_rates' && <MerchantRatesSettings value={pricing} merchants={state.merchants} onChange={setPricing} />}
               {activeTab === 'weight_pickup' && <WeightAndPickupSettings value={pricing} onChange={setPricing} />}
               {activeTab === 'pricing' && <PricingSettings value={pricing} onChange={setPricing} />}
               {activeTab === 'proof' && <ProofSettings value={proof} onChange={setProof} />}
@@ -236,7 +240,78 @@ function GovernorateRatesSettings({ value, onChange }: { value: PricingPolicySet
   );
 }
 
+function MerchantRatesSettings({ value, merchants, onChange }: { value: PricingPolicySettings; merchants: Array<{ id: string; name: string }>; onChange: (value: PricingPolicySettings) => void }) {
+  const rates = value.merchantSpecificRates ?? [];
+  const governorates = value.governorateRates?.length ? value.governorateRates : defaultGovernorateRates;
+  const firstMerchant = merchants[0];
+  const updateRate = (id: string, field: keyof MerchantSpecificRate, val: string | number | boolean) => {
+    onChange({ ...value, merchantSpecificRates: rates.map((rate) => rate.id === id ? { ...rate, [field]: val } : rate) });
+  };
+  const addRate = () => {
+    const merchant = firstMerchant ?? { id: 'merchant-custom', name: 'تاجر جديد' };
+    const rate: MerchantSpecificRate = {
+      id: `mrate-${Date.now()}`,
+      merchantId: merchant.id,
+      merchantName: merchant.name,
+      governorate: governorates[0]?.governorate ?? 'القاهرة',
+      merchantDeliveryFee: governorates[0]?.merchantDeliveryFee ?? 45,
+      driverDeliveryCost: governorates[0]?.driverDeliveryCost ?? 28,
+      returnFee: governorates[0]?.returnFee ?? 25,
+      effectiveFrom: new Date().toISOString().slice(0, 10),
+      active: true,
+    };
+    onChange({ ...value, merchantSpecificRates: [rate, ...rates] });
+  };
+
+  return (
+    <div className="rates-settings-section">
+      <div className="rates-actions-bar">
+        <p className="rates-notice">السعر الخاص يسبق سعر المحافظة العام عند حساب شحنة نفس التاجر ونفس المحافظة. استخدمه للعقود الكبيرة أو الخصومات المؤقتة.</p>
+        <button type="button" className="btn-primary" onClick={addRate}><Plus size={14} /> إضافة سعر خاص</button>
+      </div>
+      <div className="table-responsive-box">
+        <table className="data-table rates-table">
+          <thead><tr><th>التاجر</th><th>المحافظة</th><th>سعر التاجر</th><th>تكلفة المندوب</th><th>ربح الشحنة</th><th>رسوم المرتجع</th><th>من تاريخ</th><th>نشط</th><th>إجراء</th></tr></thead>
+          <tbody>
+            {rates.map((rate) => {
+              const merchantFee = rate.merchantDeliveryFee;
+              const driverCost = rate.driverDeliveryCost;
+              return (
+                <tr key={rate.id}>
+                  <td>
+                    <select className="rates-input" value={rate.merchantId} onChange={(event) => {
+                      const merchant = merchants.find((item) => item.id === event.target.value);
+                      onChange({ ...value, merchantSpecificRates: rates.map((item) => item.id === rate.id ? { ...item, merchantId: event.target.value, merchantName: merchant?.name ?? item.merchantName } : item) });
+                    }}>
+                      {merchants.length ? merchants.map((merchant) => <option key={merchant.id} value={merchant.id}>{merchant.name}</option>) : <option value={rate.merchantId}>{rate.merchantName}</option>}
+                    </select>
+                  </td>
+                  <td><select className="rates-input" value={rate.governorate} onChange={(event) => updateRate(rate.id, 'governorate', event.target.value)}>{governorates.map((item) => <option key={item.id} value={item.governorate}>{item.governorate}</option>)}</select></td>
+                  <td><input className="rates-input" type="number" min="0" value={merchantFee} onChange={(event) => updateRate(rate.id, 'merchantDeliveryFee', Number(event.target.value))} /></td>
+                  <td><input className="rates-input" type="number" min="0" value={driverCost} onChange={(event) => updateRate(rate.id, 'driverDeliveryCost', Number(event.target.value))} /></td>
+                  <td><strong style={{ color: merchantFee - driverCost >= 0 ? '#34D399' : '#F87171' }}>{formatCurrency(merchantFee - driverCost)}</strong></td>
+                  <td><input className="rates-input" type="number" min="0" value={rate.returnFee} onChange={(event) => updateRate(rate.id, 'returnFee', Number(event.target.value))} /></td>
+                  <td><input className="rates-input" type="date" value={rate.effectiveFrom} onChange={(event) => updateRate(rate.id, 'effectiveFrom', event.target.value)} /></td>
+                  <td><input type="checkbox" checked={rate.active} onChange={(event) => updateRate(rate.id, 'active', event.target.checked)} /></td>
+                  <td><button type="button" className="btn-icon sm danger-link" onClick={() => onChange({ ...value, merchantSpecificRates: rates.filter((item) => item.id !== rate.id) })} title="حذف السعر الخاص"><Trash2 size={14} /></button></td>
+                </tr>
+              );
+            })}
+            {!rates.length && <tr><td colSpan={9} style={{ textAlign: 'center', padding: '1rem' }}>لا توجد أسعار خاصة. السعر العام للمحافظة هو المستخدم حاليا.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function WeightAndPickupSettings({ value, onChange }: { value: PricingPolicySettings; onChange: (value: PricingPolicySettings) => void }) {
+  const tiers = value.weightTiers ?? [];
+  const updateTier = (id: string, field: keyof WeightTierRate, val: number | undefined) => {
+    onChange({ ...value, weightTiers: tiers.map((tier) => tier.id === id ? { ...tier, [field]: val } : tier) });
+  };
+  const addTier = () => onChange({ ...value, weightTiers: [...tiers, { id: `weight-${Date.now()}`, fromKg: value.baseWeightKg, toKg: value.baseWeightKg + 5, merchantExtraFee: value.extraWeightKgFee, driverExtraCost: Math.round(value.extraWeightKgFee * 0.6) }] });
+
   return (
     <div className="policy-settings-section">
       <div className="policy-block">
@@ -250,6 +325,19 @@ function WeightAndPickupSettings({ value, onChange }: { value: PricingPolicySett
           <NumberField label="مكافأة مندوب الاستلام" value={value.driverPickupReward} min={0} max={500} suffix="ج.م" onChange={(driverPickupReward) => onChange({ ...value, driverPickupReward })} />
           <NumberField label="الحد المجاني للاستلام" value={value.pickupFreeThreshold} min={1} max={100} suffix="شحنة" onChange={(pickupFreeThreshold) => onChange({ ...value, pickupFreeThreshold })} />
           <NumberField label="رسوم الاستلام تحت الحد" value={value.pickupFeeUnderThreshold} min={0} max={500} suffix="ج.م" onChange={(pickupFeeUnderThreshold) => onChange({ ...value, pickupFeeUnderThreshold })} />
+        </div>
+      </div>
+      <div className="policy-block">
+        <div className="policy-block-header">
+          <Scale size={20} className="text-cyan" />
+          <div><h3>شرائح الوزن الزائد</h3><p>كل شريحة تضيف مبلغا على سعر التاجر وتكلفة المندوب عند تجاوز الوزن الأساسي.</p></div>
+          <button type="button" className="outline-btn" onClick={addTier}><Plus size={14} /> إضافة شريحة</button>
+        </div>
+        <div className="table-responsive-box">
+          <table className="data-table rates-table">
+            <thead><tr><th>من كجم</th><th>إلى كجم</th><th>زيادة سعر التاجر</th><th>زيادة تكلفة المندوب</th><th>هامش الشريحة</th><th>إجراء</th></tr></thead>
+            <tbody>{tiers.map((tier) => <tr key={tier.id}><td><input className="rates-input" type="number" min="0" value={tier.fromKg} onChange={(event) => updateTier(tier.id, 'fromKg', Number(event.target.value))} /></td><td><input className="rates-input" type="number" min="0" value={tier.toKg ?? ''} placeholder="مفتوح" onChange={(event) => updateTier(tier.id, 'toKg', event.target.value ? Number(event.target.value) : undefined)} /></td><td><input className="rates-input" type="number" min="0" value={tier.merchantExtraFee} onChange={(event) => updateTier(tier.id, 'merchantExtraFee', Number(event.target.value))} /></td><td><input className="rates-input" type="number" min="0" value={tier.driverExtraCost} onChange={(event) => updateTier(tier.id, 'driverExtraCost', Number(event.target.value))} /></td><td><strong>{formatCurrency(tier.merchantExtraFee - tier.driverExtraCost)}</strong></td><td><button type="button" className="btn-icon sm danger-link" onClick={() => onChange({ ...value, weightTiers: tiers.filter((item) => item.id !== tier.id) })} title="حذف الشريحة"><Trash2 size={14} /></button></td></tr>)}</tbody>
+          </table>
         </div>
       </div>
     </div>
