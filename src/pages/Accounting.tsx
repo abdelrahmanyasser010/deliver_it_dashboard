@@ -451,11 +451,33 @@ export function AccountingPage() {
             هذه الشروط يتم فحصها أوتوماتيكياً من بيانات النظام للتأكد من سلامة الميزانية قبل التقفيل.
           </p>
           <div className="funnel-list">
-            <CheckItem label="لا توجد تحديثات مناديب معلقة ذات أثر تشغيلي" count={pendingUpdates} />
-            <CheckItem label="تمت مطابقة وحسم كافة فروقات التحصيل" count={discrepancies.length} />
-            <CheckItem label="تم اعتماد كل حركات وقيود الحسابات المعلقة" count={pendingLedger} />
-            <CheckItem label="مرتجعات تحتاج متابعة مالية (تنبيه)" count={pendingReturns} warningOnly />
-            <CheckItem label="التزامات وتسويات مفتوحة مثبتة (تنبيه)" count={openSettlements} warningOnly />
+            <CheckItem
+              label="لا توجد تحديثات مناديب معلقة ذات أثر تشغيلي"
+              count={pendingUpdates}
+              onClick={() => navigate('/admin-operations')}
+            />
+            <CheckItem
+              label="تمت مطابقة وحسم كافة فروقات التحصيل"
+              count={discrepancies.length}
+              onClick={() => navigate('/exceptions?category=financial')}
+            />
+            <CheckItem
+              label="تم اعتماد كل حركات وقيود الحسابات المعلقة"
+              count={pendingLedger}
+              onClick={() => setActiveTab('ledger')}
+            />
+            <CheckItem
+              label="مرتجعات تحتاج متابعة مالية (تنبيه)"
+              count={pendingReturns}
+              warningOnly
+              onClick={() => navigate('/exceptions?category=returns')}
+            />
+            <CheckItem
+              label="التزامات وتسويات مفتوحة مثبتة (تنبيه)"
+              count={openSettlements}
+              warningOnly
+              onClick={() => navigate('/settlements')}
+            />
           </div>
         </div>
 
@@ -478,7 +500,45 @@ export function AccountingPage() {
 
     {postPreviewOpen && <Modal title="مراجعة اعتماد الحركات المعلقة" description={`سيتم اعتماد ${fmt(pendingLedger)} حركة مالية بعد التأكيد.`} onClose={() => setPostPreviewOpen(false)} footer={<><button className="outline-btn" onClick={() => setPostPreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={pendingLedger === 0} onClick={async () => { const response = await run({ type: 'ledger/postAll' }); if (response.ok) setPostPreviewOpen(false); }}><CheckCircle2 size={15}/> تأكيد الاعتماد</button></>}><div className="funnel-list"><CheckItem label="حركات معلقة" count={pendingLedger}/><p className="report-muted">في النسخة الإنتاجية يجب التأكد من صحة كل حركة قبل اعتمادها، وأي تعديل لاحق يتم بحركة تصحيح منفصلة.</p></div></Modal>}
 
-    {closePreviewOpen && <Modal title={`مراجعة تقفيل الفترة ${periodKey}`} description="تقفيل الفترة يمنع التعديل المباشر؛ أي تصحيح لاحق يتم كتسوية أو حركة تصحيح في فترة مفتوحة." onClose={() => setClosePreviewOpen(false)} footer={<><button className="outline-btn" onClick={() => setClosePreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={!canClose} onClick={async () => { const response = await run({ type: 'period/close', period: periodKey }); if (response.ok) setClosePreviewOpen(false); }}><LockKeyhole size={15}/> تأكيد تقفيل الفترة</button></>}><div className="funnel-list"><CheckItem label="تحديثات مناديب معلقة" count={pendingUpdates}/><CheckItem label="فروقات تحصيل غير محسومة" count={discrepancies.length}/><CheckItem label="حركات حسابات غير معتمدة" count={pendingLedger}/><CheckItem label="مرتجعات تحتاج متابعة (تنبيه)" count={pendingReturns} warningOnly/><CheckItem label="تسويات/التزامات مفتوحة (تنبيه)" count={openSettlements} warningOnly/></div>{!canClose && <p className="management-feedback warning-feedback">لا يمكن تقفيل الفترة قبل إنهاء البنود الحمراء أعلاه.</p>}</Modal>}
+    {closePreviewOpen && (
+      <Modal
+        title={`مراجعة تقفيل الفترة ${periodKey}`}
+        description="تقفيل الفترة يمنع التعديل المباشر؛ اضغط على أي بند معلق باللون الأحمر للانتقال المباشر وحله."
+        onClose={() => setClosePreviewOpen(false)}
+        footer={<><button className="outline-btn" onClick={() => setClosePreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={!canClose} onClick={async () => { const response = await run({ type: 'period/close', period: periodKey }); if (response.ok) setClosePreviewOpen(false); }}><LockKeyhole size={15}/> تأكيد تقفيل الفترة</button></>}
+      >
+        <div className="funnel-list">
+          <CheckItem
+            label="تحديثات مناديب معلقة"
+            count={pendingUpdates}
+            onClick={() => { setClosePreviewOpen(false); navigate('/admin-operations'); }}
+          />
+          <CheckItem
+            label="فروقات تحصيل غير محسومة"
+            count={discrepancies.length}
+            onClick={() => { setClosePreviewOpen(false); navigate('/exceptions?category=financial'); }}
+          />
+          <CheckItem
+            label="حركات حسابات غير معتمدة"
+            count={pendingLedger}
+            onClick={() => { setClosePreviewOpen(false); setActiveTab('ledger'); }}
+          />
+          <CheckItem
+            label="مرتجعات تحتاج متابعة (تنبيه)"
+            count={pendingReturns}
+            warningOnly
+            onClick={() => { setClosePreviewOpen(false); navigate('/exceptions?category=returns'); }}
+          />
+          <CheckItem
+            label="تسويات/التزامات مفتوحة (تنبيه)"
+            count={openSettlements}
+            warningOnly
+            onClick={() => { setClosePreviewOpen(false); navigate('/settlements'); }}
+          />
+        </div>
+        {!canClose && <p className="management-feedback warning-feedback" style={{ marginTop: '0.75rem' }}>اضغط على أي بند أحمر أعلاه للانتقال فوراً وحل المشكلة المانعة للتقفيل.</p>}
+      </Modal>
+    )}
 
 
     {batchRemittanceDriver !== null && (
@@ -731,6 +791,41 @@ function DriverRemittanceDialog({
 }
 
 function FinanceCard({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) { return <article className="report-kpi glass-card"><div className="report-kpi-icon" style={{ background: 'linear-gradient(135deg,#0EA5E9,#4F46E5)' }}>{icon}</div><div><p className="report-kpi-label">{label}</p><p className="report-kpi-value">{value}</p></div></article>; }
-function CheckItem({ label, count, warningOnly = false }: { label: string; count: number; warningOnly?: boolean }) { const done = count === 0; return <div className="funnel-row checklist-row"><span>{label}</span><StatusBadge label={done ? 'مكتمل' : `${fmt(count)} معلقة`} tone={done ? 'success' : warningOnly ? 'warning' : 'danger'}/></div>; }
+function CheckItem({
+  label,
+  count,
+  warningOnly = false,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  warningOnly?: boolean;
+  onClick?: () => void;
+}) {
+  const done = count === 0;
+  return (
+    <div
+      className={`funnel-row checklist-row ${onClick && !done ? 'clickable' : ''}`}
+      onClick={!done && onClick ? onClick : undefined}
+      style={{
+        cursor: !done && onClick ? 'pointer' : 'default',
+        padding: '0.65rem 0.8rem',
+        borderRadius: '9px',
+        transition: 'all 0.2s ease',
+      }}
+      title={!done && onClick ? 'اضغط للانتقال وحل هذا البند المعلق' : undefined}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+        {label}
+        {!done && onClick && (
+          <small style={{ color: '#38BDF8', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '0.2rem', background: 'rgba(56, 189, 248, 0.12)', padding: '0.15rem 0.45rem', borderRadius: '6px' }}>
+            انتقال للحل ↗
+          </small>
+        )}
+      </span>
+      <StatusBadge label={done ? 'مكتمل' : `${fmt(count)} معلقة`} tone={done ? 'success' : warningOnly ? 'warning' : 'danger'} />
+    </div>
+  );
+}
 
 
