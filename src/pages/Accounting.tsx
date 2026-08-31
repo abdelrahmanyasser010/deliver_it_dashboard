@@ -34,6 +34,7 @@ export function AccountingPage() {
   const [datePreset, setDatePreset] = useState<'all' | 'today' | 'this_week' | 'this_month'>('all');
   const [search, setSearch] = useState('');
   const [ledgerFilter, setLedgerFilter] = useState<'all' | 'pending' | 'posted' | 'reversed'>('all');
+  const [ledgerDatePreset, setLedgerDatePreset] = useState<'all' | 'today' | 'this_week' | 'this_month'>('all');
   const [closePreviewOpen, setClosePreviewOpen] = useState(false);
   const [postPreviewOpen, setPostPreviewOpen] = useState(false);
 
@@ -62,7 +63,25 @@ export function AccountingPage() {
     }
     return true;
   });
-  const ledger = (state?.ledgerEntries ?? []).filter((entry) => ledgerFilter === 'all' || entry.status === ledgerFilter);
+
+  const ledger = (state?.ledgerEntries ?? []).filter((entry) => {
+    if (ledgerFilter !== 'all' && entry.status !== ledgerFilter) return false;
+    if (ledgerDatePreset !== 'all') {
+      const entryDate = new Date(entry.date).getTime();
+      const now = new Date();
+      if (ledgerDatePreset === 'today') {
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        if (entryDate < startOfDay) return false;
+      } else if (ledgerDatePreset === 'this_week') {
+        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay())).getTime();
+        if (entryDate < startOfWeek) return false;
+      } else if (ledgerDatePreset === 'this_month') {
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        if (entryDate < startOfMonth) return false;
+      }
+    }
+    return true;
+  });
   const settlements = state?.settlements ?? [];
   const totalCollected = shipments.reduce((sum, shipment) => sum + shipment.collectedCash, 0);
   const totalRemitted = shipments.reduce((sum, shipment) => sum + shipment.remittedCash, 0);
@@ -332,7 +351,95 @@ export function AccountingPage() {
       </section>
     )}
 
-    {activeTab === 'ledger' && <section className="glass-card"><div className="report-section-title"><div><h3>مراجعة حركات الحسابات</h3><span className="report-muted">كل صف حركة مالية مرتبطة بشحنة أو تسوية. اعتمد الحركات المعلقة بعد المراجعة.</span></div><div className="toolbar-actions"><select className="input-glass" value={ledgerFilter} onChange={(event) => setLedgerFilter(event.target.value as typeof ledgerFilter)}><option value="all">كل الحالات</option><option value="pending">معلق</option><option value="posted">معتمد</option><option value="reversed">ملغي</option></select><button className="outline-btn" onClick={exportLedger}><Download size={15}/> تحميل ملف المراجعة</button><button className="btn-primary" onClick={() => setPostPreviewOpen(true)} disabled={pendingLedger === 0}><CheckCircle2 size={15}/> اعتماد الحركات المعلقة</button></div></div><div className="table-wrapper"><table className="data-table"><thead><tr><th>الحركة</th><th>التاريخ</th><th>الحساب</th><th>البيان</th><th>عليه</th><th>له</th><th>الحالة</th><th>المصدر</th></tr></thead><tbody>{ledger.map((entry) => <tr key={entry.id}><td>{entry.id}</td><td>{formatDateTime(entry.date)}</td><td>{entry.account}</td><td>{entry.description}</td><td>{formatCurrency(entry.debit)}</td><td>{formatCurrency(entry.credit)}</td><td><StatusBadge label={entry.status === 'posted' ? 'معتمد' : entry.status === 'pending' ? 'معلق' : 'ملغي'} tone={entry.status === 'posted' ? 'success' : entry.status === 'pending' ? 'warning' : 'danger'}/></td><td><button className="tracking-link" onClick={() => entry.sourceType === 'settlement' ? navigate(`/settlements?settlement=${entry.sourceId}`) : navigate(`/shipments?shipment=${entry.sourceId}`)}>{entry.sourceId}</button></td></tr>)}</tbody></table></div></section>}
+    {activeTab === 'ledger' && (
+      <section className="glass-card">
+        <div className="report-section-title">
+          <div>
+            <h3>مراجعة حركات الحسابات (دفتر الأستاذ)</h3>
+            <span className="report-muted">
+              كل صف حركة مالية مرتبطة بشحنة أو تسوية. اعتمد الحركات المعلقة بعد المراجعة وتدقيق الميزانية.
+            </span>
+          </div>
+          <div className="toolbar-actions">
+            <select
+              className="input-glass"
+              value={ledgerDatePreset}
+              onChange={(event) => setLedgerDatePreset(event.target.value as typeof ledgerDatePreset)}
+            >
+              <option value="all">كل الأوقات</option>
+              <option value="today">اليوم فقط</option>
+              <option value="this_week">هذا الأسبوع</option>
+              <option value="this_month">هذا الشهر</option>
+            </select>
+
+            <select
+              className="input-glass"
+              value={ledgerFilter}
+              onChange={(event) => setLedgerFilter(event.target.value as typeof ledgerFilter)}
+            >
+              <option value="all">كل الحالات</option>
+              <option value="pending">معلق 🟡</option>
+              <option value="posted">معتمد 🟢</option>
+              <option value="reversed">ملغي 🔴</option>
+            </select>
+
+            <button className="outline-btn" onClick={exportLedger}>
+              <Download size={15} /> تحميل ملف المراجعة
+            </button>
+
+            <button className="btn-primary" onClick={() => setPostPreviewOpen(true)} disabled={pendingLedger === 0}>
+              <CheckCircle2 size={15} /> اعتماد الحركات المعلقة ({pendingLedger})
+            </button>
+          </div>
+        </div>
+        <div className="table-wrapper">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>الحركة</th>
+                <th>التاريخ</th>
+                <th>الحساب</th>
+                <th>البيان</th>
+                <th>عليه</th>
+                <th>له</th>
+                <th>الحالة</th>
+                <th>المصدر</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ledger.map((entry) => (
+                <tr key={entry.id}>
+                  <td>{entry.id}</td>
+                  <td>{formatDateTime(entry.date)}</td>
+                  <td>{entry.account}</td>
+                  <td>{entry.description}</td>
+                  <td>{formatCurrency(entry.debit)}</td>
+                  <td>{formatCurrency(entry.credit)}</td>
+                  <td>
+                    <StatusBadge
+                      label={entry.status === 'posted' ? 'معتمد' : entry.status === 'pending' ? 'معلق' : 'ملغي'}
+                      tone={entry.status === 'posted' ? 'success' : entry.status === 'pending' ? 'warning' : 'danger'}
+                    />
+                  </td>
+                  <td>
+                    <button
+                      className="tracking-link"
+                      onClick={() =>
+                        entry.sourceType === 'settlement'
+                          ? navigate(`/settlements?settlement=${entry.sourceId}`)
+                          : navigate(`/shipments?shipment=${entry.sourceId}`)
+                      }
+                    >
+                      {entry.sourceId}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    )}
 
     {activeTab === 'close' && <section className="report-grid-2"><div className="glass-card"><div className="report-section-title"><h3>شروط إغلاق {periodKey}</h3></div><p className="report-muted">هذه الحالات مشتقة من البيانات ولا يمكن تعليمها يدويًا كمكتملة.</p><div className="funnel-list"><CheckItem label="لا توجد تحديثات مناديب معلقة ذات أثر تشغيلي" count={pendingUpdates}/><CheckItem label="تمت مطابقة فروقات التحصيل" count={discrepancies.length}/><CheckItem label="تم اعتماد حركات الحسابات المطلوبة" count={pendingLedger}/><CheckItem label="مرتجعات تحتاج متابعة مالية" count={pendingReturns} warningOnly/><CheckItem label="التزامات/تسويات مفتوحة مثبتة" count={openSettlements} warningOnly/></div></div><div className="glass-card"><LockKeyhole size={30}/><h3>تقفيل الفترة</h3><p className="report-muted">يمنع التقفيل عند وجود فروقات مالية أو حركات حسابات أو تحديثات معلقة. التسويات المفتوحة قد تبقى التزامًا مثبتًا ولا تشترط الدفع قبل الإغلاق.</p><button className="btn-primary full-width" disabled={isClosed} onClick={() => setClosePreviewOpen(true)}>{isClosed ? 'الفترة مغلقة' : 'مراجعة وتقفيل الفترة'}</button></div></section>}
 
