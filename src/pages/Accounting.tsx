@@ -275,7 +275,7 @@ function DriverRemittanceDialog({
       </>}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) 1fr', gap: '0.8rem', alignItems: 'flex-end' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.8rem', alignItems: 'flex-end' }}>
           <label className="form-field">
             <span>اختر المندوب</span>
             <select
@@ -298,12 +298,20 @@ function DriverRemittanceDialog({
             </select>
           </label>
           <label className="form-field">
-            <span>البيان / إيصال الخزينة</span>
+            <span>طريقة التوريد</span>
+            <select className="input-glass">
+              <option value="cash">💵 نقداً في خزينة الشركة</option>
+              <option value="bank">🏦 تحويل بنكي / انستا باي</option>
+              <option value="wallet">📱 محفظة إلكترونية</option>
+            </select>
+          </label>
+          <label className="form-field">
+            <span>رقم إيصال الاستلام / البيان</span>
             <input
               className="input-glass"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="مثال: توريد نقدي لخزينة الفرع"
+              placeholder="مثال: إيصال رقم REC-89021"
             />
           </label>
         </div>

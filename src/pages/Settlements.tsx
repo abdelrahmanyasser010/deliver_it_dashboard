@@ -907,13 +907,18 @@ function QuickPayModal({
   onClose: () => void;
   onConfirm: (ref: string) => Promise<void>;
 }) {
+  const [method, setMethod] = useState<'instapay' | 'bank_transfer' | 'e_wallet' | 'cash'>('instapay');
   const [ref, setRef] = useState('INSTAPAY-001');
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 16));
+  const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const fullReferenceText = `${method.toUpperCase()} · ${ref.trim() || 'REF-001'} · ${paymentDate.replace('T', ' ')}${notes.trim() ? ` (${notes.trim()})` : ''}`;
 
   return (
     <Modal
-      title={`⚡ صرف فوري لـ ${target.merchantName}`}
-      description={`صرف أرباح ${target.shipmentIds.length.toLocaleString('ar-EG')} شحنة مسوّاة وتحديث محفظة التاجر فورا.`}
+      title={`⚡ محاسبة وصرف أرباح التاجر: ${target.merchantName}`}
+      description={`تصفية مستحقات ${target.shipmentIds.length.toLocaleString('ar-EG')} شحنة وتسجيل حركة الدفع في حساب التاجر.`}
       onClose={onClose}
       footer={
         <>
@@ -923,32 +928,32 @@ function QuickPayModal({
           <button
             className="btn-primary"
             style={{ background: 'linear-gradient(135deg, #10B981, #059669)' }}
-            disabled={submitting}
+            disabled={submitting || !ref.trim()}
             onClick={async () => {
               setSubmitting(true);
               try {
-                await onConfirm(ref.trim() || 'INSTAPAY-001');
+                await onConfirm(fullReferenceText);
               } finally {
                 setSubmitting(false);
               }
             }}
           >
-            <Zap size={15} /> {submitting ? 'جارٍ التحويل…' : `تأكيد التحويل والصرف (${formatCurrency(target.totalNet)})`}
+            <Zap size={15} /> {submitting ? 'جارٍ تسجيل المحاسبة…' : `تأكيد صرف (${formatCurrency(target.totalNet)})`}
           </button>
         </>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
         <div className="report-kpi-grid">
           <div className="report-kpi glass-card">
             <div>
-              <p className="report-kpi-label">التاجر</p>
-              <p className="report-kpi-value" style={{ fontSize: '1rem' }}>{target.merchantName}</p>
+              <p className="report-kpi-label">التاجر المستلم</p>
+              <p className="report-kpi-value" style={{ fontSize: '0.95rem' }}>{target.merchantName}</p>
             </div>
           </div>
           <div className="report-kpi glass-card" style={{ borderColor: 'rgba(16,185,129,0.4)' }}>
             <div>
-              <p className="report-kpi-label">صافي المبلغ المحوّل</p>
+              <p className="report-kpi-label">صافي المبلغ المستحق للصرف</p>
               <p className="report-kpi-value" style={{ color: '#34D399' }}>
                 {formatCurrency(target.totalNet)}
               </p>
@@ -956,14 +961,50 @@ function QuickPayModal({
           </div>
         </div>
 
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+          <label className="form-field">
+            <span>طريقة الدفع والصرف</span>
+            <select
+              className="input-glass"
+              value={method}
+              onChange={(e) => setMethod(e.target.value as typeof method)}
+            >
+              <option value="instapay">⚡ انستا باي (InstaPay)</option>
+              <option value="bank_transfer">🏦 تحويل بنكي (Bank Transfer)</option>
+              <option value="e_wallet">📱 محفظة إلكترونية (Vodafone / Orange Cash)</option>
+              <option value="cash">💵 نقداً من خزينة الشركة</option>
+            </select>
+          </label>
+
+          <label className="form-field">
+            <span>تاريخ ووقت التحويل</span>
+            <input
+              type="datetime-local"
+              className="input-glass"
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
+            />
+          </label>
+        </div>
+
         <label className="form-field">
-          <span>رقم إيصال التحويل أو كود الحوالة</span>
+          <span>رقم إيصال التحويل / كود الحوالة / رقم المرجع</span>
           <input
             className="input-glass"
             autoFocus
             value={ref}
             onChange={(e) => setRef(e.target.value)}
-            placeholder="مثال: INSTAPAY-98421 أو تحويل بنكي CIB"
+            placeholder="مثال: INSTAPAY-98421 أو CIB-TR-5409"
+          />
+        </label>
+
+        <label className="form-field">
+          <span>ملاحظات إضافية على المعاملة (اختياري)</span>
+          <input
+            className="input-glass"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="مثال: تم التحويل على رقم فودافون كاش المسجل بالشركة..."
           />
         </label>
       </div>
