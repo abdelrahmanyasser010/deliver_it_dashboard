@@ -26,7 +26,7 @@ export function generateWhatsAppNotification(
   const template =
     settings?.notifications?.whatsApp?.defaultTemplate || defaultWhatsAppTemplate;
 
-  const companyName = settings?.notifications?.whatsApp?.companyName || 'فيكس 365';
+  const companyName = settings?.notifications?.whatsApp?.companyName || 'تراست للشحن';
   const recipientName = shipment.customerName || 'العميل العزيز';
   const merchantName = shipment.merchantName || 'التاجر';
   const codAmount = formatCurrency(shipment.expectedCollection || shipment.collectedCash || 0);

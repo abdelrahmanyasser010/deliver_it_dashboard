@@ -184,7 +184,7 @@ export const defaultTenantOperationalSettings: TenantOperationalSettings = {
     notifyDriverOnClarification: true,
     whatsApp: {
       enabled: true,
-      companyName: 'فيكس 365',
+      companyName: 'تراست للشحن',
       defaultTemplate: defaultWhatsAppTemplate,
     },
   },

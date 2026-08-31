@@ -16,7 +16,7 @@ export const defaultLabelOptions: LabelPrintOptions = {
   showContents: true,
   showMerchantPhone: true,
   showDeliveryNotes: true,
-  companyName: 'FIX 365 — فيكس 365 للشحن',
+  companyName: 'TRUST — تراست للخدمات اللوجستية',
   footerText: 'شكراً لتعاملكم معنا · يرجى فحص الشحنة بحضور المندوب',
 };
 
@@ -135,7 +135,7 @@ export function ShipmentLabel({
       {/* Label Footer */}
       <footer className="label-footer">
         <p>{opts.footerText}</p>
-        <span className="label-page-mark">FIX 365 Logistics System</span>
+        <span className="label-page-mark">TRUST Logistics System</span>
       </footer>
     </article>
   );

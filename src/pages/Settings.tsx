@@ -718,7 +718,7 @@ function WhatsAppSettingsPanel({
     .replaceAll('{اسم_العميل}', 'محمد أحمد')
     .replaceAll('{رقم_الشحنة}', 'SHP-90812')
     .replaceAll('{اسم_التاجر}', 'متجر الأناقة')
-    .replaceAll('{اسم_شركة_الشحن}', value.companyName || 'فيكس 365')
+    .replaceAll('{اسم_شركة_الشحن}', value.companyName || 'تراست للشحن')
     .replaceAll('{المحافظة}', 'الإسكندرية')
     .replaceAll('{مدة_التسليم}', 'خلال 2 أيام عمل')
     .replaceAll('{المبلغ}', '450 ج.م')
@@ -746,7 +746,7 @@ function WhatsAppSettingsPanel({
             <input
               type="text"
               value={value.companyName}
-              placeholder="مثال: فيكس 365"
+              placeholder="مثال: تراست للشحن"
               onChange={(e) => onChange({ ...value, companyName: e.target.value })}
             />
           </div>

@@ -1,4 +1,4 @@
-﻿/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api } from '../infrastructure/api/client';
 import { APP_VERSION, getOrCreateDeviceId } from '../infrastructure/api/config';
@@ -117,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         permissions: ['*'],
         status: 'active',
         membership: { id: 'mem-1', branch_id: 'BRN-CAIRO-01', status: 'active' },
-        tenant: { id: 'TNT-FIX365-01', name: 'FIX 365 — فيكس 365' },
+        tenant: { id: 'TNT-TRUST-01', name: 'TRUST — تراست للخدمات اللوجستية' },
       };
       const mockSession: DashboardSession = {
         token: `mock-token-${Date.now()}`,

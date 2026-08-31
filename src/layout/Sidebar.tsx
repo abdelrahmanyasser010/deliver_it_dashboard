@@ -1,8 +1,8 @@
-﻿import { useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, Barcode, Bell, ChartNoAxesCombined, CheckCheck, ChevronLeft, ChevronRight, LayoutDashboard, LogOut,
-  MessageCircle, Package, ReceiptText, Route, Settings2, ShieldCheck, Store, TruckIcon, Users,
+  MessageCircle, Package, ReceiptText, Route, Settings2, ShieldCheck, Store, Users,
 } from 'lucide-react';
 import { useLogisticsDashboard } from '../application/logistics/useLogisticsData';
 import { GlobalSearch } from '../components/GlobalSearch';
@@ -55,7 +55,7 @@ export function Sidebar({ activePage, collapsed, onNavigate, onToggleCollapsed }
   const handleLogout = async () => { await logout(); onNavigate('overview'); };
 
   return <aside className={`sidebar glass-panel ${collapsed ? 'collapsed' : ''}`}>
-    <div className="sidebar-logo"><div className="logo-icon"><TruckIcon size={22} color="white"/></div>{!collapsed && <div className="logo-text"><span className="logo-name">FIX 365 — فيكس 365</span><span className="logo-sub">{workspaceRoleLabels[role]}</span></div>}<button className="collapse-btn btn-icon" onClick={onToggleCollapsed} title={collapsed ? 'توسيع القائمة' : 'تصغير القائمة'} aria-label={collapsed ? 'توسيع القائمة' : 'تصغير القائمة'}>{collapsed ? <ChevronLeft size={16}/> : <ChevronRight size={16}/>}</button></div>
+    <div className="sidebar-logo"><div className="logo-icon" style={{ background: 'transparent', padding: 0 }}><img src="/trust_logo.png" alt="TRUST Logo" style={{ width: 34, height: 34, objectFit: 'contain' }} /></div>{!collapsed && <div className="logo-text"><span className="logo-name" style={{ color: '#F97316', fontWeight: 900, letterSpacing: '0.05em' }}>TRUST — تراست</span><span className="logo-sub">{workspaceRoleLabels[role]}</span></div>}<button className="collapse-btn btn-icon" onClick={onToggleCollapsed} title={collapsed ? 'توسيع القائمة' : 'تصغير القائمة'} aria-label={collapsed ? 'توسيع القائمة' : 'تصغير القائمة'}>{collapsed ? <ChevronLeft size={16}/> : <ChevronRight size={16}/>}</button></div>
     <nav className="sidebar-nav">{navSections.map((section) => { const visibleItems = section.items.filter((item) => item.roles.includes(role)); if (!visibleItems.length) return null; return <div key={section.title} className="nav-section">{!collapsed && <p className="nav-section-title">{section.title}</p>}{visibleItems.map((item) => <button key={item.id} className={`nav-item ${activePage === item.id ? 'active' : ''}`} onClick={() => onNavigate(item.id)} title={collapsed ? item.label : ''} aria-current={activePage === item.id ? 'page' : undefined}><span className="nav-icon">{item.icon}</span>{!collapsed && <span className="nav-label">{item.label}</span>}{item.badgeKey && navBadges[item.badgeKey] > 0 && <span className="nav-count-badge">{formatNumber(navBadges[item.badgeKey])}</span>}{!collapsed && activePage === item.id && <span className="nav-indicator"/>}</button>)}</div>; })}</nav>
     <div className="sidebar-footer"><button className="nav-item" title={collapsed ? 'تسجيل الخروج' : ''} onClick={handleLogout}><span className="nav-icon"><LogOut size={20}/></span>{!collapsed && <span className="nav-label">تسجيل الخروج</span>}</button></div>
   </aside>;

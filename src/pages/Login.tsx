@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   Sparkles,
   TrendingUp,
-  Truck,
   UserRound,
   Zap,
 } from 'lucide-react';
@@ -59,13 +58,13 @@ export function LoginPage() {
         <section className="login-hero-showcase">
           <div className="showcase-header">
             <div className="brand-badge">
-              <div className="brand-icon-box">
-                <Truck size={24} className="brand-truck-icon" />
+              <div className="brand-icon-box" style={{ background: 'transparent', padding: 0 }}>
+                <img src="/trust_logo.png" alt="TRUST Logo" style={{ width: 44, height: 44, objectFit: 'contain' }} />
               </div>
               <div>
-                <strong className="brand-title">FIX 365 — فيكس 365</strong>
+                <strong className="brand-title" style={{ color: '#F97316' }}>TRUST — تراست</strong>
                 <span className="brand-subtitle">
-                  {en ? 'Enterprise Logistics Suite' : 'منظومة إدارة الشحن الذكية'}
+                  {en ? 'TRUST Logistic Service' : 'تراست للخدمات اللوجستية والشحن'}
                 </span>
               </div>
             </div>
