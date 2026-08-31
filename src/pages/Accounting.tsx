@@ -441,7 +441,40 @@ export function AccountingPage() {
       </section>
     )}
 
-    {activeTab === 'close' && <section className="report-grid-2"><div className="glass-card"><div className="report-section-title"><h3>شروط إغلاق {periodKey}</h3></div><p className="report-muted">هذه الحالات مشتقة من البيانات ولا يمكن تعليمها يدويًا كمكتملة.</p><div className="funnel-list"><CheckItem label="لا توجد تحديثات مناديب معلقة ذات أثر تشغيلي" count={pendingUpdates}/><CheckItem label="تمت مطابقة فروقات التحصيل" count={discrepancies.length}/><CheckItem label="تم اعتماد حركات الحسابات المطلوبة" count={pendingLedger}/><CheckItem label="مرتجعات تحتاج متابعة مالية" count={pendingReturns} warningOnly/><CheckItem label="التزامات/تسويات مفتوحة مثبتة" count={openSettlements} warningOnly/></div></div><div className="glass-card"><LockKeyhole size={30}/><h3>تقفيل الفترة</h3><p className="report-muted">يمنع التقفيل عند وجود فروقات مالية أو حركات حسابات أو تحديثات معلقة. التسويات المفتوحة قد تبقى التزامًا مثبتًا ولا تشترط الدفع قبل الإغلاق.</p><button className="btn-primary full-width" disabled={isClosed} onClick={() => setClosePreviewOpen(true)}>{isClosed ? 'الفترة مغلقة' : 'مراجعة وتقفيل الفترة'}</button></div></section>}
+    {activeTab === 'close' && (
+      <section className="report-grid-2">
+        <div className="glass-card">
+          <div className="report-section-title">
+            <h3>شروط وقواعد إغلاق الفترة المالية ({periodKey})</h3>
+          </div>
+          <p className="report-muted">
+            هذه الشروط يتم فحصها أوتوماتيكياً من بيانات النظام للتأكد من سلامة الميزانية قبل التقفيل.
+          </p>
+          <div className="funnel-list">
+            <CheckItem label="لا توجد تحديثات مناديب معلقة ذات أثر تشغيلي" count={pendingUpdates} />
+            <CheckItem label="تمت مطابقة وحسم كافة فروقات التحصيل" count={discrepancies.length} />
+            <CheckItem label="تم اعتماد كل حركات وقيود الحسابات المعلقة" count={pendingLedger} />
+            <CheckItem label="مرتجعات تحتاج متابعة مالية (تنبيه)" count={pendingReturns} warningOnly />
+            <CheckItem label="التزامات وتسويات مفتوحة مثبتة (تنبيه)" count={openSettlements} warningOnly />
+          </div>
+        </div>
+
+        <div className="glass-card">
+          <LockKeyhole size={30} />
+          <h3>تقفيل وترحيل الفترة المالية</h3>
+          <p className="report-muted">
+            تقفيل الفترة يمنع التعديل المباشر على الحسابات السابقة نهائياً لحماية الميزانية من التلاعب. أي تصحيح لاحق يتم بحركة تسوية تصحيحية في الفترة الجديدة المفتوحة.
+          </p>
+          <button
+            className="btn-primary full-width"
+            disabled={isClosed}
+            onClick={() => setClosePreviewOpen(true)}
+          >
+            {isClosed ? '🔒 الفترة مغلقة ومرحلة بالفعل' : 'مراجعة وتقفيل الفترة المالية'}
+          </button>
+        </div>
+      </section>
+    )}
 
     {postPreviewOpen && <Modal title="مراجعة اعتماد الحركات المعلقة" description={`سيتم اعتماد ${fmt(pendingLedger)} حركة مالية بعد التأكيد.`} onClose={() => setPostPreviewOpen(false)} footer={<><button className="outline-btn" onClick={() => setPostPreviewOpen(false)}>إلغاء</button><button className="btn-primary" disabled={pendingLedger === 0} onClick={async () => { const response = await run({ type: 'ledger/postAll' }); if (response.ok) setPostPreviewOpen(false); }}><CheckCircle2 size={15}/> تأكيد الاعتماد</button></>}><div className="funnel-list"><CheckItem label="حركات معلقة" count={pendingLedger}/><p className="report-muted">في النسخة الإنتاجية يجب التأكد من صحة كل حركة قبل اعتمادها، وأي تعديل لاحق يتم بحركة تصحيح منفصلة.</p></div></Modal>}
 
