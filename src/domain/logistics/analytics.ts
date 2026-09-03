@@ -30,7 +30,7 @@ export function calculateDashboardStats(
     yesterdayShipments: shipments.filter((shipment) => isSameDay(shipment.createdAt, yesterday)).length,
     deliveredToday: shipments.filter((shipment) => ['delivered', 'partiallyDelivered'].includes(shipment.status) && isSameDay(shipment.statusChangedAt, today)).length,
     deliveredYesterday: shipments.filter((shipment) => ['delivered', 'partiallyDelivered'].includes(shipment.status) && isSameDay(shipment.statusChangedAt, yesterday)).length,
-    inTransit: shipments.filter((shipment) => shipment.status === 'inTransit').length,
+    inTransit: shipments.filter((shipment) => shipment.status === 'deliveredToDriver').length,
     returned: shipments.filter((shipment) => shipment.status === 'returned').length,
     delayedShipments: shipments.filter((shipment) => shipment.expectedDeliveryAt && new Date(shipment.expectedDeliveryAt).getTime() < Date.now() && !['delivered', 'partiallyDelivered', 'returned'].includes(shipment.status)).length,
     unassignedShipments: shipments.filter((shipment) => shipment.taskStatus === 'needsDriverAssignment').length,

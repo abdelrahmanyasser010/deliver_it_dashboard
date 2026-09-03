@@ -1,4 +1,4 @@
-﻿import {
+import {
   AlertCircle,
   ArrowDownRight,
   ArrowUpRight,
@@ -32,7 +32,6 @@ const flowOrder: Array<{ status: ShipmentStatus; label: string }> = [
   { status: 'readyToShip', label: 'بانتظار الاستلام' },
   { status: 'receivedAtOffice', label: 'في المكتب' },
   { status: 'deliveredToDriver', label: 'مع المندوب' },
-  { status: 'inTransit', label: 'في الطريق' },
   { status: 'delivered', label: 'تم التسليم' },
 ];
 

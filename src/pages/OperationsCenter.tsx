@@ -61,20 +61,46 @@ export function OperationsCenterPage() {
   if (error || !state) return <ErrorState message={error ?? 'تعذر تحميل مركز العمليات.'} onRetry={refetch} />;
 
   return <div className="operations-center">
-    <section className="ops-command-bar glass-card">
-      <div><p className="page-kicker">مساحة العمل اليومية</p><h2>مركز العمليات</h2><p>ابدأ من القرار الأقرب للتنفيذ: استلام، تأكيد وصول، توزيع، تحديث مندوب، أو مرتجع.</p></div>
-      <div className="ops-command-metrics">
-        <button className="metric-pill info" onClick={() => selectTab('pickupRequests')}>استلام <strong>{number(counts.pickupRequests)}</strong></button>
-        <button className="metric-pill warning" onClick={() => selectTab('officeReview')}>تأكيد وصول <strong>{number(counts.officeReview)}</strong></button>
-        <button className="metric-pill warning" onClick={() => selectTab('deliveryAssignments')}>جاهزة للتكليف <strong>{number(counts.deliveryAssignments)}</strong></button>
-        <button className="metric-pill info" onClick={() => selectTab('driverUpdates')}>تحديثات تنتظر قرارًا <strong>{number(counts.driverUpdates)}</strong></button>
-        <button className="metric-pill danger" onClick={() => selectTab('returns')}>مرتجعات <strong>{number(counts.returns)}</strong></button>
+    <header className="ops-command-bar glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+      <div>
+        <p className="page-kicker">مساحة العمل اليومية</p>
+        <h2 style={{ margin: '0.2rem 0' }}>مركز العمليات</h2>
+        <p style={{ margin: 0, opacity: 0.8, fontSize: '0.88rem' }}>متابعة وتوجيه الشحنات حسب مرحلة التنفيذ الميداني والتشغيلي.</p>
       </div>
+      <nav className="ops-tabs" style={{ background: 'transparent', padding: 0, margin: 0, border: 0 }} aria-label="مراحل العمليات">
+        {tabs.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            className={`ops-tab ${activeTab === id ? 'active' : ''}`}
+            onClick={() => selectTab(id)}
+          >
+            <Icon size={15} />
+            {label}
+            <span className="nav-count-badge">{number(counts[id])}</span>
+          </button>
+        ))}
+      </nav>
+    </header>
+
+    <section className="ops-toolbar glass-card">
+      <div>
+        <strong>{tabs.find((tab) => tab.id === activeTab)?.label}</strong>
+        <span>المهام مرتبة من الأقدم والأكثر أولوية.</span>
+      </div>
+      <div className="search-field">
+        <Search size={16} />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="بحث برقم الشحنة أو التاجر أو المنطقة"
+          aria-label="بحث مركز العمليات"
+        />
+      </div>
+      <label className="shipment-check">
+        <input type="checkbox" checked={urgentOnly} onChange={(event) => setUrgentOnly(event.target.checked)} />
+        عاجل فقط
+      </label>
     </section>
-
-    <nav className="ops-tabs glass-card" aria-label="مراحل العمليات">{tabs.map(({ id, label, icon: Icon }) => <button key={id} className={`ops-tab ${activeTab === id ? 'active' : ''}`} onClick={() => selectTab(id)}><Icon size={15}/>{label}<span className="nav-count-badge">{number(counts[id])}</span></button>)}</nav>
-
-    <section className="ops-toolbar glass-card"><div><strong>{tabs.find((tab) => tab.id === activeTab)?.label}</strong><span>المهام مرتبة من الأقدم والأكثر أولوية.</span></div><div className="search-field"><Search size={16}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="بحث برقم الشحنة أو التاجر أو المنطقة" aria-label="بحث مركز العمليات"/></div><label className="shipment-check"><input type="checkbox" checked={urgentOnly} onChange={(event) => setUrgentOnly(event.target.checked)}/> عاجل فقط</label></section>
 
     {activeTab === 'pickupRequests' && <section className="ops-section compact-flow">{filteredPickupTasks.map((task) => {
       const missing = task.items.filter((item) => item.expected && !item.driverConfirmed).length;

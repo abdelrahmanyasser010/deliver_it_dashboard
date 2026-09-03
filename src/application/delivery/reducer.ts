@@ -317,7 +317,7 @@ export function reduceDeliveryCommand(previous: DeliveryState, command: Delivery
         if (update.reportedStatus === 'partiallyDelivered') {
           state = buildPartialDeliveryProjection(state, update, shipment, actor);
         } else {
-          const mapping: Partial<Record<DriverShipmentUpdate['reportedStatus'], ShipmentStatus>> = { delivered: 'delivered', failed: 'failedToDeliver', returned: 'returned', postponed: 'postponed', inTransit: 'inTransit' };
+          const mapping: Partial<Record<DriverShipmentUpdate['reportedStatus'], ShipmentStatus>> = { delivered: 'delivered', failed: 'failedToDeliver', returned: 'returned', postponed: 'postponed', inTransit: 'deliveredToDriver' };
           const next = mapping[update.reportedStatus];
           if (next && canTransition(shipment.status, next)) {
             const transitioned = reduceDeliveryCommand(state, { type: 'shipment/transition', shipmentIds: [shipment.id], nextStatus: next, reason: update.note ?? 'اعتماد تحديث المندوب', actor });

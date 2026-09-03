@@ -18,8 +18,7 @@ export function shipmentStatus(value: unknown): ShipmentStatus {
   if (raw === 'draft') return 'draft';
   if (['ready_to_ship','pickup_scheduled'].includes(raw)) return 'readyToShip';
   if (['picked_up','received_at_hub','ready_for_dispatch'].includes(raw)) return 'receivedAtOffice';
-  if (raw === 'assigned_to_driver') return 'deliveredToDriver';
-  if (raw === 'out_for_delivery') return 'inTransit';
+  if (['assigned_to_driver', 'out_for_delivery', 'in_transit'].includes(raw)) return 'deliveredToDriver';
   if (raw === 'delivered') return 'delivered';
   if (['partially_delivered','split_for_retry','split_return_to_hub'].includes(raw)) return 'partiallyDelivered';
   if (raw === 'delivery_postponed') return 'postponed';

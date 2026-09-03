@@ -208,7 +208,7 @@ export function CsvPreviewDialog({ preview, onCancel, onConfirm }: { preview: Cs
 function Timeline({ shipment, attempts }: { shipment: Shipment; attempts: string[] }) {
   const items = [
     { title: 'تم إنشاء الشحنة', detail: `${shipment.merchantName} — ${formatDateTime(shipment.createdAt)}`, done: true },
-    { title: 'وصلت مكتب الشحن', detail: 'تم استلامها ومراجعتها داخليًا', done: ['receivedAtOffice', 'deliveredToDriver', 'inTransit', 'delivered', 'partiallyDelivered', 'postponed', 'failedToDeliver', 'returned'].includes(shipment.status) },
+    { title: 'وصلت مكتب الشحن', detail: 'تم استلامها ومراجعتها داخليًا', done: ['receivedAtOffice', 'deliveredToDriver', 'delivered', 'partiallyDelivered', 'postponed', 'failedToDeliver', 'returned'].includes(shipment.status) },
     { title: 'تم تعيين مندوب', detail: shipment.driverName ?? 'لم يتم تعيين مندوب بعد', done: Boolean(shipment.driverName) },
     { title: 'آخر حالة تشغيلية', detail: `${statusConfig[shipment.status].label} — ${formatDateTime(shipment.statusChangedAt)}`, done: true },
   ];
@@ -232,7 +232,7 @@ export function BulkStatusDialog({ shipments, onCancel, onSubmit }: { shipments:
 
   const statusGroups: Array<{ label: string; statuses: ShipmentStatus[]; color: string }> = [
     { label: '✅ تسليم', statuses: ['delivered', 'partiallyDelivered' as ShipmentStatus], color: '#10B981' },
-    { label: '🔄 إعادة توجيه', statuses: ['inTransit', 'receivedAtOffice', 'deliveredToDriver'], color: '#0EA5E9' },
+    { label: '🔄 إعادة توجيه', statuses: ['receivedAtOffice', 'deliveredToDriver'], color: '#0EA5E9' },
     { label: '⏸️ تأجيل / فشل', statuses: ['postponed', 'failedToDeliver'], color: '#F59E0B' },
     { label: '↩️ مرتجع', statuses: ['returned'], color: '#EF4444' },
     { label: '📦 تجهيز', statuses: ['readyToShip'], color: '#8B5CF6' },

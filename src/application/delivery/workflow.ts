@@ -4,12 +4,11 @@ export const shipmentTransitions: Record<ShipmentStatus, ShipmentStatus[]> = {
   draft: ['readyToShip'],
   readyToShip: ['receivedAtOffice'],
   receivedAtOffice: ['deliveredToDriver', 'returned'],
-  deliveredToDriver: ['inTransit', 'returned'],
-  inTransit: ['delivered', 'postponed', 'failedToDeliver', 'returned'],
+  deliveredToDriver: ['delivered', 'partiallyDelivered', 'postponed', 'failedToDeliver', 'returned'],
   delivered: [],
   partiallyDelivered: [],
-  postponed: ['inTransit', 'failedToDeliver', 'returned'],
-  failedToDeliver: ['inTransit', 'postponed', 'returned'],
+  postponed: ['deliveredToDriver', 'failedToDeliver', 'returned'],
+  failedToDeliver: ['deliveredToDriver', 'postponed', 'returned'],
   returned: [],
 };
 

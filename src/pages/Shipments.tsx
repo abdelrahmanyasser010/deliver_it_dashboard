@@ -40,7 +40,6 @@ const statusOptions: { value: FilterStatus; label: string }[] = [
   { value: 'readyToShip', label: 'بانتظار الاستلام' },
   { value: 'receivedAtOffice', label: 'وصلت المكتب' },
   { value: 'deliveredToDriver', label: 'مع المندوب' },
-  { value: 'inTransit', label: 'في الطريق' },
   { value: 'delivered', label: 'تم التسليم' },
   { value: 'postponed', label: 'مؤجلة' },
   { value: 'failedToDeliver', label: 'فشل التسليم' },

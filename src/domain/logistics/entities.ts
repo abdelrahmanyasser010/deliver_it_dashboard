@@ -3,7 +3,6 @@ export const shipmentStatuses = [
   'readyToShip',
   'receivedAtOffice',
   'deliveredToDriver',
-  'inTransit',
   'delivered',
   'partiallyDelivered',
   'postponed',

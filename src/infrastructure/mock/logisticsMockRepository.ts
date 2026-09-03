@@ -14,7 +14,6 @@ import type { LogisticsRepository, LogisticsSnapshot } from '../../domain/logist
 const statuses: ShipmentStatus[] = [
   'receivedAtOffice',
   'deliveredToDriver',
-  'inTransit',
   'delivered',
   'postponed',
   'failedToDeliver',
@@ -98,7 +97,7 @@ interface ShipmentSeed {
 
 const scenarioSeeds: ShipmentSeed[] = [
   { id: 'SHP-0001', status: 'receivedAtOffice', taskStatus: 'needsDriverAssignment', financialStatus: 'awaitingCollection', priority: 'urgent', createdAt: relativeIso({ hours: -7 }), lastUpdatedAt: relativeIso({ hours: -5 }), statusChangedAt: relativeIso({ hours: -5 }), expectedDeliveryAt: relativeIso({ hours: -1 }), total: 1850, exceptionReason: 'بلا مندوب وتجاوزت موعد التوزيع الداخلي' },
-  { id: 'SHP-0002', status: 'inTransit', taskStatus: 'needsStatusApproval', financialStatus: 'awaitingCollection', priority: 'high', createdAt: relativeIso({ days: -1, hours: -4 }), lastUpdatedAt: relativeIso({ minutes: -24 }), statusChangedAt: relativeIso({ hours: -4 }), expectedDeliveryAt: relativeIso({ hours: 2 }), driverIndex: 0, total: 920, exceptionReason: 'المندوب أرسل إثبات تسليم ويحتاج اعتمادًا' },
+  { id: 'SHP-0002', status: 'deliveredToDriver', taskStatus: 'needsStatusApproval', financialStatus: 'awaitingCollection', priority: 'high', createdAt: relativeIso({ days: -1, hours: -4 }), lastUpdatedAt: relativeIso({ minutes: -24 }), statusChangedAt: relativeIso({ hours: -4 }), expectedDeliveryAt: relativeIso({ hours: 2 }), driverIndex: 0, total: 920, exceptionReason: 'المندوب أرسل إثبات تسليم ويحتاج اعتمادًا' },
   { id: 'SHP-0003', status: 'failedToDeliver', taskStatus: 'needsCustomerService', financialStatus: 'awaitingCollection', priority: 'high', createdAt: relativeIso({ days: -2 }), lastUpdatedAt: relativeIso({ hours: -3 }), statusChangedAt: relativeIso({ hours: -3 }), expectedDeliveryAt: relativeIso({ hours: -12 }), driverIndex: 3, total: 1350, attemptCount: 2, exceptionReason: 'العميل لا يرد بعد محاولتين' },
   { id: 'SHP-0004', status: 'returned', taskStatus: 'needsReturnProcessing', financialStatus: 'notDue', priority: 'urgent', createdAt: relativeIso({ days: -4 }), lastUpdatedAt: relativeIso({ hours: -9 }), statusChangedAt: relativeIso({ hours: -9 }), driverIndex: 4, total: 760, attemptCount: 2, exceptionReason: 'مرتجع ينتظر التسليم للتاجر' },
   { id: 'SHP-0005', status: 'delivered', taskStatus: 'needsFinancialReview', financialStatus: 'discrepancy', priority: 'urgent', createdAt: relativeIso({ days: -1 }), lastUpdatedAt: relativeIso({ minutes: -42 }), statusChangedAt: relativeIso({ minutes: -42 }), driverIndex: 0, total: 2200, collectedCash: 2000, remittedCash: 0, attemptCount: 1, exceptionReason: 'فرق تحصيل ٢٠٠ ج.م عن المبلغ المتوقع' },

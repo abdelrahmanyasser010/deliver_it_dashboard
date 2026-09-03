@@ -17,7 +17,6 @@ export const statusConfig: Record<ShipmentStatus, StatusPresentation> = {
   readyToShip: { label: 'بانتظار الاستلام', color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
   receivedAtOffice: { label: 'وصلت المكتب', color: '#3B82F6', bg: 'rgba(59,130,246,0.15)' },
   deliveredToDriver: { label: 'مع المندوب', color: '#8B5CF6', bg: 'rgba(139,92,246,0.15)' },
-  inTransit: { label: 'في الطريق', color: '#0EA5E9', bg: 'rgba(14,165,233,0.15)' },
   delivered: { label: 'تم التسليم', color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
   partiallyDelivered: { label: 'تم التسليم جزئيًا', color: '#14B8A6', bg: 'rgba(20,184,166,0.15)' },
   postponed: { label: 'مؤجل', color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
@@ -62,12 +61,11 @@ export const nextShipmentStatuses: Record<ShipmentStatus, ShipmentStatus[]> = {
   draft: ['readyToShip'],
   readyToShip: ['receivedAtOffice', 'returned'],
   receivedAtOffice: ['deliveredToDriver', 'returned'],
-  deliveredToDriver: ['inTransit', 'receivedAtOffice'],
-  inTransit: ['delivered', 'postponed', 'failedToDeliver', 'returned'],
+  deliveredToDriver: ['delivered', 'partiallyDelivered', 'postponed', 'failedToDeliver', 'returned'],
   delivered: [],
   partiallyDelivered: [],
-  postponed: ['inTransit', 'failedToDeliver', 'returned'],
-  failedToDeliver: ['inTransit', 'postponed', 'returned'],
+  postponed: ['deliveredToDriver', 'failedToDeliver', 'returned'],
+  failedToDeliver: ['deliveredToDriver', 'postponed', 'returned'],
   returned: [],
 };
 
